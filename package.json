@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:prod": "NODE_ENV=production vite build",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build:prod": "NODE_ENV=production tauri build",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist/* build src-tauri/target",
     "test": "echo 'No tests yet'"

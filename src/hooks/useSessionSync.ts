@@ -8,9 +8,6 @@ export interface SessionInfo {
   session_id: string
   file_path: string
   file_name: string
-  session_start_time?: string
-  session_end_time?: string
-  duration_ms?: number
   file_size: number
 }
 

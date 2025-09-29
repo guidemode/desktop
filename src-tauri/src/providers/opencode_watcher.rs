@@ -272,9 +272,6 @@ impl OpenCodeWatcher {
                                 &parsed_session.project_name,
                                 &parsed_session.session_id,
                                 parsed_session.jsonl_content,
-                                parsed_session.session_start_time,
-                                parsed_session.session_end_time,
-                                parsed_session.duration_ms,
                             ) {
                                 if let Err(log_err) = log_error(
                                     PROVIDER_ID,

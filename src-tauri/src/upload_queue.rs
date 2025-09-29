@@ -28,9 +28,6 @@ pub struct UploadItem {
     pub file_size: u64,
     // Session timing information for historical uploads
     pub session_id: Option<String>,
-    pub session_start_time: Option<DateTime<Utc>>,
-    pub session_end_time: Option<DateTime<Utc>>,
-    pub duration_ms: Option<i64>,
     // In-memory content for parsed sessions (alternative to file_path)
     pub content: Option<String>,
 }
@@ -55,12 +52,6 @@ pub struct UploadRequest {
     #[serde(rename = "filePath")]
     pub file_path: String,
     pub content: String, // base64 encoded
-    #[serde(rename = "sessionStartTime", skip_serializing_if = "Option::is_none")]
-    pub session_start_time: Option<DateTime<Utc>>,
-    #[serde(rename = "sessionEndTime", skip_serializing_if = "Option::is_none")]
-    pub session_end_time: Option<DateTime<Utc>>,
-    #[serde(rename = "durationMs", skip_serializing_if = "Option::is_none")]
-    pub duration_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -121,9 +112,6 @@ impl UploadQueue {
             file_hash: Some(file_hash),
             file_size,
             session_id: None,
-            session_start_time: None,
-            session_end_time: None,
-            duration_ms: None,
             content: None,
         };
 
@@ -171,9 +159,6 @@ impl UploadQueue {
             file_hash: Some(file_hash),
             file_size,
             session_id: Some(session.session_id.clone()),
-            session_start_time: session.session_start_time,
-            session_end_time: session.session_end_time,
-            duration_ms: session.duration_ms,
             content,
         };
 
@@ -190,9 +175,6 @@ impl UploadQueue {
         project_name: &str,
         session_id: &str,
         content: String,
-        session_start_time: Option<DateTime<Utc>>,
-        session_end_time: Option<DateTime<Utc>>,
-        duration_ms: Option<i64>,
     ) -> Result<(), String> {
         // Calculate content hash for deduplication
         let content_hash = {
@@ -225,9 +207,6 @@ impl UploadQueue {
             file_hash: Some(content_hash),
             file_size: content_size,
             session_id: Some(session_id.to_string()),
-            session_start_time,
-            session_end_time,
-            duration_ms,
             content: Some(content),
         };
 
@@ -500,9 +479,6 @@ impl UploadQueue {
             file_name: item.file_name.clone(),
             file_path: item.file_path.to_string_lossy().to_string(),
             content: encoded_content,
-            session_start_time: item.session_start_time,
-            session_end_time: item.session_end_time,
-            duration_ms: item.duration_ms,
         };
 
         // Make HTTP request to server
@@ -546,6 +522,12 @@ impl UploadQueue {
             }
         }
     }
+
+    pub fn clear_uploaded_hashes(&self) {
+        if let Ok(mut uploaded_hashes) = self.uploaded_hashes.lock() {
+            uploaded_hashes.clear();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -585,9 +567,6 @@ mod tests {
             "test-project",
             "test-session",
             content.to_string(),
-            None,
-            None,
-            None,
         );
         assert!(result.is_ok());
 

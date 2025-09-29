@@ -634,13 +634,21 @@ pub async fn get_session_sync_progress(
 }
 
 #[tauri::command]
-pub async fn reset_session_sync_progress(provider_id: String) -> Result<(), String> {
+pub async fn reset_session_sync_progress(
+    state: State<'_, AppState>,
+    provider_id: String,
+) -> Result<(), String> {
+    // Clear the sync progress state
     if let Ok(mut progress_map) = get_sync_progress_map().lock() {
         progress_map.remove(&provider_id);
-        Ok(())
     } else {
-        Err("Failed to reset sync progress".to_string())
+        return Err("Failed to reset sync progress".to_string());
     }
+
+    // Clear uploaded hashes to allow re-syncing the same files
+    state.upload_queue.clear_uploaded_hashes();
+
+    Ok(())
 }
 
 // Autostart function for watchers

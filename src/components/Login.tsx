@@ -2,7 +2,9 @@ import React, { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
 export default function Login() {
-  const [serverUrl, setServerUrl] = useState('http://localhost:3000')
+  const [serverUrl, setServerUrl] = useState(
+    import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
+  )
   const { login, isLoggingIn } = useAuth()
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -13,7 +15,23 @@ export default function Login() {
   return (
     <div className="card bg-base-200 shadow-lg">
       <div className="card-body">
-        <h2 className="card-title justify-center mb-2 text-base">Sign In</h2>
+        {/* GuideAI Header */}
+        <div className="flex flex-col items-center mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="avatar">
+              <div className="w-8 rounded bg-gradient-to-br from-green-600 via-blue-600 to-purple-600 text-white">
+                <div className="flex items-center justify-center w-full h-full">
+                  <span className="text-lg font-bold">G</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-primary">GuideAI</h1>
+              <p className="text-sm text-base-content/70">Desktop Manager</p>
+            </div>
+          </div>
+          <h2 className="text-base font-medium text-base-content/80">Sign In to Continue</h2>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="form-control">
