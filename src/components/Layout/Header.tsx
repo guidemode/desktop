@@ -14,7 +14,7 @@ function Header() {
         <div className="flex items-center gap-2">
           <div className="avatar">
             <div className="w-6 rounded">
-              <img src="/logo-colored.png" alt="GuideAI" className="w-full h-full object-contain" />
+              <img src="/logo-32-optimized.png" alt="GuideAI" className="w-full h-full object-contain" />
             </div>
           </div>
           <div>

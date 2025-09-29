@@ -19,10 +19,8 @@ export default function Login() {
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="avatar">
-              <div className="w-8 rounded bg-gradient-to-br from-green-600 via-blue-600 to-purple-600 text-white">
-                <div className="flex items-center justify-center w-full h-full">
-                  <span className="text-lg font-bold">G</span>
-                </div>
+              <div className="w-8 rounded">
+                <img src="/logo-32-optimized.png" alt="GuideAI" className="w-full h-full object-contain" />
               </div>
             </div>
             <div>
