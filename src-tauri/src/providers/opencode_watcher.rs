@@ -27,8 +27,6 @@ pub struct SessionChangeEvent {
 
 #[derive(Debug, Clone)]
 pub struct SessionState {
-    pub session_id: String,
-    pub project_id: String,
     pub last_modified: Instant,
     pub is_active: bool,
     pub upload_pending: bool,
@@ -454,8 +452,6 @@ impl OpenCodeWatcher {
                 }
 
                 let session_state = SessionState {
-                    session_id: session_event.session_id.clone(),
-                    project_id: session_event.project_id.clone(),
                     last_modified: session_event.last_modified,
                     is_active: true,
                     upload_pending: false,

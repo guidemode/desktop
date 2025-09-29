@@ -113,7 +113,6 @@ pub fn start_config_file_watcher(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::tempdir;
 
     #[test]

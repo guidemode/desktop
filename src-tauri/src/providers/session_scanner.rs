@@ -19,51 +19,24 @@ pub struct SessionInfo {
     pub content: Option<String>, // For OpenCode sessions with in-memory content
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScanProgress {
-    pub total_sessions: usize,
-    pub scanned_sessions: usize,
-    pub current_provider: String,
-    pub current_project: String,
-    pub is_complete: bool,
-    pub errors: Vec<String>,
-}
 
 #[derive(Debug, Deserialize)]
 struct ClaudeLogEntry {
     #[serde(rename = "sessionId")]
     session_id: Option<String>,
     timestamp: Option<String>,
-    #[serde(rename = "type")]
-    message_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
-struct OpenCodeTime {
-    created: Option<i64>,
-    initialized: Option<i64>,
-    updated: Option<i64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OpenCodeProjectRecord {
-    worktree: Option<String>,
-    #[serde(default)]
-    time: OpenCodeTime,
-}
 
 #[derive(Debug, Deserialize)]
 struct CodexLogEntry {
     timestamp: Option<String>,
-    #[serde(rename = "type")]
-    entry_type: Option<String>,
     payload: Option<CodexPayload>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CodexPayload {
     id: Option<String>,
-    timestamp: Option<String>,
     cwd: Option<String>,
 }
 
@@ -398,110 +371,7 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
     })
 }
 
-fn parse_claude_style_jsonl(
-    lines: Vec<&str>,
-    file_path: &Path,
-    project_name: &str,
-    provider: &str,
-) -> Result<SessionInfo, String> {
-    // Parse first line for session start
-    let first_entry: ClaudeLogEntry = serde_json::from_str(lines[0])
-        .map_err(|e| format!("Failed to parse first line: {}", e))?;
 
-    // Parse last line for session end
-    let last_entry: ClaudeLogEntry = serde_json::from_str(lines[lines.len() - 1])
-        .map_err(|e| format!("Failed to parse last line: {}", e))?;
-
-    // Extract session ID
-    let session_id = first_entry.session_id
-        .or_else(|| last_entry.session_id)
-        .or_else(|| {
-            file_path.file_stem()
-                .and_then(|stem| stem.to_str())
-                .map(|s| s.to_string())
-        })
-        .ok_or("Cannot determine session ID")?;
-
-    // Parse timestamps
-    let session_start_time = first_entry.timestamp
-        .and_then(|ts| DateTime::parse_from_rfc3339(&ts).ok())
-        .map(|dt| dt.with_timezone(&Utc));
-
-    let session_end_time = last_entry.timestamp
-        .and_then(|ts| DateTime::parse_from_rfc3339(&ts).ok())
-        .map(|dt| dt.with_timezone(&Utc));
-
-    // Calculate duration
-    let duration_ms = match (session_start_time, session_end_time) {
-        (Some(start), Some(end)) => Some((end - start).num_milliseconds()),
-        _ => None,
-    };
-
-    // Get file size
-    let file_size = fs::metadata(file_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
-
-    let file_name = file_path.file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("unknown.jsonl")
-        .to_string();
-
-    Ok(SessionInfo {
-        provider: provider.to_string(),
-        project_name: project_name.to_string(),
-        session_id,
-        file_path: file_path.to_path_buf(),
-        file_name,
-        session_start_time,
-        session_end_time,
-        duration_ms,
-        file_size,
-        content: None, // Generic sessions use files directly
-    })
-}
-
-fn parse_file_metadata_session(
-    file_path: &Path,
-    project_name: &str,
-    provider: &str,
-) -> Result<SessionInfo, String> {
-    let metadata = fs::metadata(file_path)
-        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
-
-    // Use file modification time as session end, assume 1 hour duration
-    let session_end_time = metadata.modified()
-        .map(|time| DateTime::<Utc>::from(time))
-        .ok();
-
-    let session_start_time = session_end_time
-        .map(|end| end - chrono::Duration::hours(1));
-
-    let duration_ms = Some(3600000); // 1 hour in milliseconds
-
-    let session_id = file_path.file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    let file_name = file_path.file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    Ok(SessionInfo {
-        provider: provider.to_string(),
-        project_name: project_name.to_string(),
-        session_id,
-        file_path: file_path.to_path_buf(),
-        file_name,
-        session_start_time,
-        session_end_time,
-        duration_ms,
-        file_size: metadata.len(),
-        content: None, // File metadata sessions use files directly
-    })
-}
 
 #[cfg(test)]
 mod tests {

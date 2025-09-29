@@ -1271,6 +1271,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-positioner",
+ "tempfile",
  "tokio",
  "tokio-util",
  "toml 0.8.23",

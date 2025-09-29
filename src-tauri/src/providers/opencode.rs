@@ -2,26 +2,12 @@ use super::opencode_parser::OpenCodeParser;
 use super::sort_projects_by_modified;
 use crate::config::ProjectInfo;
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 use shellexpand::tilde;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-#[derive(Debug, Deserialize, Default)]
-struct OpenCodeTime {
-    created: Option<i64>,
-    initialized: Option<i64>,
-    updated: Option<i64>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct OpenCodeProjectRecord {
-    worktree: Option<String>,
-    #[serde(default)]
-    time: OpenCodeTime,
-}
 
 pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     let expanded = tilde(home_directory);
@@ -135,29 +121,3 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     Ok(sort_projects_by_modified(projects))
 }
 
-pub fn get_sessions_for_project(home_directory: &str, project_name: &str) -> Result<Vec<String>, String> {
-    let expanded = tilde(home_directory);
-    let storage_path = PathBuf::from(expanded.into_owned()).join("storage");
-
-    if !storage_path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let parser = OpenCodeParser::new(storage_path);
-
-    // Find the project by name
-    let projects = parser.get_all_projects()
-        .map_err(|e| format!("Failed to get OpenCode projects: {}", e))?;
-
-    for project in projects {
-        let project_path = Path::new(&project.worktree);
-        if let Some(name) = project_path.file_name().and_then(|n| n.to_str()) {
-            if name == project_name {
-                return parser.get_sessions_for_project(&project.id)
-                    .map_err(|e| format!("Failed to get sessions for project {}: {}", project_name, e));
-            }
-        }
-    }
-
-    Ok(Vec::new())
-}

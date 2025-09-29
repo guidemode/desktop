@@ -28,11 +28,8 @@ pub struct FileChangeEvent {
 
 #[derive(Debug, Clone)]
 pub struct SessionState {
-    pub session_id: String,
     pub last_modified: Instant,
     pub last_size: u64,
-    pub file_path: PathBuf,
-    pub project_name: String,
     pub is_active: bool,
     pub upload_pending: bool,
 }
@@ -400,11 +397,8 @@ impl ClaudeWatcher {
             None => {
                 // Create new session state
                 let session_state = SessionState {
-                    session_id: file_event.session_id.clone(),
                     last_modified: file_event.last_modified,
                     last_size: file_event.file_size,
-                    file_path: file_event.path.clone(),
-                    project_name: file_event.project_name.clone(),
                     is_active: true,
                     upload_pending: false,
                 };

@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -85,7 +84,6 @@ pub struct OpenCodeJsonLContent {
 #[derive(Debug, Clone)]
 pub struct ParsedSession {
     pub session_id: String,
-    pub project_id: String,
     pub project_name: String,
     pub session_start_time: Option<DateTime<Utc>>,
     pub session_end_time: Option<DateTime<Utc>>,
@@ -176,7 +174,6 @@ impl OpenCodeParser {
 
         Ok(ParsedSession {
             session_id: session_id.to_string(),
-            project_id: session.project_id,
             project_name,
             session_start_time,
             session_end_time,
@@ -404,7 +401,6 @@ mod tests {
         let result = parser.parse_session("test_session").unwrap();
 
         assert_eq!(result.session_id, "test_session");
-        assert_eq!(result.project_id, "test_project");
         assert_eq!(result.project_name, "project");
         assert!(!result.jsonl_content.is_empty());
     }
