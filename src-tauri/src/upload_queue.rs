@@ -10,6 +10,8 @@ use std::thread;
 use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadItem {
@@ -22,11 +24,15 @@ pub struct UploadItem {
     pub retry_count: u32,
     pub next_retry_at: Option<DateTime<Utc>>,
     pub last_error: Option<String>,
+    pub file_hash: Option<u64>, // Hash of file content for deduplication
+    pub file_size: u64,
     // Session timing information for historical uploads
     pub session_id: Option<String>,
     pub session_start_time: Option<DateTime<Utc>>,
     pub session_end_time: Option<DateTime<Utc>>,
     pub duration_ms: Option<i64>,
+    // In-memory content for parsed sessions (alternative to file_path)
+    pub content: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +68,7 @@ pub struct UploadQueue {
     queue: Arc<Mutex<VecDeque<UploadItem>>>,
     processing: Arc<Mutex<usize>>,
     failed_items: Arc<Mutex<Vec<UploadItem>>>,
+    uploaded_hashes: Arc<Mutex<std::collections::HashSet<u64>>>, // Track uploaded file hashes
     is_running: Arc<Mutex<bool>>,
     config: Arc<Mutex<Option<GuideAIConfig>>>,
 }
@@ -72,6 +79,7 @@ impl UploadQueue {
             queue: Arc::new(Mutex::new(VecDeque::new())),
             processing: Arc::new(Mutex::new(0)),
             failed_items: Arc::new(Mutex::new(Vec::new())),
+            uploaded_hashes: Arc::new(Mutex::new(std::collections::HashSet::new())),
             is_running: Arc::new(Mutex::new(false)),
             config: Arc::new(Mutex::new(None)),
         }
@@ -90,6 +98,16 @@ impl UploadQueue {
             .ok_or("Invalid file name")?
             .to_string();
 
+        // Calculate file hash and size for deduplication
+        let (file_hash, file_size) = Self::calculate_file_hash(&file_path)?;
+
+        // Check if this file has already been uploaded
+        if self.is_file_already_uploaded(file_hash) {
+            log_info(provider, &format!("⚡ Skipping duplicate upload: {} (already uploaded)", file_name))
+                .unwrap_or_default();
+            return Ok(());
+        }
+
         let item = UploadItem {
             id: Uuid::new_v4().to_string(),
             provider: provider.to_string(),
@@ -100,10 +118,13 @@ impl UploadQueue {
             retry_count: 0,
             next_retry_at: None,
             last_error: None,
+            file_hash: Some(file_hash),
+            file_size,
             session_id: None,
             session_start_time: None,
             session_end_time: None,
             duration_ms: None,
+            content: None,
         };
 
         if let Ok(mut queue) = self.queue.lock() {
@@ -114,6 +135,29 @@ impl UploadQueue {
     }
 
     pub fn add_historical_session(&self, session: &SessionInfo) -> Result<(), String> {
+        // Handle sessions with in-memory content vs file-based sessions differently
+        let (file_hash, file_size, content) = if let Some(ref content) = session.content {
+            // For sessions with in-memory content (like OpenCode), hash the content directly
+            let content_hash = {
+                let mut hasher = DefaultHasher::new();
+                content.hash(&mut hasher);
+                hasher.finish()
+            };
+            let content_size = content.len() as u64;
+            (content_hash, content_size, Some(content.clone()))
+        } else {
+            // For file-based sessions, calculate file hash
+            let (file_hash, file_size) = Self::calculate_file_hash(&session.file_path)?;
+            (file_hash, file_size, None)
+        };
+
+        // Check if this file has already been uploaded
+        if self.is_file_already_uploaded(file_hash) {
+            log_info(&session.provider, &format!("⚡ Skipping duplicate historical upload: {} (already uploaded)", session.file_name))
+                .unwrap_or_default();
+            return Ok(());
+        }
+
         let item = UploadItem {
             id: Uuid::new_v4().to_string(),
             provider: session.provider.clone(),
@@ -124,10 +168,67 @@ impl UploadQueue {
             retry_count: 0,
             next_retry_at: None,
             last_error: None,
+            file_hash: Some(file_hash),
+            file_size,
             session_id: Some(session.session_id.clone()),
             session_start_time: session.session_start_time,
             session_end_time: session.session_end_time,
             duration_ms: session.duration_ms,
+            content,
+        };
+
+        if let Ok(mut queue) = self.queue.lock() {
+            queue.push_back(item.clone());
+        }
+
+        Ok(())
+    }
+
+    pub fn add_session_content(
+        &self,
+        provider: &str,
+        project_name: &str,
+        session_id: &str,
+        content: String,
+        session_start_time: Option<DateTime<Utc>>,
+        session_end_time: Option<DateTime<Utc>>,
+        duration_ms: Option<i64>,
+    ) -> Result<(), String> {
+        // Calculate content hash for deduplication
+        let content_hash = {
+            let mut hasher = DefaultHasher::new();
+            content.hash(&mut hasher);
+            hasher.finish()
+        };
+
+        let content_size = content.len() as u64;
+
+        // Check if this content has already been uploaded
+        if self.is_file_already_uploaded(content_hash) {
+            log_info(provider, &format!("⚡ Skipping duplicate session upload: {} (already uploaded)", session_id))
+                .unwrap_or_default();
+            return Ok(());
+        }
+
+        let file_name = format!("{}.jsonl", session_id);
+
+        let item = UploadItem {
+            id: Uuid::new_v4().to_string(),
+            provider: provider.to_string(),
+            project_name: project_name.to_string(),
+            file_path: PathBuf::from(&file_name), // Dummy path for in-memory content
+            file_name,
+            queued_at: Utc::now(),
+            retry_count: 0,
+            next_retry_at: None,
+            last_error: None,
+            file_hash: Some(content_hash),
+            file_size: content_size,
+            session_id: Some(session_id.to_string()),
+            session_start_time,
+            session_end_time,
+            duration_ms,
+            content: Some(content),
         };
 
         if let Ok(mut queue) = self.queue.lock() {
@@ -148,6 +249,7 @@ impl UploadQueue {
         let queue_clone = Arc::clone(&self.queue);
         let processing_clone = Arc::clone(&self.processing);
         let failed_items_clone = Arc::clone(&self.failed_items);
+        let uploaded_hashes_clone = Arc::clone(&self.uploaded_hashes);
         let is_running_clone = Arc::clone(&self.is_running);
         let config_clone = Arc::clone(&self.config);
 
@@ -207,9 +309,16 @@ impl UploadQueue {
                         // Process the upload
                         match Self::process_upload_item(&item, config).await {
                             Ok(_) => {
+                                // Mark file hash as uploaded to prevent future duplicates
+                                if let Some(file_hash) = item.file_hash {
+                                    if let Ok(mut uploaded_hashes) = uploaded_hashes_clone.lock() {
+                                        uploaded_hashes.insert(file_hash);
+                                    }
+                                }
+
                                 log_info(
                                     &item.provider,
-                                    &format!("✓ Upload successful: {}", item.file_name),
+                                    &format!("✓ Upload successful: {} (size: {} bytes)", item.file_name, item.file_size),
                                 ).unwrap_or_default();
                             }
                             Err(e) => {
@@ -306,6 +415,36 @@ impl UploadQueue {
         }
     }
 
+    fn calculate_file_hash(file_path: &PathBuf) -> Result<(u64, u64), String> {
+        use std::fs::File;
+        use std::io::Read;
+
+        let mut file = File::open(file_path)
+            .map_err(|e| format!("Failed to open file for hashing: {}", e))?;
+
+        let mut hasher = DefaultHasher::new();
+        let mut buffer = Vec::new();
+
+        file.read_to_end(&mut buffer)
+            .map_err(|e| format!("Failed to read file for hashing: {}", e))?;
+
+        let file_size = buffer.len() as u64;
+
+        // Hash the file content
+        buffer.hash(&mut hasher);
+        let file_hash = hasher.finish();
+
+        Ok((file_hash, file_size))
+    }
+
+    fn is_file_already_uploaded(&self, file_hash: u64) -> bool {
+        if let Ok(uploaded_hashes) = self.uploaded_hashes.lock() {
+            uploaded_hashes.contains(&file_hash)
+        } else {
+            false
+        }
+    }
+
     fn find_ready_item(queue: &mut VecDeque<UploadItem>) -> Option<UploadItem> {
         let now = Utc::now();
 
@@ -329,13 +468,20 @@ impl UploadQueue {
         let server_url = config.server_url.ok_or("No server URL configured")?;
         let _tenant_id = config.tenant_id.ok_or("No tenant ID configured")?;
 
-        // Read file content
-        let file_content = std::fs::read(&item.file_path)
-            .map_err(|e| format!("Failed to read file: {}", e))?;
+        // Get content - either from memory or from file
+        let encoded_content = if let Some(ref content) = item.content {
+            // Use in-memory content (already text, encode as base64)
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD.encode(content.as_bytes())
+        } else {
+            // Read file content
+            let file_content = std::fs::read(&item.file_path)
+                .map_err(|e| format!("Failed to read file: {}", e))?;
 
-        // Encode to base64
-        use base64::Engine;
-        let encoded_content = base64::engine::general_purpose::STANDARD.encode(&file_content);
+            // Encode to base64
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD.encode(&file_content)
+        };
 
         // Extract session ID - prefer from item metadata, fallback to filename
         let session_id = item.session_id.clone().unwrap_or_else(|| {
@@ -423,6 +569,26 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
 
         let result = queue.add_item("claude-code", "test-project", temp_file.path().to_path_buf());
+        assert!(result.is_ok());
+
+        let status = queue.get_status();
+        assert_eq!(status.pending, 1);
+    }
+
+    #[test]
+    fn test_add_session_content() {
+        let queue = UploadQueue::new();
+        let content = r#"{"sessionId":"test-session","timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":{"role":"user","content":[{"type":"text","text":"Hello"}]}}"#;
+
+        let result = queue.add_session_content(
+            "opencode",
+            "test-project",
+            "test-session",
+            content.to_string(),
+            None,
+            None,
+            None,
+        );
         assert!(result.is_ok());
 
         let status = queue.get_status();

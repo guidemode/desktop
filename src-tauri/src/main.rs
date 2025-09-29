@@ -9,7 +9,7 @@ mod logging;
 mod providers;
 mod upload_queue;
 
-use commands::AppState;
+use commands::{AppState, start_enabled_watchers};
 use file_watcher::start_config_file_watcher;
 use tauri::{
     CustomMenuItem, LogicalPosition, LogicalSize, Manager, Size, SystemTray, SystemTrayEvent,
@@ -31,6 +31,10 @@ fn main() {
 
             // Initialize application state
             let app_state = AppState::new();
+
+            // Start enabled file watchers
+            start_enabled_watchers(&app_state);
+
             app.manage(app_state);
 
             // Initialize file watcher for config changes
@@ -69,6 +73,7 @@ fn main() {
                     // Continue without file watcher - not critical for app functionality
                 }
             }
+
             Ok(())
         })
         .system_tray(SystemTray::new().with_menu(system_tray_menu))
@@ -128,6 +133,9 @@ fn main() {
             commands::start_claude_watcher,
             commands::stop_claude_watcher,
             commands::get_claude_watcher_status,
+            commands::start_opencode_watcher,
+            commands::stop_opencode_watcher,
+            commands::get_opencode_watcher_status,
             commands::get_upload_queue_status,
             commands::retry_failed_uploads,
             commands::clear_failed_uploads,

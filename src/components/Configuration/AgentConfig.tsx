@@ -130,21 +130,9 @@ function AgentConfig({ agent }: AgentConfigProps) {
   const canStartWatcher = localConfig.enabled && agent.id === 'claude-code' &&
     (localConfig.projectSelection === 'ALL' || localConfig.selectedProjects.length > 0)
 
-  // Auto-start watching when component loads if enabled and not already watching
-  useEffect(() => {
-    if (localConfig.enabled &&
-        agent.id === 'claude-code' &&
-        !watcherStatus?.is_running &&
-        !startingWatcher &&
-        canStartWatcher) {
-      const projectsToWatch = localConfig.projectSelection === 'ALL'
-        ? projects.map(p => p.name)
-        : localConfig.selectedProjects
-      if (projectsToWatch.length > 0) {
-        startWatcher(projectsToWatch)
-      }
-    }
-  }, [localConfig.enabled, watcherStatus?.is_running, canStartWatcher, projects, localConfig.projectSelection, localConfig.selectedProjects, agent.id, startingWatcher, startWatcher])
+  // Note: Autostart has been moved to Rust code at application startup
+  // This prevents the restart loop issue and is more reliable
+  // The watcher will start automatically when the app starts if the provider is enabled
 
   return (
     <div className="card bg-base-100 shadow-sm border border-base-300">

@@ -40,6 +40,7 @@ function SessionSync({ agent }: SessionSyncProps) {
   const hasScannedSessions = progress && progress.sessions_found.length > 0
   const isComplete = progress?.is_complete || false
   const hasErrors = progress?.errors && progress.errors.length > 0
+  const isUploading = progress?.is_uploading || false
 
   return (
     <div className="card bg-base-100 shadow-sm border border-base-300">
@@ -56,7 +57,8 @@ function SessionSync({ agent }: SessionSyncProps) {
         </div>
 
         <p className="text-sm text-base-content/70 mb-4">
-          Upload all your historical {agent.name} sessions to GuideAI for analytics and insights.
+          Upload your historical {agent.name} sessions to GuideAI for analytics and insights.
+          Only sessions from selected projects will be included.
         </p>
 
         {/* Progress Section */}
@@ -65,7 +67,7 @@ function SessionSync({ agent }: SessionSyncProps) {
             {/* Progress Stats */}
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
-                <div className="text-sm font-medium">Sessions Found</div>
+                <div className="text-sm font-medium">Sessions To Sync</div>
                 <div className="text-lg font-bold text-primary">
                   {progress.total_sessions}
                 </div>
@@ -94,13 +96,14 @@ function SessionSync({ agent }: SessionSyncProps) {
             )}
 
             {/* Current Status */}
-            {(isScanning || isSyncing) && (
+            {(isScanning || isSyncing || isUploading) && (
               <div className="flex items-center gap-2 mt-2">
                 <span className="loading loading-spinner loading-xs"></span>
                 <span className="text-sm">
                   {isScanning && `Scanning ${progress.current_provider}...`}
-                  {isSyncing && progress.current_project && `Syncing ${progress.current_project}...`}
-                  {isSyncing && !progress.current_project && 'Uploading sessions...'}
+                  {isSyncing && progress.current_project && `Queueing ${progress.current_project}...`}
+                  {isSyncing && !progress.current_project && 'Queueing sessions...'}
+                  {isUploading && 'Uploading sessions...'}
                 </span>
               </div>
             )}
@@ -192,12 +195,12 @@ function SessionSync({ agent }: SessionSyncProps) {
               <button
                 className="btn btn-success"
                 onClick={handleSync}
-                disabled={isScanning || isSyncing}
+                disabled={isScanning || isSyncing || isUploading}
               >
-                {isSyncing ? (
+                {(isSyncing || isUploading) ? (
                   <>
                     <span className="loading loading-spinner loading-sm"></span>
-                    Syncing...
+                    {isSyncing ? 'Queueing...' : 'Uploading...'}
                   </>
                 ) : (
                   <>
@@ -209,7 +212,7 @@ function SessionSync({ agent }: SessionSyncProps) {
               <button
                 className="btn btn-ghost"
                 onClick={handleReset}
-                disabled={isScanning || isSyncing}
+                disabled={isScanning || isSyncing || isUploading}
               >
                 Cancel
               </button>

@@ -24,6 +24,8 @@ export interface SessionSyncProgress {
   sessions_found: SessionInfo[]
   errors: string[]
   is_complete: boolean
+  initial_queue_size?: number
+  is_uploading: boolean
 }
 
 export function useSessionSync(providerId: string) {

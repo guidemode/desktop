@@ -5,7 +5,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::{
     fmt::{self},
     layer::SubscriberExt,
@@ -70,6 +70,7 @@ pub fn log_provider_event(
     match level {
         "ERROR" => error!(provider = provider, "{}", message),
         "WARN" => warn!(provider = provider, "{}", message),
+        "DEBUG" => debug!(provider = provider, "{}", message),
         _ => info!(provider = provider, "{}", message),
     }
 
@@ -135,6 +136,91 @@ fn rotate_log_file(log_file_path: &PathBuf) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
+fn transform_provider_log_to_claude_format(provider: &str, log_content: &str) -> Option<LogEntry> {
+    match provider {
+        "opencode" => transform_opencode_log(log_content),
+        "codex" => transform_codex_log(log_content),
+        _ => None,
+    }
+}
+
+fn transform_opencode_log(log_content: &str) -> Option<LogEntry> {
+    use serde_json::Value;
+
+    // Try to parse as OpenCode project record
+    if let Ok(value) = serde_json::from_str::<Value>(log_content) {
+        if let Some(worktree) = value.get("worktree").and_then(|w| w.as_str()) {
+            // This is an OpenCode project record
+            let project_name = std::path::Path::new(worktree)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+
+            let timestamp = value.get("time")
+                .and_then(|t| t.get("updated").or_else(|| t.get("created")))
+                .and_then(|ts| ts.as_i64())
+                .and_then(|ts| chrono::DateTime::from_timestamp_millis(ts))
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| Utc::now().to_rfc3339());
+
+            return Some(LogEntry {
+                timestamp,
+                level: "INFO".to_string(),
+                provider: "opencode".to_string(),
+                message: format!("Project: {} at {}", project_name, worktree),
+                details: Some(value),
+            });
+        }
+    }
+    None
+}
+
+fn transform_codex_log(log_content: &str) -> Option<LogEntry> {
+    use serde_json::Value;
+
+    // Try to parse as Codex log entry
+    if let Ok(value) = serde_json::from_str::<Value>(log_content) {
+        let timestamp = value.get("timestamp")
+            .and_then(|t| t.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| Utc::now().to_rfc3339());
+
+        let entry_type = value.get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("unknown");
+
+        let message = match entry_type {
+            "session_meta" => {
+                if let Some(payload) = value.get("payload") {
+                    let session_id = payload.get("id").and_then(|id| id.as_str()).unwrap_or("unknown");
+                    let cwd = payload.get("cwd").and_then(|c| c.as_str()).unwrap_or("unknown");
+                    format!("Session started: {} in {}", session_id, cwd)
+                } else {
+                    "Session metadata".to_string()
+                }
+            },
+            "response_item" => {
+                if let Some(payload) = value.get("payload") {
+                    let role = payload.get("role").and_then(|r| r.as_str()).unwrap_or("unknown");
+                    format!("Message from {}", role)
+                } else {
+                    "Response item".to_string()
+                }
+            },
+            _ => format!("Codex event: {}", entry_type),
+        };
+
+        return Some(LogEntry {
+            timestamp,
+            level: "INFO".to_string(),
+            provider: "codex".to_string(),
+            message,
+            details: Some(value),
+        });
+    }
+    None
+}
+
 pub fn read_provider_logs(
     provider: &str,
     max_lines: Option<usize>,
@@ -153,8 +239,14 @@ pub fn read_provider_logs(
     for line in reader.lines() {
         match line {
             Ok(line_content) => {
+                // Try to parse as Claude format first
                 if let Ok(entry) = serde_json::from_str::<LogEntry>(&line_content) {
                     entries.push(entry);
+                } else {
+                    // If it fails, try to transform from provider-specific format
+                    if let Some(transformed_entry) = transform_provider_log_to_claude_format(provider, &line_content) {
+                        entries.push(transformed_entry);
+                    }
                 }
             }
             Err(e) => {
@@ -177,6 +269,10 @@ pub fn read_provider_logs(
 }
 
 // Convenience functions for different log levels
+pub fn log_debug(provider: &str, message: &str) -> Result<(), Box<dyn std::error::Error>> {
+    log_provider_event(provider, "DEBUG", message, None)
+}
+
 pub fn log_info(provider: &str, message: &str) -> Result<(), Box<dyn std::error::Error>> {
     log_provider_event(provider, "INFO", message, None)
 }

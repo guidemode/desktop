@@ -1,3 +1,4 @@
+use super::opencode_parser::OpenCodeParser;
 use super::sort_projects_by_modified;
 use crate::config::ProjectInfo;
 use chrono::{DateTime, Utc};
@@ -58,38 +59,24 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     }
 
     let storage_dir = base_candidates.into_iter().find_map(|base| {
-        let storage = base.join("storage").join("project");
+        let storage = base.join("storage");
         storage.is_dir().then_some(storage)
     });
 
-    let Some(project_storage_dir) = storage_dir else {
+    let Some(storage_path) = storage_dir else {
         return Ok(Vec::new());
     };
 
-    let entries = fs::read_dir(&project_storage_dir)
-        .map_err(|e| format!("Failed to read OpenCode project storage: {}", e))?;
+    // Use the new OpenCode parser for better project discovery
+    let parser = OpenCodeParser::new(storage_path);
+
+    let opencode_projects = parser.get_all_projects()
+        .map_err(|e| format!("Failed to get OpenCode projects: {}", e))?;
 
     let mut projects = Vec::new();
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
-            continue;
-        }
-
-        let Ok(contents) = fs::read_to_string(&path) else {
-            continue;
-        };
-
-        let Ok(record) = serde_json::from_str::<OpenCodeProjectRecord>(&contents) else {
-            continue;
-        };
-
-        let Some(worktree) = record.worktree else {
-            continue;
-        };
-
-        let worktree_path = Path::new(&worktree);
+    for project in opencode_projects {
+        let worktree_path = Path::new(&project.worktree);
         if !worktree_path.exists() {
             continue;
         }
@@ -98,20 +85,41 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
             continue;
         };
 
+        // Get the most recent session activity for this project
+        let session_ids = parser.get_sessions_for_project(&project.id)
+            .unwrap_or_default();
+
+        let mut most_recent_activity = project.time.updated
+            .or(project.time.initialized)
+            .or(project.time.created)
+            .and_then(DateTime::<Utc>::from_timestamp_millis);
+
+        // Find the most recent session activity
+        for session_id in session_ids {
+            if let Ok(parsed_session) = parser.parse_session(&session_id) {
+                if let Some(session_end) = parsed_session.session_end_time {
+                    match most_recent_activity {
+                        Some(current_latest) => {
+                            if session_end > current_latest {
+                                most_recent_activity = Some(session_end);
+                            }
+                        }
+                        None => {
+                            most_recent_activity = Some(session_end);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback to file system metadata
         let metadata_time = fs::metadata(worktree_path)
             .and_then(|metadata| metadata.modified())
             .map(|time| DateTime::<Utc>::from(time))
             .ok();
 
-        let fallback_time = record
-            .time
-            .updated
-            .or(record.time.initialized)
-            .or(record.time.created)
-            .and_then(DateTime::<Utc>::from_timestamp_millis);
-
-        let modified = metadata_time
-            .or(fallback_time)
+        let modified = most_recent_activity
+            .or(metadata_time)
             .unwrap_or_else(|| DateTime::<Utc>::from(SystemTime::UNIX_EPOCH));
 
         projects.push((
@@ -125,4 +133,31 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     }
 
     Ok(sort_projects_by_modified(projects))
+}
+
+pub fn get_sessions_for_project(home_directory: &str, project_name: &str) -> Result<Vec<String>, String> {
+    let expanded = tilde(home_directory);
+    let storage_path = PathBuf::from(expanded.into_owned()).join("storage");
+
+    if !storage_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let parser = OpenCodeParser::new(storage_path);
+
+    // Find the project by name
+    let projects = parser.get_all_projects()
+        .map_err(|e| format!("Failed to get OpenCode projects: {}", e))?;
+
+    for project in projects {
+        let project_path = Path::new(&project.worktree);
+        if let Some(name) = project_path.file_name().and_then(|n| n.to_str()) {
+            if name == project_name {
+                return parser.get_sessions_for_project(&project.id)
+                    .map_err(|e| format!("Failed to get sessions for project {}: {}", project_name, e));
+            }
+        }
+    }
+
+    Ok(Vec::new())
 }

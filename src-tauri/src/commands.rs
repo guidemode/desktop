@@ -5,7 +5,7 @@ use crate::config::{
     ProviderConfig,
 };
 use crate::logging::{read_provider_logs, LogEntry};
-use crate::providers::{ClaudeWatcher, ClaudeWatcherStatus, SessionInfo, scan_all_sessions};
+use crate::providers::{ClaudeWatcher, ClaudeWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo, scan_all_sessions};
 use crate::upload_queue::{UploadQueue, UploadStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -267,8 +267,23 @@ pub async fn get_activity_logs_command(
 }
 
 // Application state for managing watchers and upload queue
+#[derive(Debug)]
+pub enum Watcher {
+    Claude(ClaudeWatcher),
+    OpenCode(OpenCodeWatcher),
+}
+
+impl Watcher {
+    pub fn stop(&self) {
+        match self {
+            Watcher::Claude(watcher) => watcher.stop(),
+            Watcher::OpenCode(watcher) => watcher.stop(),
+        }
+    }
+}
+
 pub struct AppState {
-    pub watchers: Arc<Mutex<HashMap<String, ClaudeWatcher>>>,
+    pub watchers: Arc<Mutex<HashMap<String, Watcher>>>,
     pub upload_queue: Arc<UploadQueue>,
 }
 
@@ -305,7 +320,7 @@ pub async fn start_claude_watcher(
 
     // Store watcher in state
     if let Ok(mut watchers) = state.watchers.lock() {
-        watchers.insert("claude-code".to_string(), watcher);
+        watchers.insert("claude-code".to_string(), Watcher::Claude(watcher));
     }
 
     Ok(())
@@ -324,10 +339,61 @@ pub async fn stop_claude_watcher(state: State<'_, AppState>) -> Result<(), Strin
 #[tauri::command]
 pub async fn get_claude_watcher_status(state: State<'_, AppState>) -> Result<ClaudeWatcherStatus, String> {
     if let Ok(watchers) = state.watchers.lock() {
-        if let Some(watcher) = watchers.get("claude-code") {
+        if let Some(Watcher::Claude(watcher)) = watchers.get("claude-code") {
             Ok(watcher.get_status())
         } else {
             Ok(ClaudeWatcherStatus {
+                is_running: false,
+                pending_uploads: 0,
+                processing_uploads: 0,
+                failed_uploads: 0,
+            })
+        }
+    } else {
+        Err("Failed to access watcher state".to_string())
+    }
+}
+
+// OpenCode watcher commands
+#[tauri::command]
+pub async fn start_opencode_watcher(
+    state: State<'_, AppState>,
+    projects: Vec<String>,
+) -> Result<(), String> {
+    // Update upload queue with current config
+    if let Ok(config) = load_config() {
+        state.upload_queue.set_config(config);
+    }
+
+    // Create new watcher
+    let watcher = OpenCodeWatcher::new(projects, Arc::clone(&state.upload_queue))
+        .map_err(|e| format!("Failed to create OpenCode watcher: {}", e))?;
+
+    // Store watcher in state
+    if let Ok(mut watchers) = state.watchers.lock() {
+        watchers.insert("opencode".to_string(), Watcher::OpenCode(watcher));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_opencode_watcher(state: State<'_, AppState>) -> Result<(), String> {
+    if let Ok(mut watchers) = state.watchers.lock() {
+        if let Some(watcher) = watchers.remove("opencode") {
+            watcher.stop();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_opencode_watcher_status(state: State<'_, AppState>) -> Result<OpenCodeWatcherStatus, String> {
+    if let Ok(watchers) = state.watchers.lock() {
+        if let Some(Watcher::OpenCode(watcher)) = watchers.get("opencode") {
+            Ok(watcher.get_status())
+        } else {
+            Ok(OpenCodeWatcherStatus {
                 is_running: false,
                 pending_uploads: 0,
                 processing_uploads: 0,
@@ -376,6 +442,9 @@ pub struct SessionSyncProgress {
     pub sessions_found: Vec<SessionInfo>,
     pub errors: Vec<String>,
     pub is_complete: bool,
+    // Track upload queue state for real progress
+    pub initial_queue_size: Option<usize>,
+    pub is_uploading: bool,
 }
 
 impl Default for SessionSyncProgress {
@@ -390,6 +459,8 @@ impl Default for SessionSyncProgress {
             sessions_found: Vec::new(),
             errors: Vec::new(),
             is_complete: false,
+            initial_queue_size: None,
+            is_uploading: false,
         }
     }
 }
@@ -444,7 +515,7 @@ pub async fn scan_historical_sessions(
     }
 
     // Scan for sessions
-    let sessions = scan_all_sessions(&provider_id, &config.home_directory)
+    let all_sessions = scan_all_sessions(&provider_id, &config.home_directory)
         .map_err(|e| {
             // Update progress with error
             update_sync_progress_for_provider(&provider_id, |progress| {
@@ -453,6 +524,16 @@ pub async fn scan_historical_sessions(
             }).ok();
             e
         })?;
+
+    // Filter sessions based on project selection
+    let sessions: Vec<SessionInfo> = if config.project_selection == "ALL" {
+        all_sessions
+    } else {
+        // Filter sessions to only include selected projects
+        all_sessions.into_iter()
+            .filter(|session| config.selected_projects.contains(&session.project_name))
+            .collect()
+    };
 
     // Update progress
     update_sync_progress_for_provider(&provider_id, |progress| {
@@ -482,13 +563,16 @@ pub async fn sync_historical_sessions(
         progress.errors.clear();
     }).ok();
 
-    // Get sessions from progress state (they should have been scanned first)
+    // Get sessions from progress state (they should have been scanned and filtered first)
     let sessions = get_sync_progress_for_provider(&provider_id)?
         .sessions_found;
 
     if sessions.is_empty() {
         return Err("No sessions found to sync. Run scan first.".to_string());
     }
+
+    // Track initial upload queue status to calculate completion
+    let _initial_status = state.upload_queue.get_status();
 
     // Add all sessions to upload queue
     for session in &sessions {
@@ -502,26 +586,51 @@ pub async fn sync_historical_sessions(
             update_sync_progress_for_provider(&provider_id, |progress| {
                 progress.errors.push(format!("Failed to queue {}: {}", session.file_name, e));
             }).ok();
-        } else {
-            // Increment synced count
-            update_sync_progress_for_provider(&provider_id, |progress| {
-                progress.synced_sessions += 1;
-            }).ok();
         }
     }
 
-    // Mark sync as complete
+    // Store initial queue size for progress calculation
+    let final_status = state.upload_queue.get_status();
     update_sync_progress_for_provider(&provider_id, |progress| {
-        progress.is_syncing = false;
-        progress.is_complete = true;
+        progress.is_syncing = false; // Sessions are queued, now uploads happen in background
+        progress.is_uploading = true; // Mark as uploading
+        progress.is_complete = false; // Will be determined by polling
+        progress.initial_queue_size = Some(final_status.pending);
     }).ok();
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_session_sync_progress(provider_id: String) -> Result<SessionSyncProgress, String> {
-    get_sync_progress_for_provider(&provider_id)
+pub async fn get_session_sync_progress(
+    state: State<'_, AppState>,
+    provider_id: String,
+) -> Result<SessionSyncProgress, String> {
+    let mut progress = get_sync_progress_for_provider(&provider_id)?;
+
+    // If we're tracking upload progress, calculate real progress from upload queue
+    if progress.is_uploading && progress.initial_queue_size.is_some() {
+        let current_status = state.upload_queue.get_status();
+        let initial_size = progress.initial_queue_size.unwrap();
+
+        // Calculate completed uploads: initial_size - (current pending + processing)
+        let currently_in_queue = current_status.pending + current_status.processing;
+        let completed = if currently_in_queue < initial_size {
+            initial_size - currently_in_queue
+        } else {
+            0
+        };
+
+        progress.synced_sessions = completed;
+
+        // Check if all uploads are complete
+        if currently_in_queue == 0 && completed > 0 {
+            progress.is_uploading = false;
+            progress.is_complete = true;
+        }
+    }
+
+    Ok(progress)
 }
 
 #[tauri::command]
@@ -531,5 +640,74 @@ pub async fn reset_session_sync_progress(provider_id: String) -> Result<(), Stri
         Ok(())
     } else {
         Err("Failed to reset sync progress".to_string())
+    }
+}
+
+// Autostart function for watchers
+pub fn start_enabled_watchers(app_state: &AppState) {
+    // Try to start Claude Code watcher if enabled
+    if let Ok(claude_config) = load_provider_config("claude-code") {
+        if claude_config.enabled {
+            // Scan for projects
+            match crate::providers::scan_projects("claude-code", &claude_config.home_directory) {
+                Ok(projects) => {
+                    let projects_to_watch = if claude_config.project_selection == "ALL" {
+                        projects.iter().map(|p| p.name.clone()).collect()
+                    } else {
+                        claude_config.selected_projects
+                    };
+
+                    if !projects_to_watch.is_empty() {
+                        match ClaudeWatcher::new(projects_to_watch, Arc::clone(&app_state.upload_queue)) {
+                            Ok(watcher) => {
+                                if let Ok(mut watchers) = app_state.watchers.lock() {
+                                    watchers.insert("claude-code".to_string(), Watcher::Claude(watcher));
+                                    println!("Claude Code watcher started automatically");
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to start Claude Code watcher: {}", e);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to scan Claude Code projects: {}", e);
+                }
+            }
+        }
+    }
+
+    // Try to start OpenCode watcher if enabled
+    if let Ok(opencode_config) = load_provider_config("opencode") {
+        if opencode_config.enabled {
+            // Scan for projects
+            match crate::providers::scan_projects("opencode", &opencode_config.home_directory) {
+                Ok(projects) => {
+                    let projects_to_watch = if opencode_config.project_selection == "ALL" {
+                        projects.iter().map(|p| p.name.clone()).collect()
+                    } else {
+                        opencode_config.selected_projects
+                    };
+
+                    if !projects_to_watch.is_empty() {
+                        match OpenCodeWatcher::new(projects_to_watch, Arc::clone(&app_state.upload_queue)) {
+                            Ok(watcher) => {
+                                if let Ok(mut watchers) = app_state.watchers.lock() {
+                                    watchers.insert("opencode".to_string(), Watcher::OpenCode(watcher));
+                                    println!("OpenCode watcher started automatically");
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to start OpenCode watcher: {}", e);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to scan OpenCode projects: {}", e);
+                }
+            }
+        }
     }
 }
