@@ -46,6 +46,24 @@ function SettingsPage() {
 
                 <div className="divider"></div>
 
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-base-content/70">Connected Server</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-success rounded-full"></div>
+                      <span className="text-sm font-mono">{user.serverUrl}</span>
+                    </div>
+                  </div>
+                  {user.tenantName && (
+                    <div className="flex justify-between">
+                      <span className="text-base-content/70">Organization</span>
+                      <span>{user.tenantName}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="divider"></div>
+
                 <button
                   onClick={handleLogout}
                   className="btn btn-error btn-outline"
