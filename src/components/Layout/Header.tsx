@@ -13,10 +13,8 @@ function Header() {
         {/* Brand */}
         <div className="flex items-center gap-2">
           <div className="avatar">
-            <div className="w-6 rounded bg-gradient-to-br from-green-600 via-blue-600 to-purple-600 text-white">
-              <div className="flex items-center justify-center w-full h-full">
-                <span className="text-sm font-bold">G</span>
-              </div>
+            <div className="w-6 rounded">
+              <img src="/logo-colored.png" alt="GuideAI" className="w-full h-full object-contain" />
             </div>
           </div>
           <div>

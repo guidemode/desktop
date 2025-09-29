@@ -653,6 +653,14 @@ pub async fn reset_session_sync_progress(
 
 // Autostart function for watchers
 pub fn start_enabled_watchers(app_state: &AppState) {
+    // Load and set the configuration on upload queue first
+    if let Ok(config) = load_config() {
+        app_state.upload_queue.set_config(config);
+        println!("Configuration loaded and set for upload queue");
+    } else {
+        eprintln!("Warning: Failed to load configuration for upload queue");
+    }
+
     // Try to start Claude Code watcher if enabled
     if let Ok(claude_config) = load_provider_config("claude-code") {
         if claude_config.enabled {

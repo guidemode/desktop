@@ -33,7 +33,14 @@ function App() {
       <div className="min-h-screen bg-base-100" data-theme="guideai">
         <div className="container mx-auto px-2 py-3 max-w-md">
           <div className="text-center mb-4">
-            <h1 className="text-lg font-bold text-primary mb-1">GuideAI</h1>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <div className="avatar">
+                <div className="w-8 rounded">
+                  <img src="/logo-colored.png" alt="GuideAI" className="w-full h-full object-contain" />
+                </div>
+              </div>
+              <h1 className="text-lg font-bold text-primary">GuideAI</h1>
+            </div>
             <p className="text-sm text-base-content/70">Desktop Manager</p>
           </div>
           <Login />
