@@ -6,7 +6,7 @@ use crate::config::{
 };
 use crate::logging::{read_provider_logs, LogEntry};
 use crate::providers::{ClaudeWatcher, ClaudeWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo, scan_all_sessions};
-use crate::upload_queue::{UploadQueue, UploadStatus};
+use crate::upload_queue::{UploadQueue, UploadStatus, QueueItems};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -420,6 +420,21 @@ pub async fn retry_failed_uploads(state: State<'_, AppState>) -> Result<(), Stri
 pub async fn clear_failed_uploads(state: State<'_, AppState>) -> Result<(), String> {
     state.upload_queue.clear_failed();
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_upload_queue_items(state: State<'_, AppState>) -> Result<QueueItems, String> {
+    Ok(state.upload_queue.get_all_items())
+}
+
+#[tauri::command]
+pub async fn retry_single_upload(state: State<'_, AppState>, item_id: String) -> Result<(), String> {
+    state.upload_queue.retry_item(&item_id)
+}
+
+#[tauri::command]
+pub async fn remove_queue_item(state: State<'_, AppState>, item_id: String) -> Result<(), String> {
+    state.upload_queue.remove_item(&item_id)
 }
 
 #[tauri::command]

@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
+import { Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../hooks/useAuth'
 
+const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL || (import.meta.env.MODE === 'production' ? 'https://guideai.dev' : 'http://localhost:3000')
+
 export default function Login() {
-  const [serverUrl, setServerUrl] = useState(
-    import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
-  )
+  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL)
+  const [showServerUrl, setShowServerUrl] = useState(false)
   const { login, isLoggingIn } = useAuth()
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -32,19 +34,21 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="form-control">
-            <label className="label">
-              <span className="label-text">Server URL</span>
-            </label>
-            <input
-              type="url"
-              className="input input-bordered"
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              placeholder="https://api.guideai.com"
-              disabled={isLoggingIn}
-            />
-          </div>
+          {showServerUrl && (
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">Server URL</span>
+              </label>
+              <input
+                type="url"
+                className="input input-bordered input-sm"
+                value={serverUrl}
+                onChange={(e) => setServerUrl(e.target.value)}
+                placeholder="https://api.guideai.com"
+                disabled={isLoggingIn}
+              />
+            </div>
+          )}
 
           <div className="card-actions justify-center">
             <button
@@ -68,6 +72,19 @@ export default function Login() {
           <p className="text-sm text-base-content/70">
             This will open your browser to complete the OAuth flow
           </p>
+        </div>
+
+        {/* Settings Icon */}
+        <div className="absolute top-4 right-4">
+          <button
+            type="button"
+            onClick={() => setShowServerUrl(!showServerUrl)}
+            className="btn btn-ghost btn-sm btn-circle"
+            title="Settings"
+            disabled={isLoggingIn}
+          >
+            <Cog6ToothIcon className="w-5 h-5" />
+          </button>
         </div>
       </div>
     </div>

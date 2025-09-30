@@ -11,9 +11,10 @@ import SessionSync from './SessionSync'
 
 interface AgentConfigProps {
   agent: CodingAgent
+  headerActions?: React.ReactNode
 }
 
-function AgentConfig({ agent }: AgentConfigProps) {
+function AgentConfig({ agent, headerActions }: AgentConfigProps) {
   const { data: config, isLoading: configLoading } = useProviderConfig(agent.id)
   const { mutate: saveConfig, isPending: saving } = useSaveProviderConfig()
 
@@ -153,17 +154,20 @@ function AgentConfig({ agent }: AgentConfigProps) {
             </div>
           </div>
 
-          <div className="form-control">
-            <label className="label cursor-pointer gap-2">
-              <span className="label-text">Enabled</span>
-              <input
-                type="checkbox"
-                className="toggle toggle-primary"
-                checked={localConfig.enabled}
-                onChange={(e) => handleEnabledChange(e.target.checked)}
-                disabled={isConfigLoading}
-              />
-            </label>
+          <div className="flex items-center gap-2">
+            {headerActions}
+            <div className="form-control">
+              <label className="label cursor-pointer gap-2">
+                <span className="label-text">Enabled</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={localConfig.enabled}
+                  onChange={(e) => handleEnabledChange(e.target.checked)}
+                  disabled={isConfigLoading}
+                />
+              </label>
+            </div>
           </div>
         </div>
 

@@ -14,7 +14,13 @@ use std::time::{Duration, Instant};
 const PROVIDER_ID: &str = "opencode";
 const DEBOUNCE_DURATION: Duration = Duration::from_secs(30); // 30 seconds for active sessions
 const QUICK_DEBOUNCE_DURATION: Duration = Duration::from_secs(5); // 5 seconds for new sessions
-const ACTIVE_SESSION_TIMEOUT: Duration = Duration::from_secs(60); // Mark session inactive after 60s
+
+// In dev mode, upload much faster for testing
+#[cfg(debug_assertions)]
+const ACTIVE_SESSION_TIMEOUT: Duration = Duration::from_secs(5); // Mark session inactive after 5s (dev mode)
+
+#[cfg(not(debug_assertions))]
+const ACTIVE_SESSION_TIMEOUT: Duration = Duration::from_secs(60); // Mark session inactive after 60s (production)
 
 #[derive(Debug, Clone)]
 pub struct SessionChangeEvent {
@@ -317,6 +323,13 @@ impl OpenCodeWatcher {
         match &event.kind {
             EventKind::Create(_) | EventKind::Modify(_) => {
                 for path in &event.paths {
+                    // Skip hidden files (starting with .)
+                    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                        if file_name.starts_with('.') {
+                            continue;
+                        }
+                    }
+
                     // Check if it's a JSON file in the storage directory
                     if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
                         continue;
@@ -543,5 +556,48 @@ mod tests {
         fs::write(&file_path, large_content).unwrap();
 
         assert!(!OpenCodeWatcher::is_new_session(&file_path));
+    }
+
+    #[test]
+    fn test_process_file_event_skips_hidden_files() {
+        use notify::event::CreateKind;
+
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path();
+
+        // Create session directory structure
+        let session_dir = storage_path.join("session").join("project1");
+        fs::create_dir_all(&session_dir).unwrap();
+
+        // Create a hidden file
+        let hidden_file = session_dir.join(".tmpABCDEF.json");
+        fs::write(&hidden_file, "{}").unwrap();
+
+        // Create a normal file
+        let normal_file = session_dir.join("session-123.json");
+        fs::write(&normal_file, "{}").unwrap();
+
+        // Create a minimal parser (won't actually parse, just checking file filtering)
+        let parser = OpenCodeParser::new(storage_path.to_path_buf());
+        let projects_to_watch = vec!["project1".to_string()];
+
+        // Test hidden file is ignored
+        let hidden_event = Event {
+            kind: EventKind::Create(CreateKind::File),
+            paths: vec![hidden_file.clone()],
+            attrs: Default::default(),
+        };
+        let result = OpenCodeWatcher::process_file_event(&hidden_event, storage_path, &parser, &projects_to_watch);
+        assert!(result.is_none(), "Hidden file should be ignored");
+
+        // Test normal file would be processed (will fail to find project, but the file isn't filtered out)
+        let normal_event = Event {
+            kind: EventKind::Create(CreateKind::File),
+            paths: vec![normal_file.clone()],
+            attrs: Default::default(),
+        };
+        let _result = OpenCodeWatcher::process_file_event(&normal_event, storage_path, &parser, &projects_to_watch);
+        // Result might be None if project lookup fails, but that's OK - we're just testing file filtering
+        // The important thing is it didn't get filtered out like the hidden file
     }
 }

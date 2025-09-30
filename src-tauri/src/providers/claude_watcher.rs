@@ -13,7 +13,14 @@ use std::time::{Duration, Instant};
 const PROVIDER_ID: &str = "claude-code";
 const DEBOUNCE_DURATION: Duration = Duration::from_secs(30); // 30 seconds for active sessions
 const QUICK_DEBOUNCE_DURATION: Duration = Duration::from_secs(5); // 5 seconds for new files
-const ACTIVE_SESSION_TIMEOUT: Duration = Duration::from_secs(60); // Mark session inactive after 60s
+
+// In dev mode, upload much faster for testing
+#[cfg(debug_assertions)]
+const ACTIVE_SESSION_TIMEOUT: Duration = Duration::from_secs(5); // Mark session inactive after 5s (dev mode)
+
+#[cfg(not(debug_assertions))]
+const ACTIVE_SESSION_TIMEOUT: Duration = Duration::from_secs(60); // Mark session inactive after 60s (production)
+
 const MIN_SIZE_CHANGE_BYTES: u64 = 1024; // Minimum 1KB change to trigger upload
 
 #[derive(Debug, Clone)]
@@ -297,6 +304,13 @@ impl ClaudeWatcher {
         match &event.kind {
             EventKind::Create(_) | EventKind::Modify(_) => {
                 for path in &event.paths {
+                    // Skip hidden files (starting with .)
+                    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                        if file_name.starts_with('.') {
+                            continue;
+                        }
+                    }
+
                     // Check if it's a .jsonl file
                     if let Some(extension) = path.extension() {
                         if extension != "jsonl" {
@@ -501,5 +515,44 @@ mod tests {
         assert!(projects.contains(&"project1".to_string()));
         assert!(projects.contains(&"project2".to_string()));
         assert!(projects.contains(&"project3".to_string()));
+    }
+
+    #[test]
+    fn test_process_file_event_skips_hidden_files() {
+        use notify::event::{CreateKind, ModifyKind};
+
+        let temp_dir = tempdir().unwrap();
+        let projects_path = temp_dir.path();
+
+        // Create project directory structure
+        let project_path = projects_path.join("test-project");
+        fs::create_dir_all(&project_path).unwrap();
+
+        // Create a hidden file
+        let hidden_file = project_path.join(".tmpABCDEF.jsonl");
+        fs::write(&hidden_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z"}"#).unwrap();
+
+        // Create a normal file
+        let normal_file = project_path.join("session-123.jsonl");
+        fs::write(&normal_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z"}"#).unwrap();
+
+        // Test hidden file is ignored
+        let hidden_event = Event {
+            kind: EventKind::Create(CreateKind::File),
+            paths: vec![hidden_file.clone()],
+            attrs: Default::default(),
+        };
+        let result = ClaudeWatcher::process_file_event(&hidden_event, projects_path);
+        assert!(result.is_none(), "Hidden file should be ignored");
+
+        // Test normal file is processed
+        let normal_event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(notify::event::DataChange::Content)),
+            paths: vec![normal_file.clone()],
+            attrs: Default::default(),
+        };
+        let result = ClaudeWatcher::process_file_event(&normal_event, projects_path);
+        assert!(result.is_some(), "Normal file should be processed");
+        assert_eq!(result.unwrap().session_id, "session-123");
     }
 }

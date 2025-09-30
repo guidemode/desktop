@@ -12,6 +12,7 @@ use tokio::time::sleep;
 use uuid::Uuid;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadItem {
@@ -38,6 +39,12 @@ pub struct UploadStatus {
     pub processing: usize,
     pub failed: usize,
     pub recent_uploads: Vec<UploadItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueueItems {
+    pub pending: Vec<UploadItem>,
+    pub failed: Vec<UploadItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +89,27 @@ impl UploadQueue {
         }
     }
 
+    /// Validate that JSONL content contains at least one entry with a timestamp field
+    fn validate_jsonl_timestamps(content: &str) -> bool {
+        let lines: Vec<&str> = content.lines().filter(|line| !line.trim().is_empty()).collect();
+
+        if lines.is_empty() {
+            return false;
+        }
+
+        // Check if at least one line has a timestamp field
+        for line in lines {
+            if let Ok(entry) = serde_json::from_str::<Value>(line) {
+                // Look for timestamp field (common across providers)
+                if entry.get("timestamp").is_some() {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     pub fn add_item(&self, provider: &str, project_name: &str, file_path: PathBuf) -> Result<(), String> {
         let file_name = file_path
             .file_name()
@@ -89,12 +117,22 @@ impl UploadQueue {
             .ok_or("Invalid file name")?
             .to_string();
 
+        // Read and validate file content
+        let file_content = std::fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
+
+        if !Self::validate_jsonl_timestamps(&file_content) {
+            log_warn("upload-queue", &format!("⚠ Skipping upload: {} (no valid timestamps found)", file_name))
+                .unwrap_or_default();
+            return Ok(());
+        }
+
         // Calculate file hash and size for deduplication
         let (file_hash, file_size) = Self::calculate_file_hash(&file_path)?;
 
         // Check if this file has already been uploaded
         if self.is_file_already_uploaded(file_hash) {
-            log_info(provider, &format!("⚡ Skipping duplicate upload: {} (already uploaded)", file_name))
+            log_info("upload-queue", &format!("⚡ Skipping duplicate upload: {} (already uploaded)", file_name))
                 .unwrap_or_default();
             return Ok(());
         }
@@ -125,7 +163,13 @@ impl UploadQueue {
     pub fn add_historical_session(&self, session: &SessionInfo) -> Result<(), String> {
         // Handle sessions with in-memory content vs file-based sessions differently
         let (file_hash, file_size, content) = if let Some(ref content) = session.content {
-            // For sessions with in-memory content (like OpenCode), hash the content directly
+            // For sessions with in-memory content (like OpenCode), validate and hash the content directly
+            if !Self::validate_jsonl_timestamps(content) {
+                log_warn("upload-queue", &format!("⚠ Skipping historical upload: {} (no valid timestamps found)", session.file_name))
+                    .unwrap_or_default();
+                return Ok(());
+            }
+
             let content_hash = {
                 let mut hasher = DefaultHasher::new();
                 content.hash(&mut hasher);
@@ -134,14 +178,23 @@ impl UploadQueue {
             let content_size = content.len() as u64;
             (content_hash, content_size, Some(content.clone()))
         } else {
-            // For file-based sessions, calculate file hash
+            // For file-based sessions, read and validate content
+            let file_content = std::fs::read_to_string(&session.file_path)
+                .map_err(|e| format!("Failed to read file: {}", e))?;
+
+            if !Self::validate_jsonl_timestamps(&file_content) {
+                log_warn("upload-queue", &format!("⚠ Skipping historical upload: {} (no valid timestamps found)", session.file_name))
+                    .unwrap_or_default();
+                return Ok(());
+            }
+
             let (file_hash, file_size) = Self::calculate_file_hash(&session.file_path)?;
             (file_hash, file_size, None)
         };
 
         // Check if this file has already been uploaded
         if self.is_file_already_uploaded(file_hash) {
-            log_info(&session.provider, &format!("⚡ Skipping duplicate historical upload: {} (already uploaded)", session.file_name))
+            log_info("upload-queue", &format!("⚡ Skipping duplicate historical upload: {} (already uploaded)", session.file_name))
                 .unwrap_or_default();
             return Ok(());
         }
@@ -176,6 +229,13 @@ impl UploadQueue {
         session_id: &str,
         content: String,
     ) -> Result<(), String> {
+        // Validate content before adding to queue
+        if !Self::validate_jsonl_timestamps(&content) {
+            log_warn("upload-queue", &format!("⚠ Skipping session upload: {} (no valid timestamps found)", session_id))
+                .unwrap_or_default();
+            return Ok(());
+        }
+
         // Calculate content hash for deduplication
         let content_hash = {
             let mut hasher = DefaultHasher::new();
@@ -187,7 +247,7 @@ impl UploadQueue {
 
         // Check if this content has already been uploaded
         if self.is_file_already_uploaded(content_hash) {
-            log_info(provider, &format!("⚡ Skipping duplicate session upload: {} (already uploaded)", session_id))
+            log_info("upload-queue", &format!("⚡ Skipping duplicate session upload: {} (already uploaded)", session_id))
                 .unwrap_or_default();
             return Ok(());
         }
@@ -281,8 +341,8 @@ impl UploadQueue {
 
                         // Log upload attempt
                         log_info(
-                            &item.provider,
-                            &format!("Uploading {} to server (attempt {})", item.file_name, item.retry_count + 1),
+                            "upload-queue",
+                            &format!("📤 Uploading {} to server (attempt {})", item.file_name, item.retry_count + 1),
                         ).unwrap_or_default();
 
                         // Process the upload
@@ -296,40 +356,57 @@ impl UploadQueue {
                                 }
 
                                 log_info(
-                                    &item.provider,
+                                    "upload-queue",
                                     &format!("✓ Upload successful: {} (size: {} bytes)", item.file_name, item.file_size),
                                 ).unwrap_or_default();
                             }
                             Err(e) => {
-                                item.retry_count += 1;
                                 item.last_error = Some(e.clone());
 
-                                if item.retry_count <= 3 {
-                                    // Calculate exponential backoff
-                                    let delay_seconds = 2u64.pow(item.retry_count);
-                                    item.next_retry_at = Some(
-                                        Utc::now() + chrono::Duration::seconds(delay_seconds as i64)
-                                    );
+                                // Check if this is a 400 error (invalid input) - don't retry these
+                                let is_client_error = e.contains("status 400") || e.contains("Bad Request");
 
-                                    // Put back in queue for retry
-                                    if let Ok(mut queue) = queue_clone.lock() {
-                                        queue.push_back(item.clone());
-                                    }
-
-                                    log_warn(
-                                        &item.provider,
-                                        &format!("⚠ Upload failed, retrying {} in {}s: {}", item.file_name, delay_seconds, e),
-                                    ).unwrap_or_default();
-                                } else {
-                                    // Max retries exceeded, move to failed list
+                                if is_client_error {
+                                    // 400 errors indicate invalid input - don't retry
                                     if let Ok(mut failed) = failed_items_clone.lock() {
                                         failed.push(item.clone());
                                     }
 
                                     log_error(
-                                        &item.provider,
-                                        &format!("✗ Upload failed permanently: {} (after {} attempts)", item.file_name, item.retry_count),
+                                        "upload-queue",
+                                        &format!("✗ Upload failed (invalid input): {}", item.file_name),
                                     ).unwrap_or_default();
+                                } else {
+                                    // Network or server errors - retry with backoff
+                                    item.retry_count += 1;
+
+                                    if item.retry_count <= 3 {
+                                        // Calculate exponential backoff
+                                        let delay_seconds = 2u64.pow(item.retry_count);
+                                        item.next_retry_at = Some(
+                                            Utc::now() + chrono::Duration::seconds(delay_seconds as i64)
+                                        );
+
+                                        // Put back in queue for retry
+                                        if let Ok(mut queue) = queue_clone.lock() {
+                                            queue.push_back(item.clone());
+                                        }
+
+                                        log_warn(
+                                            "upload-queue",
+                                            &format!("⚠ Upload failed, retrying {} in {}s: {}", item.file_name, delay_seconds, e),
+                                        ).unwrap_or_default();
+                                    } else {
+                                        // Max retries exceeded, move to failed list
+                                        if let Ok(mut failed) = failed_items_clone.lock() {
+                                            failed.push(item.clone());
+                                        }
+
+                                        log_error(
+                                            "upload-queue",
+                                            &format!("✗ Upload failed permanently: {} (after {} attempts)", item.file_name, item.retry_count),
+                                        ).unwrap_or_default();
+                                    }
                                 }
                             }
                         }
@@ -528,6 +605,72 @@ impl UploadQueue {
             uploaded_hashes.clear();
         }
     }
+
+    pub fn get_all_items(&self) -> QueueItems {
+        let pending = if let Ok(queue) = self.queue.lock() {
+            queue.iter().cloned().collect()
+        } else {
+            Vec::new()
+        };
+
+        let failed = if let Ok(failed_items) = self.failed_items.lock() {
+            failed_items.clone()
+        } else {
+            Vec::new()
+        };
+
+        QueueItems { pending, failed }
+    }
+
+    pub fn remove_item(&self, item_id: &str) -> Result<(), String> {
+        // Try to remove from pending queue
+        if let Ok(mut queue) = self.queue.lock() {
+            if let Some(index) = queue.iter().position(|item| item.id == item_id) {
+                queue.remove(index);
+                return Ok(());
+            }
+        }
+
+        // Try to remove from failed items
+        if let Ok(mut failed) = self.failed_items.lock() {
+            if let Some(index) = failed.iter().position(|item| item.id == item_id) {
+                failed.remove(index);
+                return Ok(());
+            }
+        }
+
+        Err("Item not found in queue".to_string())
+    }
+
+    pub fn retry_item(&self, item_id: &str) -> Result<(), String> {
+        // Find item in failed list
+        let item = if let Ok(mut failed) = self.failed_items.lock() {
+            if let Some(index) = failed.iter().position(|item| item.id == item_id) {
+                let mut item = failed.remove(index);
+                // Reset retry info
+                item.retry_count = 0;
+                item.next_retry_at = None;
+                item.last_error = None;
+                Some(item)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(item) = item {
+            // Add back to queue
+            if let Ok(mut queue) = self.queue.lock() {
+                queue.push_back(item);
+                Ok(())
+            } else {
+                Err("Failed to access queue".to_string())
+            }
+        } else {
+            Err("Item not found in failed list".to_string())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -547,8 +690,15 @@ mod tests {
 
     #[test]
     fn test_add_item() {
+        use std::io::Write;
+
         let queue = UploadQueue::new();
-        let temp_file = NamedTempFile::new().unwrap();
+        let mut temp_file = NamedTempFile::new().unwrap();
+
+        // Write valid JSONL with timestamp
+        let jsonl_content = r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":"test"}"#;
+        temp_file.write_all(jsonl_content.as_bytes()).unwrap();
+        temp_file.flush().unwrap();
 
         let result = queue.add_item("claude-code", "test-project", temp_file.path().to_path_buf());
         assert!(result.is_ok());
@@ -560,7 +710,7 @@ mod tests {
     #[test]
     fn test_add_session_content() {
         let queue = UploadQueue::new();
-        let content = r#"{"sessionId":"test-session","timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":{"role":"user","content":[{"type":"text","text":"Hello"}]}}"#;
+        let content = r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":{"role":"user","content":[{"type":"text","text":"Hello"}]}}"#;
 
         let result = queue.add_session_content(
             "opencode",
@@ -572,5 +722,44 @@ mod tests {
 
         let status = queue.get_status();
         assert_eq!(status.pending, 1);
+    }
+
+    #[test]
+    fn test_validate_jsonl_timestamps() {
+        // Valid JSONL with timestamp
+        let valid_content = r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":"test"}"#;
+        assert!(UploadQueue::validate_jsonl_timestamps(valid_content));
+
+        // Invalid JSONL without timestamp
+        let invalid_content = r#"{"type":"user","message":"test"}"#;
+        assert!(!UploadQueue::validate_jsonl_timestamps(invalid_content));
+
+        // Empty content
+        assert!(!UploadQueue::validate_jsonl_timestamps(""));
+
+        // Multiple lines with at least one timestamp
+        let mixed_content = r#"{"type":"user","message":"test"}
+{"timestamp":"2025-01-01T10:00:00.000Z","type":"assistant","message":"response"}"#;
+        assert!(UploadQueue::validate_jsonl_timestamps(mixed_content));
+    }
+
+    #[test]
+    fn test_add_item_without_timestamps() {
+        use std::io::Write;
+
+        let queue = UploadQueue::new();
+        let mut temp_file = NamedTempFile::new().unwrap();
+
+        // Write JSONL without timestamp
+        let jsonl_content = r#"{"type":"user","message":"test"}"#;
+        temp_file.write_all(jsonl_content.as_bytes()).unwrap();
+        temp_file.flush().unwrap();
+
+        let result = queue.add_item("claude-code", "test-project", temp_file.path().to_path_buf());
+        assert!(result.is_ok());
+
+        // Should not be added to queue due to missing timestamps
+        let status = queue.get_status();
+        assert_eq!(status.pending, 0);
     }
 }

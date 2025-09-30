@@ -6,7 +6,7 @@ import AppLayout from './components/Layout/AppLayout'
 import OverviewPage from './pages/OverviewPage'
 import ProviderPage from './pages/ProviderPage'
 import SettingsPage from './pages/SettingsPage'
-import LogsPage from './pages/LogsPage'
+import UploadQueuePage from './pages/UploadQueuePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,8 +30,8 @@ function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-base-100" data-theme="guideai">
-        <div className="container mx-auto px-2 py-3 max-w-md">
+      <div className="min-h-screen bg-base-100 flex items-center justify-center" data-theme="guideai">
+        <div className="container mx-auto px-2 max-w-md">
           <Login />
         </div>
       </div>
@@ -47,7 +47,7 @@ function App() {
             <Route path="/overview" element={<OverviewPage />} />
             <Route path="/provider/:providerId" element={<ProviderPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/logs" element={<LogsPage />} />
+            <Route path="/upload-queue" element={<UploadQueuePage />} />
           </Routes>
         </AppLayout>
       </Router>
