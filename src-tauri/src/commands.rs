@@ -5,7 +5,7 @@ use crate::config::{
     ProviderConfig,
 };
 use crate::logging::{read_provider_logs, LogEntry};
-use crate::providers::{ClaudeWatcher, ClaudeWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo, scan_all_sessions};
+use crate::providers::{ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo, scan_all_sessions};
 use crate::upload_queue::{UploadQueue, UploadStatus, QueueItems};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -280,6 +280,7 @@ pub async fn get_activity_logs_command(
 pub enum Watcher {
     Claude(ClaudeWatcher),
     OpenCode(OpenCodeWatcher),
+    Codex(CodexWatcher),
 }
 
 impl Watcher {
@@ -287,6 +288,7 @@ impl Watcher {
         match self {
             Watcher::Claude(watcher) => watcher.stop(),
             Watcher::OpenCode(watcher) => watcher.stop(),
+            Watcher::Codex(watcher) => watcher.stop(),
         }
     }
 }
@@ -403,6 +405,57 @@ pub async fn get_opencode_watcher_status(state: State<'_, AppState>) -> Result<O
             Ok(watcher.get_status())
         } else {
             Ok(OpenCodeWatcherStatus {
+                is_running: false,
+                pending_uploads: 0,
+                processing_uploads: 0,
+                failed_uploads: 0,
+            })
+        }
+    } else {
+        Err("Failed to access watcher state".to_string())
+    }
+}
+
+// Codex watcher commands
+#[tauri::command]
+pub async fn start_codex_watcher(
+    state: State<'_, AppState>,
+    projects: Vec<String>,
+) -> Result<(), String> {
+    // Update upload queue with current config
+    if let Ok(config) = load_config() {
+        state.upload_queue.set_config(config);
+    }
+
+    // Create new watcher
+    let watcher = CodexWatcher::new(projects, Arc::clone(&state.upload_queue))
+        .map_err(|e| format!("Failed to create Codex watcher: {}", e))?;
+
+    // Store watcher in state
+    if let Ok(mut watchers) = state.watchers.lock() {
+        watchers.insert("codex".to_string(), Watcher::Codex(watcher));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_codex_watcher(state: State<'_, AppState>) -> Result<(), String> {
+    if let Ok(mut watchers) = state.watchers.lock() {
+        if let Some(watcher) = watchers.remove("codex") {
+            watcher.stop();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_codex_watcher_status(state: State<'_, AppState>) -> Result<CodexWatcherStatus, String> {
+    if let Ok(watchers) = state.watchers.lock() {
+        if let Some(Watcher::Codex(watcher)) = watchers.get("codex") {
+            Ok(watcher.get_status())
+        } else {
+            Ok(CodexWatcherStatus {
                 is_running: false,
                 pending_uploads: 0,
                 processing_uploads: 0,
@@ -746,6 +799,39 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                 }
                 Err(e) => {
                     eprintln!("Failed to scan OpenCode projects: {}", e);
+                }
+            }
+        }
+    }
+
+    // Try to start Codex watcher if enabled
+    if let Ok(codex_config) = load_provider_config("codex") {
+        if codex_config.enabled {
+            // Scan for projects
+            match crate::providers::scan_projects("codex", &codex_config.home_directory) {
+                Ok(projects) => {
+                    let projects_to_watch = if codex_config.project_selection == "ALL" {
+                        projects.iter().map(|p| p.name.clone()).collect()
+                    } else {
+                        codex_config.selected_projects
+                    };
+
+                    if !projects_to_watch.is_empty() {
+                        match CodexWatcher::new(projects_to_watch, Arc::clone(&app_state.upload_queue)) {
+                            Ok(watcher) => {
+                                if let Ok(mut watchers) = app_state.watchers.lock() {
+                                    watchers.insert("codex".to_string(), Watcher::Codex(watcher));
+                                    println!("Codex watcher started automatically");
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to start Codex watcher: {}", e);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to scan Codex projects: {}", e);
                 }
             }
         }

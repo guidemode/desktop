@@ -102,7 +102,7 @@ fn scan_claude_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
 
     if let Err(e) = log_info(
         "claude-code",
-        &format!("📊 Found {} historical sessions", sessions.len()),
+        &format!("📊 Found {} Claude Code sessions", sessions.len()),
     ) {
         eprintln!("Logging error: {}", e);
     }

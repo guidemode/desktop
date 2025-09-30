@@ -4,6 +4,7 @@ import { useUploadQueueStatus } from '../hooks/useUploadQueue'
 import { useProviderConfig, useSaveProviderConfig } from '../hooks/useProviderConfig'
 import { CODING_AGENTS } from '../types/providers'
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
+import ProviderIcon from './icons/ProviderIcon'
 
 function StatusView() {
   const { user, logout } = useAuth()
@@ -87,9 +88,12 @@ function StatusView() {
             return (
               <div key={agent.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    isEnabled ? 'bg-success' : 'bg-base-content/30'
-                  }`} />
+                  <div className="flex-shrink-0 w-5 h-5 rounded overflow-hidden relative">
+                    <ProviderIcon providerId={agent.id} size={20} />
+                    <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-base-100 ${
+                      isEnabled ? 'bg-success' : 'bg-base-content/30'
+                    }`} />
+                  </div>
                   <span className="text-sm">{agent.name}</span>
                 </div>
                 <button

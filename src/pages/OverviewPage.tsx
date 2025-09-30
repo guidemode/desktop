@@ -1,6 +1,7 @@
 import { CODING_AGENTS } from '../types/providers'
 import { useProviderConfig } from '../hooks/useProviderConfig'
 import { useNavigate } from 'react-router-dom'
+import ProviderIcon from '../components/icons/ProviderIcon'
 
 function OverviewPage() {
   const navigate = useNavigate()
@@ -37,10 +38,8 @@ function ProviderCard({ agent, onConfigure }: ProviderCardProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={`avatar placeholder`}>
-              <div className={`bg-gradient-to-r ${agent.color} rounded-lg w-10 h-10 text-white`}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={agent.icon} />
-                </svg>
+              <div className={`bg-base-200 rounded-lg w-10 h-10 flex items-center justify-center p-1.5`}>
+                <ProviderIcon providerId={agent.id} size={28} />
               </div>
             </div>
             <div>

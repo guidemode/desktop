@@ -1,6 +1,6 @@
 use super::opencode_parser::OpenCodeParser;
 use crate::config::load_provider_config;
-use crate::logging::{log_debug, log_error, log_info};
+use crate::logging::{log_debug, log_error, log_info, log_warn};
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};

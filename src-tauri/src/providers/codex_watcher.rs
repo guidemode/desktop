@@ -10,7 +10,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-const PROVIDER_ID: &str = "claude-code";
+const PROVIDER_ID: &str = "codex";
 const DEBOUNCE_DURATION: Duration = Duration::from_secs(30); // 30 seconds for active sessions
 const QUICK_DEBOUNCE_DURATION: Duration = Duration::from_secs(5); // 5 seconds for new files
 
@@ -51,19 +51,19 @@ pub struct SessionState {
 }
 
 #[derive(Debug)]
-pub struct ClaudeWatcher {
+pub struct CodexWatcher {
     _watcher: RecommendedWatcher,
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
 }
 
-impl ClaudeWatcher {
+impl CodexWatcher {
     pub fn new(
-        projects: Vec<String>,
+        _projects: Vec<String>,
         upload_queue: Arc<UploadQueue>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        if let Err(e) = log_info(PROVIDER_ID, "🔍 Starting Claude Code file monitoring") {
+        if let Err(e) = log_info(PROVIDER_ID, "🔍 Starting Codex file monitoring") {
             eprintln!("Logging error: {}", e);
         }
 
@@ -72,7 +72,7 @@ impl ClaudeWatcher {
             .map_err(|e| format!("Failed to load provider config: {}", e))?;
 
         if !config.enabled {
-            return Err("Claude Code provider is not enabled".into());
+            return Err("Codex provider is not enabled".into());
         }
 
         let home_directory = config.home_directory;
@@ -80,34 +80,17 @@ impl ClaudeWatcher {
         let base_path = Path::new(expanded_home.as_ref());
 
         if !base_path.exists() {
-            return Err(format!("Claude Code home directory does not exist: {}", base_path.display()).into());
+            return Err(format!("Codex home directory does not exist: {}", base_path.display()).into());
         }
 
-        let projects_path = base_path.join("projects");
-        if !projects_path.exists() {
-            return Err(format!("Claude Code projects directory does not exist: {}", projects_path.display()).into());
+        let sessions_path = base_path.join("sessions");
+        if !sessions_path.exists() {
+            return Err(format!("Codex sessions directory does not exist: {}", sessions_path.display()).into());
         }
-
-        // Determine which projects to watch
-        let projects_to_watch = if config.project_selection == "ALL" {
-            // Watch all available projects
-            Self::discover_all_projects(&projects_path)?
-        } else {
-            // Watch only selected projects
-            let selected_projects: Vec<String> = config.selected_projects.into_iter()
-                .filter(|project| projects.contains(project))
-                .collect();
-
-            if selected_projects.is_empty() {
-                return Err("No valid projects selected for watching".into());
-            }
-
-            selected_projects
-        };
 
         if let Err(e) = log_info(
             PROVIDER_ID,
-            &format!("📁 Monitoring {} Claude Code projects: {}", projects_to_watch.len(), projects_to_watch.join(", ")),
+            &format!("📁 Monitoring Codex sessions directory: {}", sessions_path.display()),
         ) {
             eprintln!("Logging error: {}", e);
         }
@@ -121,43 +104,31 @@ impl ClaudeWatcher {
             Config::default().with_poll_interval(Duration::from_secs(2)),
         )?;
 
-        // Watch each selected project directory
-        for project_name in &projects_to_watch {
-            let project_path = projects_path.join(project_name);
-            if project_path.exists() && project_path.is_dir() {
-                watcher.watch(&project_path, RecursiveMode::Recursive)?;
-                if let Err(e) = log_info(
-                    PROVIDER_ID,
-                    &format!("📂 Watching Claude Code project: {}", project_path.display()),
-                ) {
-                    eprintln!("Logging error: {}", e);
-                }
-            } else {
-                if let Err(e) = log_warn(
-                    PROVIDER_ID,
-                    &format!("⚠ Project directory not found: {}", project_path.display()),
-                ) {
-                    eprintln!("Logging error: {}", e);
-                }
-            }
+        // Watch the entire sessions directory recursively (includes YYYY/MM/DD subdirs)
+        watcher.watch(&sessions_path, RecursiveMode::Recursive)?;
+        if let Err(e) = log_info(
+            PROVIDER_ID,
+            &format!("📂 Watching Codex sessions: {}", sessions_path.display()),
+        ) {
+            eprintln!("Logging error: {}", e);
         }
 
         let is_running = Arc::new(Mutex::new(true));
         let is_running_clone = Arc::clone(&is_running);
         let upload_queue_clone = Arc::clone(&upload_queue);
-        let projects_path_clone = projects_path.clone();
+        let sessions_path_clone = sessions_path.clone();
 
         // Start background thread to handle file events
         let thread_handle = thread::spawn(move || {
             Self::file_event_processor(
                 rx,
-                projects_path_clone,
+                sessions_path_clone,
                 upload_queue_clone,
                 is_running_clone,
             );
         });
 
-        Ok(ClaudeWatcher {
+        Ok(CodexWatcher {
             _watcher: watcher,
             _thread_handle: thread_handle,
             upload_queue,
@@ -165,26 +136,9 @@ impl ClaudeWatcher {
         })
     }
 
-    fn discover_all_projects(projects_path: &Path) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
-        let entries = std::fs::read_dir(projects_path)
-            .map_err(|e| format!("Failed to read projects directory: {}", e))?;
-
-        let mut projects = Vec::new();
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    projects.push(name.to_string());
-                }
-            }
-        }
-
-        Ok(projects)
-    }
-
     fn file_event_processor(
         rx: mpsc::Receiver<Result<Event, notify::Error>>,
-        projects_path: PathBuf,
+        sessions_path: PathBuf,
         upload_queue: Arc<UploadQueue>,
         is_running: Arc<Mutex<bool>>,
     ) {
@@ -204,7 +158,7 @@ impl ClaudeWatcher {
             // Process file system events with timeout
             match rx.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(event)) => {
-                    if let Some(file_event) = Self::process_file_event(&event, &projects_path, &session_states) {
+                    if let Some(file_event) = Self::process_file_event(&event, &sessions_path, &session_states) {
                         // Check if this is a new session or significant change (before updating state)
                         let should_log = Self::should_log_event(&file_event, &session_states);
 
@@ -213,13 +167,13 @@ impl ClaudeWatcher {
 
                         if should_log {
                             if file_event.is_new_session {
-                                let log_message = format!("🆕 New Claude Code session detected: {} → Queuing for upload", file_event.session_id);
+                                let log_message = format!("🆕 New Codex session detected: {} → Queuing for upload", file_event.session_id);
                                 if let Err(e) = log_info(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
                             } else {
                                 // Use debug level for routine session activity
-                                let log_message = format!("📝 Claude Code session active: {} (size: {} bytes)", file_event.session_id, file_event.file_size);
+                                let log_message = format!("📝 Codex session active: {} (size: {} bytes)", file_event.session_id, file_event.file_size);
                                 if let Err(e) = log_debug(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
@@ -230,7 +184,7 @@ impl ClaudeWatcher {
                     }
                 }
                 Ok(Err(error)) => {
-                    if let Err(e) = log_error(PROVIDER_ID, &format!("File watcher error: {:?}", error)) {
+                    if let Err(e) = log_error(PROVIDER_ID, &format!("Codex file watcher error: {:?}", error)) {
                         eprintln!("Logging error: {}", e);
                     }
                 }
@@ -238,7 +192,7 @@ impl ClaudeWatcher {
                     // Timeout is normal, continue to check pending files
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    if let Err(e) = log_error(PROVIDER_ID, "File watcher channel disconnected") {
+                    if let Err(e) = log_error(PROVIDER_ID, "Codex file watcher channel disconnected") {
                         eprintln!("Logging error: {}", e);
                     }
                     break;
@@ -286,14 +240,14 @@ impl ClaudeWatcher {
                     ) {
                         if let Err(log_err) = log_error(
                             PROVIDER_ID,
-                            &format!("✗ Failed to queue Claude Code session {} for upload: {}", file_event.session_id, e),
+                            &format!("✗ Failed to queue Codex session {} for upload: {}", file_event.session_id, e),
                         ) {
                             eprintln!("Logging error: {}", log_err);
                         }
                     } else {
                         if let Err(e) = log_info(
                             PROVIDER_ID,
-                            &format!("📤 Claude Code session {} queued for upload ({})", file_event.session_id, file_event.path.file_name().unwrap_or_default().to_string_lossy()),
+                            &format!("📤 Codex session {} queued for upload ({})", file_event.session_id, file_event.path.file_name().unwrap_or_default().to_string_lossy()),
                         ) {
                             eprintln!("Logging error: {}", e);
                         }
@@ -305,14 +259,14 @@ impl ClaudeWatcher {
             Self::cleanup_old_sessions(&mut session_states, now);
         }
 
-        if let Err(e) = log_info(PROVIDER_ID, "🛑 Claude Code file monitoring stopped") {
+        if let Err(e) = log_info(PROVIDER_ID, "🛑 Codex file monitoring stopped") {
             eprintln!("Logging error: {}", e);
         }
     }
 
     fn process_file_event(
         event: &Event,
-        projects_path: &Path,
+        sessions_path: &Path,
         session_states: &HashMap<String, SessionState>,
     ) -> Option<FileChangeEvent> {
         // Only process write events for .jsonl files
@@ -335,11 +289,15 @@ impl ClaudeWatcher {
                         continue;
                     }
 
-                    // Extract project name from path
-                    if let Some(project_name) = Self::extract_project_name(path, projects_path) {
-                        // Get file size and session ID
+                    // Ensure it's within the sessions directory
+                    if !path.starts_with(sessions_path) {
+                        continue;
+                    }
+
+                    // Extract project name and session ID from path
+                    if let Some((project_name, session_id)) = Self::extract_session_info(path) {
+                        // Get file size
                         let file_size = Self::get_file_size(path).unwrap_or(0);
-                        let session_id = Self::extract_session_id(path);
 
                         return Some(FileChangeEvent {
                             path: path.clone(),
@@ -358,31 +316,53 @@ impl ClaudeWatcher {
         None
     }
 
-    fn extract_project_name(file_path: &Path, projects_path: &Path) -> Option<String> {
-        // Get the relative path from projects directory
-        if let Ok(relative_path) = file_path.strip_prefix(projects_path) {
-            // The first component should be the project name
-            if let Some(first_component) = relative_path.components().next() {
-                if let Some(project_name) = first_component.as_os_str().to_str() {
-                    return Some(project_name.to_string());
-                }
+    fn extract_session_info(file_path: &Path) -> Option<(String, String)> {
+        // Read first line to get session metadata
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+
+        let file = File::open(file_path).ok()?;
+        let reader = BufReader::new(file);
+        let first_line = reader.lines().next()?.ok()?;
+
+        #[derive(Deserialize)]
+        struct SessionMeta {
+            #[serde(rename = "type")]
+            entry_type: Option<String>,
+            payload: Option<SessionPayload>,
+        }
+
+        #[derive(Deserialize)]
+        struct SessionPayload {
+            id: Option<String>,
+            cwd: Option<String>,
+        }
+
+        let meta: SessionMeta = serde_json::from_str(&first_line).ok()?;
+
+        // Check if this is a session_meta entry
+        if meta.entry_type.as_deref() == Some("session_meta") {
+            if let Some(payload) = meta.payload {
+                let session_id = payload.id?;
+                let cwd = payload.cwd?;
+
+                // Extract project name from cwd path
+                let project_name = Path::new(&cwd)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+
+                return Some((project_name, session_id));
             }
         }
+
         None
     }
 
     fn get_file_size(path: &Path) -> Result<u64, std::io::Error> {
         let metadata = std::fs::metadata(path)?;
         Ok(metadata.len())
-    }
-
-    fn extract_session_id(path: &Path) -> String {
-        // Extract session ID from filename (UUID format)
-        if let Some(file_name) = path.file_stem().and_then(|s| s.to_str()) {
-            file_name.to_string()
-        } else {
-            "unknown".to_string()
-        }
     }
 
     fn is_new_session(session_id: &str, path: &Path, session_states: &HashMap<String, SessionState>) -> bool {
@@ -483,12 +463,12 @@ impl ClaudeWatcher {
             *running = false;
         }
 
-        if let Err(e) = log_info(PROVIDER_ID, "🛑 Stopping Claude Code file monitoring") {
+        if let Err(e) = log_info(PROVIDER_ID, "🛑 Stopping Codex file monitoring") {
             eprintln!("Logging error: {}", e);
         }
     }
 
-    pub fn get_status(&self) -> ClaudeWatcherStatus {
+    pub fn get_status(&self) -> CodexWatcherStatus {
         let is_running = if let Ok(running) = self.is_running.lock() {
             *running
         } else {
@@ -497,7 +477,7 @@ impl ClaudeWatcher {
 
         let upload_status = self.upload_queue.get_status();
 
-        ClaudeWatcherStatus {
+        CodexWatcherStatus {
             is_running,
             pending_uploads: upload_status.pending,
             processing_uploads: upload_status.processing,
@@ -507,14 +487,14 @@ impl ClaudeWatcher {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClaudeWatcherStatus {
+pub struct CodexWatcherStatus {
     pub is_running: bool,
     pub pending_uploads: usize,
     pub processing_uploads: usize,
     pub failed_uploads: usize,
 }
 
-impl Drop for ClaudeWatcher {
+impl Drop for CodexWatcher {
     fn drop(&mut self) {
         self.stop();
     }
@@ -523,76 +503,30 @@ impl Drop for ClaudeWatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::tempdir;
 
     #[test]
-    fn test_extract_project_name() {
-        let projects_dir = Path::new("/home/user/.claude/projects");
-        let file_path = Path::new("/home/user/.claude/projects/my-project/session/file.jsonl");
-
-        let project_name = ClaudeWatcher::extract_project_name(file_path, projects_dir);
-        assert_eq!(project_name, Some("my-project".to_string()));
-    }
-
-    #[test]
-    fn test_discover_all_projects() {
-        let temp_dir = tempdir().unwrap();
-        let projects_path = temp_dir.path();
-
-        // Create some project directories
-        fs::create_dir_all(projects_path.join("project1")).unwrap();
-        fs::create_dir_all(projects_path.join("project2")).unwrap();
-        fs::create_dir_all(projects_path.join("project3")).unwrap();
-
-        // Create a file (should be ignored)
-        fs::write(projects_path.join("not_a_project.txt"), "content").unwrap();
-
-        let projects = ClaudeWatcher::discover_all_projects(projects_path).unwrap();
-
-        assert_eq!(projects.len(), 3);
-        assert!(projects.contains(&"project1".to_string()));
-        assert!(projects.contains(&"project2".to_string()));
-        assert!(projects.contains(&"project3".to_string()));
-    }
-
-    #[test]
-    fn test_process_file_event_skips_hidden_files() {
-        use notify::event::{CreateKind, ModifyKind};
+    fn test_is_new_session() {
+        use std::fs;
+        use tempfile::tempdir;
 
         let temp_dir = tempdir().unwrap();
-        let projects_path = temp_dir.path();
+        let file_path = temp_dir.path().join("test-session.jsonl");
+        let session_id = "test-session";
+        let mut session_states = HashMap::new();
 
-        // Create project directory structure
-        let project_path = projects_path.join("test-project");
-        fs::create_dir_all(&project_path).unwrap();
+        // Create a small file - should be considered new
+        fs::write(&file_path, r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"session_meta"}"#).unwrap();
+        assert!(CodexWatcher::is_new_session(session_id, &file_path, &session_states));
 
-        // Create a hidden file
-        let hidden_file = project_path.join(".tmpABCDEF.jsonl");
-        fs::write(&hidden_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z"}"#).unwrap();
-
-        // Create a normal file
-        let normal_file = project_path.join("session-123.jsonl");
-        fs::write(&normal_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z"}"#).unwrap();
-
-        // Test hidden file is ignored
-        let hidden_event = Event {
-            kind: EventKind::Create(CreateKind::File),
-            paths: vec![hidden_file.clone()],
-            attrs: Default::default(),
-        };
-        let session_states = HashMap::new();
-        let result = ClaudeWatcher::process_file_event(&hidden_event, projects_path, &session_states);
-        assert!(result.is_none(), "Hidden file should be ignored");
-
-        // Test normal file is processed
-        let normal_event = Event {
-            kind: EventKind::Modify(ModifyKind::Data(notify::event::DataChange::Content)),
-            paths: vec![normal_file.clone()],
-            attrs: Default::default(),
-        };
-        let result = ClaudeWatcher::process_file_event(&normal_event, projects_path, &session_states);
-        assert!(result.is_some(), "Normal file should be processed");
-        assert_eq!(result.unwrap().session_id, "session-123");
+        // Add session to states - should not be considered new even if file is small
+        session_states.insert(session_id.to_string(), SessionState {
+            last_modified: Instant::now(),
+            last_size: 100,
+            is_active: true,
+            upload_pending: false,
+            last_uploaded_time: None,
+            last_uploaded_size: 0,
+        });
+        assert!(!CodexWatcher::is_new_session(session_id, &file_path, &session_states));
     }
 }

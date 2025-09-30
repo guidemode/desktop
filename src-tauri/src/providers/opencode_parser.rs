@@ -23,7 +23,7 @@ pub struct OpenCodeSession {
     pub id: String,
     pub version: Option<String>,
     #[serde(rename = "projectID")]
-    pub project_id: String,
+    pub project_id: Option<String>,
     pub directory: Option<String>,
     pub title: Option<String>,
     pub time: OpenCodeTime,
@@ -50,12 +50,54 @@ pub struct OpenCodePart {
     pub message_id: String,
     #[serde(rename = "sessionID")]
     pub session_id: String,
+    // Tool-specific fields
+    pub tool: Option<String>,
+    #[serde(rename = "callID")]
+    pub call_id: Option<String>,
+    pub state: Option<OpenCodeToolState>,
+    // Step-finish fields
+    pub tokens: Option<OpenCodeTokens>,
+    pub cost: Option<f64>,
+    // Patch fields
+    pub files: Option<Vec<String>>,
+    pub hash: Option<String>,
+    // Snapshot fields
+    pub snapshot: Option<String>,
+    // File fields
+    pub filename: Option<String>,
+    pub mime: Option<String>,
+    pub url: Option<String>,
+    pub source: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenCodeToolState {
+    pub status: String,
+    pub input: Option<serde_json::Value>,
+    pub output: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+    pub title: Option<String>,
+    pub time: Option<OpenCodePartTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenCodeTokens {
+    pub input: Option<i64>,
+    pub output: Option<i64>,
+    pub reasoning: Option<i64>,
+    pub cache: Option<OpenCodeTokenCache>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenCodeTokenCache {
+    pub write: Option<i64>,
+    pub read: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenCodePartTime {
-    pub start: i64,
-    pub end: i64,
+    pub start: Option<i64>,
+    pub end: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,10 +117,40 @@ pub struct OpenCodeJsonLMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenCodeJsonLContent {
-    #[serde(rename = "type")]
-    pub content_type: String,
-    pub text: String,
+#[serde(untagged)]
+pub enum OpenCodeJsonLContent {
+    Text {
+        #[serde(rename = "type")]
+        content_type: String,
+        text: String,
+    },
+    ToolUse {
+        #[serde(rename = "type")]
+        content_type: String,
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
+    ToolResult {
+        #[serde(rename = "type")]
+        content_type: String,
+        tool_use_id: String,
+        content: String,
+        is_error: Option<bool>,
+    },
+    File {
+        #[serde(rename = "type")]
+        content_type: String,
+        filename: String,
+        mime: String,
+        url: String,
+    },
+    Patch {
+        #[serde(rename = "type")]
+        content_type: String,
+        files: Vec<String>,
+        hash: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +161,10 @@ pub struct ParsedSession {
     pub session_end_time: Option<DateTime<Utc>>,
     pub duration_ms: Option<i64>,
     pub jsonl_content: String,
+    pub total_tokens: Option<OpenCodeTokens>,
+    pub total_cost: Option<f64>,
+    pub tool_count: usize,
+    pub file_count: usize,
 }
 
 pub struct OpenCodeParser {
@@ -103,10 +179,22 @@ impl OpenCodeParser {
     pub fn parse_session(&self, session_id: &str) -> Result<ParsedSession, String> {
         // Load session metadata first to get project ID
         let session = self.load_session(session_id)?;
-        let project = self.load_project(&session.project_id)?;
+        let project_id = session.project_id
+            .ok_or_else(|| format!("Session {} has no project ID", session_id))?;
+        let project = self.load_project(&project_id)?;
 
         // Load all messages for this session
         let messages = self.load_messages_for_session(session_id)?;
+
+        // Track aggregated metrics
+        let mut total_input_tokens = 0i64;
+        let mut total_output_tokens = 0i64;
+        let mut total_reasoning_tokens = 0i64;
+        let mut total_cache_write = 0i64;
+        let mut total_cache_read = 0i64;
+        let mut total_cost = 0.0;
+        let mut tool_count = 0usize;
+        let mut file_count = 0usize;
 
         // Load all parts for each message and organize chronologically
         let mut session_entries = Vec::new();
@@ -114,35 +202,136 @@ impl OpenCodeParser {
         for message in messages {
             let parts = self.load_parts_for_message(&message.id)?;
 
-            // Create JSONL entry for this message with all its parts
-            let content: Vec<OpenCodeJsonLContent> = parts
-                .into_iter()
-                .filter_map(|part| {
-                    part.text.map(|text| OpenCodeJsonLContent {
-                        content_type: "text".to_string(),
-                        text,
-                    })
-                })
-                .collect();
+            // Process parts and create separate entries for tool use/results
+            let mut text_content: Vec<OpenCodeJsonLContent> = Vec::new();
 
-            if !content.is_empty() {
-                let timestamp = message.time.created
-                    .or(message.time.initialized)
-                    .or(message.time.updated)
-                    .and_then(|ts| DateTime::from_timestamp_millis(ts))
-                    .unwrap_or_else(|| Utc::now());
+            let base_timestamp = message.time.created
+                .or(message.time.initialized)
+                .or(message.time.updated)
+                .and_then(|ts| DateTime::from_timestamp_millis(ts))
+                .unwrap_or_else(|| Utc::now());
 
+            for part in parts {
+                match part.part_type.as_str() {
+                    "text" => {
+                        if let Some(text) = part.text {
+                            text_content.push(OpenCodeJsonLContent::Text {
+                                content_type: "text".to_string(),
+                                text,
+                            });
+                        }
+                    }
+                    "tool" => {
+                        if let (Some(tool_name), Some(call_id), Some(state)) =
+                            (part.tool.as_ref(), part.call_id.as_ref(), part.state.as_ref()) {
+                            tool_count += 1;
+
+                            // Get timestamp from part if available
+                            let part_timestamp = part.time.as_ref()
+                                .and_then(|t| t.start)
+                                .and_then(|ts| DateTime::from_timestamp_millis(ts))
+                                .unwrap_or(base_timestamp);
+
+                            // Create separate entry for tool use
+                            let tool_use_entry = OpenCodeJsonLEntry {
+                                session_id: session_id.to_string(),
+                                timestamp: part_timestamp.to_rfc3339(),
+                                entry_type: "tool_use".to_string(),
+                                message: OpenCodeJsonLMessage {
+                                    role: "tool".to_string(),
+                                    content: vec![OpenCodeJsonLContent::ToolUse {
+                                        content_type: "tool_use".to_string(),
+                                        id: call_id.clone(),
+                                        name: tool_name.clone(),
+                                        input: state.input.clone().unwrap_or(serde_json::Value::Null),
+                                    }],
+                                },
+                            };
+                            session_entries.push((part_timestamp, tool_use_entry));
+
+                            // Create separate entry for tool result if output exists
+                            if let Some(output) = state.output.as_ref() {
+                                let result_timestamp = part.time.as_ref()
+                                    .and_then(|t| t.end)
+                                    .and_then(|ts| DateTime::from_timestamp_millis(ts))
+                                    .unwrap_or_else(|| part_timestamp + chrono::Duration::milliseconds(1));
+
+                                let tool_result_entry = OpenCodeJsonLEntry {
+                                    session_id: session_id.to_string(),
+                                    timestamp: result_timestamp.to_rfc3339(),
+                                    entry_type: "tool_result".to_string(),
+                                    message: OpenCodeJsonLMessage {
+                                        role: "tool".to_string(),
+                                        content: vec![OpenCodeJsonLContent::ToolResult {
+                                            content_type: "tool_result".to_string(),
+                                            tool_use_id: call_id.clone(),
+                                            content: output.clone(),
+                                            is_error: Some(state.status != "completed"),
+                                        }],
+                                    },
+                                };
+                                session_entries.push((result_timestamp, tool_result_entry));
+                            }
+                        }
+                    }
+                    "file" => {
+                        if let (Some(filename), Some(mime), Some(url)) =
+                            (part.filename.as_ref(), part.mime.as_ref(), part.url.as_ref()) {
+                            file_count += 1;
+                            text_content.push(OpenCodeJsonLContent::File {
+                                content_type: "file".to_string(),
+                                filename: filename.clone(),
+                                mime: mime.clone(),
+                                url: url.clone(),
+                            });
+                        }
+                    }
+                    "patch" => {
+                        if let (Some(files), Some(hash)) =
+                            (part.files.as_ref(), part.hash.as_ref()) {
+                            if !files.is_empty() {
+                                text_content.push(OpenCodeJsonLContent::Patch {
+                                    content_type: "patch".to_string(),
+                                    files: files.clone(),
+                                    hash: hash.clone(),
+                                });
+                            }
+                        }
+                    }
+                    "step-finish" => {
+                        // Aggregate token usage
+                        if let Some(tokens) = part.tokens.as_ref() {
+                            total_input_tokens += tokens.input.unwrap_or(0);
+                            total_output_tokens += tokens.output.unwrap_or(0);
+                            total_reasoning_tokens += tokens.reasoning.unwrap_or(0);
+                            if let Some(cache) = tokens.cache.as_ref() {
+                                total_cache_write += cache.write.unwrap_or(0);
+                                total_cache_read += cache.read.unwrap_or(0);
+                            }
+                        }
+                        if let Some(cost) = part.cost {
+                            total_cost += cost;
+                        }
+                    }
+                    _ => {
+                        // Skip other types (step-start, snapshot, etc.)
+                    }
+                }
+            }
+
+            // Create entry for text/file/patch content if any
+            if !text_content.is_empty() {
                 let entry = OpenCodeJsonLEntry {
                     session_id: session_id.to_string(),
-                    timestamp: timestamp.to_rfc3339(),
+                    timestamp: base_timestamp.to_rfc3339(),
                     entry_type: message.role.clone(),
                     message: OpenCodeJsonLMessage {
                         role: message.role,
-                        content,
+                        content: text_content,
                     },
                 };
 
-                session_entries.push((timestamp, entry));
+                session_entries.push((base_timestamp, entry));
             }
         }
 
@@ -172,6 +361,25 @@ impl OpenCodeParser {
             .unwrap_or("unknown")
             .to_string();
 
+        // Build aggregated token data
+        let total_tokens = if total_input_tokens > 0 || total_output_tokens > 0 {
+            Some(OpenCodeTokens {
+                input: Some(total_input_tokens),
+                output: Some(total_output_tokens),
+                reasoning: if total_reasoning_tokens > 0 { Some(total_reasoning_tokens) } else { None },
+                cache: if total_cache_read > 0 || total_cache_write > 0 {
+                    Some(OpenCodeTokenCache {
+                        write: if total_cache_write > 0 { Some(total_cache_write) } else { None },
+                        read: if total_cache_read > 0 { Some(total_cache_read) } else { None },
+                    })
+                } else {
+                    None
+                },
+            })
+        } else {
+            None
+        };
+
         Ok(ParsedSession {
             session_id: session_id.to_string(),
             project_name,
@@ -179,6 +387,10 @@ impl OpenCodeParser {
             session_end_time,
             duration_ms,
             jsonl_content,
+            total_tokens,
+            total_cost: if total_cost > 0.0 { Some(total_cost) } else { None },
+            tool_count,
+            file_count,
         })
     }
 
@@ -244,8 +456,16 @@ impl OpenCodeParser {
                     let content = fs::read_to_string(&session_file)
                         .map_err(|e| format!("Failed to read session file: {}", e))?;
 
-                    let session: OpenCodeSession = serde_json::from_str(&content)
+                    let mut session: OpenCodeSession = serde_json::from_str(&content)
                         .map_err(|e| format!("Failed to parse session JSON: {}", e))?;
+
+                    // If projectID is not in the JSON, infer it from the directory path
+                    if session.project_id.is_none() {
+                        if let Some(project_id) = project_session_dir.file_name()
+                            .and_then(|name| name.to_str()) {
+                            session.project_id = Some(project_id.to_string());
+                        }
+                    }
 
                     return Ok(session);
                 }
@@ -329,7 +549,7 @@ impl OpenCodeParser {
 
         // Sort parts by start time if available
         parts.sort_by_key(|part| {
-            part.time.as_ref().map(|t| t.start).unwrap_or(0)
+            part.time.as_ref().and_then(|t| t.start).unwrap_or(0)
         });
 
         Ok(parts)
@@ -351,7 +571,7 @@ impl OpenCodeParser {
 
     pub fn get_project_for_session(&self, session_id: &str) -> Option<String> {
         if let Ok(session) = self.load_session(session_id) {
-            Some(session.project_id)
+            session.project_id
         } else {
             None
         }
@@ -378,17 +598,21 @@ mod tests {
         let project = r#"{"id":"test_project","worktree":"/path/to/project","time":{"created":1609459200000}}"#;
         fs::write(storage_path.join("project").join("test_project.json"), project).unwrap();
 
-        // Create test session
-        let session = r#"{"id":"test_session","projectID":"test_project","title":"Test Session","time":{"created":1609459200000}}"#;
+        // Create test session (without projectID - will be inferred from directory)
+        let session = r#"{"id":"test_session","title":"Test Session","time":{"created":1609459200000}}"#;
         fs::write(storage_path.join("session").join("test_project").join("test_session.json"), session).unwrap();
 
         // Create test message
         let message = r#"{"id":"test_message","role":"user","sessionID":"test_session","time":{"created":1609459200000}}"#;
         fs::write(storage_path.join("message").join("test_session").join("test_message.json"), message).unwrap();
 
-        // Create test part
+        // Create test part with text
         let part = r#"{"id":"test_part","type":"text","text":"Hello, world!","messageID":"test_message","sessionID":"test_session"}"#;
         fs::write(storage_path.join("part").join("test_message").join("test_part.json"), part).unwrap();
+
+        // Create test part with tool use and result
+        let tool_part = r#"{"id":"test_tool_part","type":"tool","tool":"read","callID":"call_123","state":{"status":"completed","input":{"filePath":"/test/file.txt"},"output":"File contents here","title":"test"},"messageID":"test_message","sessionID":"test_session"}"#;
+        fs::write(storage_path.join("part").join("test_message").join("test_tool_part.json"), tool_part).unwrap();
 
         let parser = OpenCodeParser::new(storage_path);
         (temp_dir, parser)
@@ -403,6 +627,9 @@ mod tests {
         assert_eq!(result.session_id, "test_session");
         assert_eq!(result.project_name, "project");
         assert!(!result.jsonl_content.is_empty());
+
+        // Print JSONL for debugging
+        println!("Generated JSONL:\n{}", result.jsonl_content);
     }
 
     #[test]

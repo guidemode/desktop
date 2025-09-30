@@ -1,6 +1,6 @@
 [package]
 name = "guideai-desktop"
-version = "0.1.3"
+version = "0.1.5"
 description = "GuideAI Desktop Menubar App"
 authors = ["GuideAI Team"]
 license = "MIT"

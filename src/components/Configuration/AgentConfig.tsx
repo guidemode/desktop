@@ -6,8 +6,19 @@ import {
   useStartClaudeWatcher,
   useStopClaudeWatcher
 } from '../../hooks/useClaudeWatcher'
+import {
+  useOpenCodeWatcherStatus,
+  useStartOpenCodeWatcher,
+  useStopOpenCodeWatcher
+} from '../../hooks/useOpenCodeWatcher'
+import {
+  useCodexWatcherStatus,
+  useStartCodexWatcher,
+  useStopCodexWatcher
+} from '../../hooks/useCodexWatcher'
 import { formatDistanceToNow } from 'date-fns'
 import SessionSync from './SessionSync'
+import ProviderIcon from '../icons/ProviderIcon'
 
 interface AgentConfigProps {
   agent: CodingAgent
@@ -18,10 +29,35 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
   const { data: config, isLoading: configLoading } = useProviderConfig(agent.id)
   const { mutate: saveConfig, isPending: saving } = useSaveProviderConfig()
 
-  // Claude watcher hooks (only for claude-code provider)
-  const { data: watcherStatus } = useClaudeWatcherStatus()
-  const { mutate: startWatcher, isPending: startingWatcher } = useStartClaudeWatcher()
-  const { mutate: stopWatcher, isPending: stoppingWatcher } = useStopClaudeWatcher()
+  // Watcher hooks - conditional based on provider
+  const { data: claudeWatcherStatus } = useClaudeWatcherStatus()
+  const { mutate: startClaudeWatcher, isPending: startingClaudeWatcher } = useStartClaudeWatcher()
+  const { mutate: stopClaudeWatcher, isPending: stoppingClaudeWatcher } = useStopClaudeWatcher()
+
+  const { data: opencodeWatcherStatus } = useOpenCodeWatcherStatus()
+  const { mutate: startOpenCodeWatcher, isPending: startingOpenCodeWatcher } = useStartOpenCodeWatcher()
+  const { mutate: stopOpenCodeWatcher, isPending: stoppingOpenCodeWatcher } = useStopOpenCodeWatcher()
+
+  const { data: codexWatcherStatus } = useCodexWatcherStatus()
+  const { mutate: startCodexWatcher, isPending: startingCodexWatcher } = useStartCodexWatcher()
+  const { mutate: stopCodexWatcher, isPending: stoppingCodexWatcher } = useStopCodexWatcher()
+
+  // Get the appropriate status and functions for the current provider
+  const watcherStatus = agent.id === 'claude-code' ? claudeWatcherStatus :
+                        agent.id === 'opencode' ? opencodeWatcherStatus :
+                        agent.id === 'codex' ? codexWatcherStatus : undefined
+  const startWatcher = agent.id === 'claude-code' ? startClaudeWatcher :
+                       agent.id === 'opencode' ? startOpenCodeWatcher :
+                       agent.id === 'codex' ? startCodexWatcher : undefined
+  const stopWatcher = agent.id === 'claude-code' ? stopClaudeWatcher :
+                      agent.id === 'opencode' ? stopOpenCodeWatcher :
+                      agent.id === 'codex' ? stopCodexWatcher : undefined
+  const startingWatcher = agent.id === 'claude-code' ? startingClaudeWatcher :
+                          agent.id === 'opencode' ? startingOpenCodeWatcher :
+                          agent.id === 'codex' ? startingCodexWatcher : false
+  const stoppingWatcher = agent.id === 'claude-code' ? stoppingClaudeWatcher :
+                          agent.id === 'opencode' ? stoppingOpenCodeWatcher :
+                          agent.id === 'codex' ? stoppingCodexWatcher : false
 
   const [localConfig, setLocalConfig] = useState<ProviderConfig>({
     enabled: false,
@@ -54,7 +90,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
     // Non-destructive disable: only stop watching, preserve all other config
     if (!enabled) {
       // Stop watching when disabling
-      if (agent.id === 'claude-code' && watcherStatus?.is_running) {
+      if (watcherStatus?.is_running && stopWatcher) {
         stopWatcher()
       }
     } else if (!newConfig.homeDirectory) {
@@ -67,7 +103,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
     if (enabled) {
       // Auto-start watching when enabling (if we can)
-      if (agent.id === 'claude-code' && canStartWatcher && !watcherStatus?.is_running) {
+      if (canStartWatcher && !watcherStatus?.is_running && startWatcher) {
         const projectsToWatch = newConfig.projectSelection === 'ALL'
           ? projects.map(p => p.name)
           : newConfig.selectedProjects
@@ -93,7 +129,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
       saveConfig({ providerId: agent.id, config: newConfig })
 
       // Auto-start watching if not running and we can
-      if (agent.id === 'claude-code' && !watcherStatus?.is_running) {
+      if (!watcherStatus?.is_running && startWatcher) {
         const projectsToWatch = newConfig.projectSelection === 'ALL'
           ? projects.map(p => p.name)
           : newConfig.selectedProjects
@@ -115,6 +151,8 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
   // Watcher control functions
   const handleStartWatcher = () => {
+    if (!startWatcher) return
+
     const projectsToWatch = localConfig.projectSelection === 'ALL'
       ? projects.map(p => p.name)
       : localConfig.selectedProjects
@@ -123,12 +161,13 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
   }
 
   const handleStopWatcher = () => {
+    if (!stopWatcher) return
     stopWatcher()
   }
 
   const isConfigLoading = configLoading || saving
   const isWatcherBusy = startingWatcher || stoppingWatcher
-  const canStartWatcher = localConfig.enabled && agent.id === 'claude-code' &&
+  const canStartWatcher = localConfig.enabled && startWatcher !== undefined &&
     (localConfig.projectSelection === 'ALL' || localConfig.selectedProjects.length > 0)
 
   // Note: Autostart has been moved to Rust code at application startup
@@ -142,10 +181,8 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <div className={`avatar placeholder`}>
-              <div className={`bg-gradient-to-r ${agent.color} rounded-lg w-8 h-8 text-white`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={agent.icon} />
-                </svg>
+              <div className={`bg-base-200 rounded-lg w-8 h-8 flex items-center justify-center p-1`}>
+                <ProviderIcon providerId={agent.id} size={24} />
               </div>
             </div>
             <div>
@@ -269,8 +306,8 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
               </div>
             )}
 
-            {/* File Watching Controls (only for Claude Code) */}
-            {agent.id === 'claude-code' && (
+            {/* File Watching Controls (for all providers) */}
+            {startWatcher !== undefined && (
               <div className="form-control">
                 <label className="label">
                   <span className="label-text">File Watching</span>

@@ -4,12 +4,14 @@ use chrono::{DateTime, Utc};
 mod claude;
 mod claude_watcher;
 mod codex;
+mod codex_watcher;
 mod opencode;
 mod opencode_parser;
 mod opencode_watcher;
 mod session_scanner;
 
 pub use claude_watcher::{ClaudeWatcher, ClaudeWatcherStatus};
+pub use codex_watcher::{CodexWatcher, CodexWatcherStatus};
 pub use opencode_watcher::{OpenCodeWatcher, OpenCodeWatcherStatus};
 pub use session_scanner::{SessionInfo, scan_all_sessions};
 

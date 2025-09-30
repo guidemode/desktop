@@ -1,0 +1,25 @@
+<svg width="288" height="50" viewBox="0 0 288 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M8 16.5H24V33H8V16.5Z" fill="currentColor" fill-opacity="0.15"/>
+<path d="M48 16.5H64V33H48V16.5Z" fill="currentColor" fill-opacity="0.15"/>
+<path d="M120 16.5H136V33H120V16.5Z" fill="currentColor" fill-opacity="0.15"/>
+<path d="M160 16.5H176V33H160V16.5Z" fill="currentColor" fill-opacity="0.15"/>
+<path d="M192 16.5H208V33H192V16.5Z" fill="currentColor" fill-opacity="0.15"/>
+<path d="M232 16.5H248V33H232V16.5Z" fill="currentColor" fill-opacity="0.15"/>
+<path d="M264 0H288V8.5H272V16.5H288V25H272V33H288V41.5H264V0Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M248 0H224V41.5H248V33H232V8.5H248V0Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M256 8.5H248V33H256V8.5Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H24V8.5H8V33H24V41.5H0V0Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M0 8.5H16V33H0V8.5ZM8 16.5V25H16V16.5H8Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M32 0H56V41.5H32V0ZM40 8.5V33H48V8.5H40Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M40 8.5H56V33H40V8.5ZM48 16.5V25H56V16.5H48Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M64 0H88V41.5H64V0Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M72 8.5H80V33H72V8.5Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M112 0H96V41.5H112V33H104V25H112V16.5H104V8.5H112V0Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M120 0H144V41.5H120V0ZM128 8.5V33H136V8.5H128Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M128 8.5H144V33H128V8.5ZM136 16.5V25H144V16.5H136Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M152 0H176V41.5H152V0ZM160 8.5V33H168V8.5H160Z" fill="currentColor" fill-opacity="0.95"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M160 8.5H176V33H160V8.5ZM168 16.5V25H176V16.5H168Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M184 0H208V8.5H192V33H208V41.5H184V0Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M192 8.5H200V33H192V8.5Z" fill="currentColor" fill-opacity="0.95"/>
+<path d="M216 0H240V41.5H216V33H224V25H216V16.5H224V8.5H216V0Z" fill="currentColor" fill-opacity="0.95"/>
+</svg>
