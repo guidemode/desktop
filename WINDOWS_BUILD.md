@@ -138,33 +138,33 @@ pnpm tauri:build:windows:prod
 ### Build Output
 
 Windows builds generate:
-- **NSIS installer** (cross-compiled): `apps/desktop/src-tauri/target/x86_64-pc-windows-gnu/release/bundle/nsis/*.exe`
-- **MSI installer** (Windows native only): `apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi`
+- **MSI installer**: `apps/desktop/src-tauri/target/release/bundle/msi/*.msi`
+- **NSIS installer** (fallback): `apps/desktop/src-tauri/target/release/bundle/nsis/*.exe`
 
-**Note**: When cross-compiling from Linux, only NSIS installers are produced (MSI requires Windows and WiX toolset).
+**Note**: Our GitHub Actions workflow builds on native Windows using `windows-latest`, which produces MSI installers by default.
 
 ### Download Links
 
 Once a release is published, Windows builds are available at:
-- **Versioned**: `https://install.guideai.dev/desktop/v{VERSION}/GuideAI-Desktop-{VERSION}-windows-setup.exe`
-- **Latest**: `https://install.guideai.dev/desktop/latest/GuideAI-Desktop-windows-setup.exe`
+- **Versioned**: `https://install.guideai.dev/desktop/v{VERSION}/GuideAI-Desktop-{VERSION}-windows.msi`
+- **Latest**: `https://install.guideai.dev/desktop/latest/GuideAI-Desktop-windows.msi`
 - **Web UI**: Available on the home page download card at `https://guideai.dev`
 
 ## Important Notes
 
-### NSIS vs MSI Installers
+### Native Windows Builds
 
-**Why NSIS?**
-- MSI installers can ONLY be created on Windows (requires WiX toolset)
-- NSIS installers CAN be cross-compiled from Linux/macOS
-- Our CI/CD builds Windows on Linux for faster, more reliable builds
-- NSIS provides a standard Windows installer experience
-- Both installer types are functionally equivalent for end users
+**GitHub Actions Approach:**
+- Builds on `windows-latest` runner (native Windows environment)
+- Produces MSI installers using WiX toolset (pre-installed on Windows runners)
+- More reliable than cross-compilation from Linux
+- Full feature support including code signing (when configured)
 
-**When MSI is created:**
-- Only when building on native Windows
-- GitHub Actions workflow uses Linux cross-compilation (produces NSIS)
-- Local Windows builds will produce MSI by default
+**Why Native over Cross-Compilation:**
+- MSI installers require Windows and WiX toolset
+- Cross-compilation has limited support and requires experimental features
+- Native builds are the recommended approach for production
+- Avoids Linux library dependency issues (appindicator, etc.)
 
 ### Claude Code on Windows
 
