@@ -1,6 +1,6 @@
 {
   "name": "@guideai/desktop",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "GuideAI desktop menubar application",
   "type": "module",
   "scripts": {
@@ -11,6 +11,10 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "tauri:build:prod": "NODE_ENV=production tauri build",
+    "tauri:build:windows": "tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:windows:prod": "NODE_ENV=production tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:macos": "tauri build --target aarch64-apple-darwin",
+    "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist/* build src-tauri/target",
     "test": "echo 'No tests yet'"

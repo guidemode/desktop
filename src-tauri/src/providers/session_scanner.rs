@@ -1,4 +1,4 @@
-use crate::logging::{log_info, log_warn};
+use crate::logging::{log_info, log_warn, log_debug};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
@@ -178,20 +178,27 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
     // Try to extract CWD from session content (look for cwd in early entries)
     let cwd = extract_cwd_from_claude_session(&content);
 
-    // Derive actual project name from CWD if available
-    let actual_project_name = if let Some(ref cwd_path) = cwd {
-        use crate::project_metadata::extract_project_metadata;
-        match extract_project_metadata(cwd_path) {
-            Ok(metadata) => metadata.project_name,
-            Err(_) => project_name.to_string(), // Fall back to directory name
+    if cwd.is_none() {
+        if let Err(e) = log_debug(
+            "claude-code",
+            &format!("No CWD found in session {} (file: {})", session_id, file_path.display()),
+        ) {
+            eprintln!("Logging error: {}", e);
         }
-    } else {
-        project_name.to_string() // Fall back to directory name
-    };
+    } else if let Err(e) = log_debug(
+        "claude-code",
+        &format!("✓ Extracted CWD from session {}: {:?}", session_id, cwd),
+    ) {
+        eprintln!("Logging error: {}", e);
+    }
+
+    // IMPORTANT: Always use the Claude Code folder name for filtering
+    // The real project name will be derived from CWD later during upload
+    // This ensures filtering works correctly with user-selected projects
 
     Ok(SessionInfo {
         provider: "claude-code".to_string(),
-        project_name: actual_project_name,
+        project_name: project_name.to_string(), // Use Claude Code folder name for filtering
         session_id,
         file_path: file_path.to_path_buf(),
         file_name,
@@ -200,7 +207,7 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
         duration_ms,
         file_size,
         content: None, // Claude Code sessions use files directly
-        cwd,
+        cwd, // CWD will be used to derive real project name during upload
     })
 }
 

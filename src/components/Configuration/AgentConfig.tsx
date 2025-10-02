@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { CodingAgent, ProviderConfig } from '../../types/providers'
 import { useProviderConfig, useSaveProviderConfig, useScanProjects } from '../../hooks/useProviderConfig'
+import { useSessionSync } from '../../hooks/useSessionSync'
 import {
   useClaudeWatcherStatus,
   useStartClaudeWatcher,
@@ -28,6 +29,11 @@ interface AgentConfigProps {
 function AgentConfig({ agent, headerActions }: AgentConfigProps) {
   const { data: config, isLoading: configLoading } = useProviderConfig(agent.id)
   const { mutate: saveConfig, isPending: saving } = useSaveProviderConfig()
+  const { resetProgress } = useSessionSync(agent.id)
+
+  // Track previous selected projects to detect changes
+  const prevSelectedProjectsRef = useRef<string[]>([])
+  const prevProjectSelectionRef = useRef<'ALL' | 'SELECTED'>('ALL')
 
   // Watcher hooks - conditional based on provider
   const { data: claudeWatcherStatus } = useClaudeWatcherStatus()
@@ -82,6 +88,34 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
       })
     }
   }, [config])
+
+  // Reset session sync progress when selected projects change
+  useEffect(() => {
+    // Skip on initial mount
+    if (prevSelectedProjectsRef.current.length === 0 && prevProjectSelectionRef.current === 'ALL') {
+      prevSelectedProjectsRef.current = localConfig.selectedProjects
+      prevProjectSelectionRef.current = localConfig.projectSelection
+      return
+    }
+
+    // Check if project selection mode changed
+    const modeChanged = prevProjectSelectionRef.current !== localConfig.projectSelection
+
+    // Check if selected projects changed (only relevant when in SELECTED mode)
+    const projectsChanged = localConfig.projectSelection === 'SELECTED' && (
+      prevSelectedProjectsRef.current.length !== localConfig.selectedProjects.length ||
+      !prevSelectedProjectsRef.current.every(p => localConfig.selectedProjects.includes(p))
+    )
+
+    // Reset if either changed
+    if (modeChanged || projectsChanged) {
+      resetProgress()
+    }
+
+    // Update refs
+    prevSelectedProjectsRef.current = localConfig.selectedProjects
+    prevProjectSelectionRef.current = localConfig.projectSelection
+  }, [localConfig.selectedProjects, localConfig.projectSelection, resetProgress])
 
 
   const handleEnabledChange = (enabled: boolean) => {

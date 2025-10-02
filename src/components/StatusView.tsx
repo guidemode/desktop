@@ -7,7 +7,7 @@ import { ArrowTopRightOnSquareIcon, DocumentTextIcon } from '@heroicons/react/24
 import ProviderIcon from './icons/ProviderIcon'
 
 function StatusView() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const { data: queueStatus } = useUploadQueueStatus()
   const { data: claudeCodeConfig } = useProviderConfig('claude-code')
   const { data: opencodeConfig } = useProviderConfig('opencode')
@@ -38,6 +38,14 @@ function StatusView() {
   const openMainWindowToProviderLogs = async (providerId: string) => {
     try {
       await invoke('open_main_window', { route: `/provider/${providerId}?showLogs=true` })
+    } catch (err) {
+      console.error('Failed to open main window:', err)
+    }
+  }
+
+  const openProviderDetail = async (providerId: string) => {
+    try {
+      await invoke('open_main_window', { route: `/provider/${providerId}` })
     } catch (err) {
       console.error('Failed to open main window:', err)
     }
@@ -95,7 +103,10 @@ function StatusView() {
 
             return (
               <div key={agent.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openProviderDetail(agent.id)}
+                  className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                >
                   <div className="flex-shrink-0 w-5 h-5 rounded overflow-hidden relative">
                     <ProviderIcon providerId={agent.id} size={20} />
                     <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-base-100 ${
@@ -103,7 +114,7 @@ function StatusView() {
                     }`} />
                   </div>
                   <span className="text-sm">{agent.name}</span>
-                </div>
+                </button>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => openMainWindowToProviderLogs(agent.id)}
@@ -136,13 +147,6 @@ function StatusView() {
         >
           <ArrowTopRightOnSquareIcon className="w-4 h-4" />
           Open Full Window
-        </button>
-
-        <button
-          onClick={logout}
-          className="btn btn-ghost btn-sm"
-        >
-          Logout
         </button>
       </div>
 

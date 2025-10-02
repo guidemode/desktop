@@ -601,6 +601,13 @@ where
 pub async fn scan_historical_sessions(
     provider_id: String,
 ) -> Result<Vec<SessionInfo>, String> {
+    use crate::logging::{log_info, log_warn, log_debug};
+
+    // Log start of scan
+    if let Err(e) = log_info(&provider_id, &format!("🔍 Starting historical session scan for {}", provider_id)) {
+        eprintln!("Logging error: {}", e);
+    }
+
     // Update progress
     update_sync_progress_for_provider(&provider_id, |progress| {
         progress.is_scanning = true;
@@ -614,12 +621,24 @@ pub async fn scan_historical_sessions(
         .map_err(|e| format!("Failed to load provider config: {}", e))?;
 
     if !config.enabled {
-        return Err(format!("Provider '{}' is not enabled", provider_id));
+        let err_msg = format!("Provider '{}' is not enabled", provider_id);
+        if let Err(e) = log_warn(&provider_id, &format!("⚠ {}", err_msg)) {
+            eprintln!("Logging error: {}", e);
+        }
+        return Err(err_msg);
+    }
+
+    if let Err(e) = log_info(&provider_id, &format!("📂 Scanning directory: {}", config.home_directory)) {
+        eprintln!("Logging error: {}", e);
     }
 
     // Scan for sessions
     let all_sessions = scan_all_sessions(&provider_id, &config.home_directory)
         .map_err(|e| {
+            // Log the error
+            if let Err(log_err) = log_warn(&provider_id, &format!("✗ Failed to scan sessions: {}", e)) {
+                eprintln!("Logging error: {}", log_err);
+            }
             // Update progress with error
             update_sync_progress_for_provider(&provider_id, |progress| {
                 progress.errors.push(e.clone());
@@ -628,15 +647,45 @@ pub async fn scan_historical_sessions(
             e
         })?;
 
+    if let Err(e) = log_info(&provider_id, &format!("📊 Found {} total sessions before filtering", all_sessions.len())) {
+        eprintln!("Logging error: {}", e);
+    }
+
     // Filter sessions based on project selection
     let sessions: Vec<SessionInfo> = if config.project_selection == "ALL" {
+        if let Err(e) = log_info(&provider_id, "📋 Using ALL project selection - no filtering") {
+            eprintln!("Logging error: {}", e);
+        }
         all_sessions
     } else {
-        // Filter sessions to only include selected projects
-        all_sessions.into_iter()
-            .filter(|session| config.selected_projects.contains(&session.project_name))
-            .collect()
+        if let Err(e) = log_info(&provider_id, &format!("📋 Filtering to {} selected projects: {}",
+            config.selected_projects.len(), config.selected_projects.join(", "))) {
+            eprintln!("Logging error: {}", e);
+        }
+
+        let filtered: Vec<SessionInfo> = all_sessions.into_iter()
+            .filter(|session| {
+                let is_selected = config.selected_projects.contains(&session.project_name);
+                if !is_selected {
+                    if let Err(e) = log_debug(&provider_id, &format!("  Skipping session {} (project '{}' not in selected projects)",
+                        session.session_id, session.project_name)) {
+                        eprintln!("Logging error: {}", e);
+                    }
+                }
+                is_selected
+            })
+            .collect();
+
+        if let Err(e) = log_info(&provider_id, &format!("📊 Filtered to {} sessions", filtered.len())) {
+            eprintln!("Logging error: {}", e);
+        }
+
+        filtered
     };
+
+    if let Err(e) = log_info(&provider_id, &format!("✓ Scan complete: found {} sessions to sync", sessions.len())) {
+        eprintln!("Logging error: {}", e);
+    }
 
     // Update progress
     update_sync_progress_for_provider(&provider_id, |progress| {
@@ -653,9 +702,22 @@ pub async fn sync_historical_sessions(
     state: State<'_, AppState>,
     provider_id: String,
 ) -> Result<(), String> {
+    use crate::logging::{log_info, log_warn, log_error};
+
+    if let Err(e) = log_info(&provider_id, &format!("📤 Starting historical session sync for {}", provider_id)) {
+        eprintln!("Logging error: {}", e);
+    }
+
     // Update upload queue with current config
     if let Ok(config) = load_config() {
         state.upload_queue.set_config(config);
+        if let Err(e) = log_info(&provider_id, "✓ Upload queue configured") {
+            eprintln!("Logging error: {}", e);
+        }
+    } else {
+        if let Err(e) = log_warn(&provider_id, "⚠ Failed to load config for upload queue") {
+            eprintln!("Logging error: {}", e);
+        }
     }
 
     // Update progress
@@ -671,25 +733,51 @@ pub async fn sync_historical_sessions(
         .sessions_found;
 
     if sessions.is_empty() {
-        return Err("No sessions found to sync. Run scan first.".to_string());
+        let err_msg = "No sessions found to sync. Run scan first.".to_string();
+        if let Err(e) = log_warn(&provider_id, &format!("⚠ {}", err_msg)) {
+            eprintln!("Logging error: {}", e);
+        }
+        return Err(err_msg);
+    }
+
+    if let Err(e) = log_info(&provider_id, &format!("📋 Queueing {} sessions for upload", sessions.len())) {
+        eprintln!("Logging error: {}", e);
     }
 
     // Track initial upload queue status to calculate completion
     let _initial_status = state.upload_queue.get_status();
 
     // Add all sessions to upload queue
-    for session in &sessions {
+    let mut queued_count = 0;
+    let mut error_count = 0;
+    for (index, session) in sessions.iter().enumerate() {
         // Update current progress
         update_sync_progress_for_provider(&provider_id, |progress| {
             progress.current_project = session.project_name.clone();
         }).ok();
 
+        if let Err(e) = log_info(&provider_id, &format!("  [{}/{}] Queueing session {} (project: {}, cwd: {:?})",
+            index + 1, sessions.len(), session.session_id, session.project_name, session.cwd)) {
+            eprintln!("Logging error: {}", e);
+        }
+
         // Add to upload queue with enhanced metadata
         if let Err(e) = state.upload_queue.add_historical_session(session) {
+            let error_msg = format!("Failed to queue {}: {}", session.file_name, e);
+            if let Err(log_err) = log_error(&provider_id, &format!("✗ {}", error_msg)) {
+                eprintln!("Logging error: {}", log_err);
+            }
             update_sync_progress_for_provider(&provider_id, |progress| {
-                progress.errors.push(format!("Failed to queue {}: {}", session.file_name, e));
+                progress.errors.push(error_msg);
             }).ok();
+            error_count += 1;
+        } else {
+            queued_count += 1;
         }
+    }
+
+    if let Err(e) = log_info(&provider_id, &format!("✓ Queued {}/{} sessions ({} errors)", queued_count, sessions.len(), error_count)) {
+        eprintln!("Logging error: {}", e);
     }
 
     // Store initial queue size for progress calculation
@@ -700,6 +788,11 @@ pub async fn sync_historical_sessions(
         progress.is_complete = false; // Will be determined by polling
         progress.initial_queue_size = Some(final_status.pending);
     }).ok();
+
+    if let Err(e) = log_info(&provider_id, &format!("📊 Upload queue status: {} pending, {} processing",
+        final_status.pending, final_status.processing)) {
+        eprintln!("Logging error: {}", e);
+    }
 
     Ok(())
 }
