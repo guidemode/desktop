@@ -3,8 +3,10 @@ import { useConfigStore } from '../stores/configStore'
 import Login from '../components/Login'
 import { useState, useEffect } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
+import { useNavigate } from 'react-router-dom'
 
 function SettingsPage() {
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
   const { aiApiKeys, setAiApiKey, deleteAiApiKey } = useConfigStore()
   const [showClaudeKey, setShowClaudeKey] = useState(false)
@@ -25,11 +27,22 @@ function SettingsPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-base-content">Settings</h1>
-        <p className="text-base-content/70 mt-1">
-          Manage your account and application settings
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-base-content">Settings</h1>
+          <p className="text-base-content/70 mt-1">
+            Manage your account and application settings
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/logs')}
+          className="btn btn-outline btn-sm gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Logs
+        </button>
       </div>
 
       <div className="space-y-6">

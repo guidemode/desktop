@@ -27,6 +27,9 @@ use std::sync::LazyLock;
 #[allow(dead_code)]
 static LOG_WRITERS: LazyLock<Mutex<std::collections::HashMap<String, File>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 
+// Keep the guard alive for the lifetime of the program
+static FILE_APPENDER_GUARD: LazyLock<Mutex<Option<tracing_appender::non_blocking::WorkerGuard>>> = LazyLock::new(|| Mutex::new(None));
+
 pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
     ensure_logs_dir()?;
 
@@ -42,8 +45,25 @@ pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
             .with_thread_names(false)
             .with_filter(env_filter.clone());
 
+        // File logging for all application output
+        let logs_dir = get_logs_dir().expect("Failed to get logs directory");
+        let file_appender = tracing_appender::rolling::never(&logs_dir, "app.log");
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+        // Store the guard to keep the writer alive
+        if let Ok(mut guard_mutex) = FILE_APPENDER_GUARD.lock() {
+            *guard_mutex = Some(guard);
+        }
+
+        let file_layer = fmt::layer()
+            .with_writer(non_blocking)
+            .with_ansi(false)
+            .with_target(true)
+            .with_filter(env_filter.clone());
+
         tracing_subscriber::registry()
             .with(console_layer)
+            .with(file_layer)
             .init();
     });
 
@@ -138,10 +158,54 @@ fn rotate_log_file(log_file_path: &PathBuf) -> Result<(), Box<dyn std::error::Er
 
 fn transform_provider_log_to_claude_format(provider: &str, log_content: &str) -> Option<LogEntry> {
     match provider {
+        "app" => transform_app_log(log_content),
         "opencode" => transform_opencode_log(log_content),
         "codex" => transform_codex_log(log_content),
         _ => None,
     }
+}
+
+fn transform_app_log(log_content: &str) -> Option<LogEntry> {
+    // Parse tracing format: "2025-10-03T19:29:51.226423Z  INFO guideai_desktop::logging: message provider=\"name\""
+    let parts: Vec<&str> = log_content.splitn(3, ' ').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+
+    let timestamp = parts[0].trim();
+    let level = parts[1].trim();
+
+    // Find the colon that separates the target from the message
+    let rest = parts[2..].join(" ");
+    let colon_pos = rest.find(':')?;
+    let message_part = rest[colon_pos + 1..].trim();
+
+    // Extract provider from message if it exists (provider="name" format)
+    let provider = if let Some(provider_start) = message_part.find("provider=\"") {
+        let start = provider_start + 10; // length of 'provider="'
+        if let Some(end) = message_part[start..].find('"') {
+            message_part[start..start + end].to_string()
+        } else {
+            "app".to_string()
+        }
+    } else {
+        "app".to_string()
+    };
+
+    // Remove provider tag from message
+    let clean_message = if let Some(provider_pos) = message_part.find("provider=") {
+        message_part[..provider_pos].trim().to_string()
+    } else {
+        message_part.to_string()
+    };
+
+    Some(LogEntry {
+        timestamp: timestamp.to_string(),
+        level: level.to_uppercase(),
+        provider,
+        message: clean_message,
+        details: None,
+    })
 }
 
 fn transform_opencode_log(log_content: &str) -> Option<LogEntry> {
