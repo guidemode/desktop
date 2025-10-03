@@ -17,7 +17,7 @@ import {
   TimelineGroup,
   isTimelineGroup,
   MetricsOverview,
-} from '@guideai/session-processing/ui'
+} from '@guideai-dev/session-processing/ui'
 import {
   ClockIcon,
   ChartBarIcon,
@@ -210,7 +210,7 @@ export default function SessionDetailPage() {
     setProcessingAi(true)
     try {
       // Parse session content
-      const { ProcessorRegistry } = await import('@guideai/session-processing/processors')
+      const { ProcessorRegistry } = await import('@guideai-dev/session-processing/processors')
       const registry = new ProcessorRegistry()
       const processor = registry.getProcessor(session.provider)
 

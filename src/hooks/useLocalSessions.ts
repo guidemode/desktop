@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
-import type { AgentSession } from '@guideai/types'
+import type { AgentSession } from '@guideai-dev/types'
 import { useState, useEffect } from 'react'
 
 interface SessionWithMetrics extends AgentSession {

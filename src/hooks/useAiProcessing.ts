@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react'
 import { useConfigStore } from '../stores/configStore'
-import { ClaudeModelAdapter, GeminiModelAdapter } from '@guideai/session-processing/ai-models'
-import { SessionSummaryTask, QualityAssessmentTask } from '@guideai/session-processing/ai-models'
-import type { ParsedSession } from '@guideai/session-processing/processors'
+import { ClaudeModelAdapter, GeminiModelAdapter } from '@guideai-dev/session-processing/ai-models'
+import { SessionSummaryTask, QualityAssessmentTask } from '@guideai-dev/session-processing/ai-models'
+import type { ParsedSession } from '@guideai-dev/session-processing/processors'
 import { invoke } from '@tauri-apps/api/core'
 
 interface AiProcessingResult {

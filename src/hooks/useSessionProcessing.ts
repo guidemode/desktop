@@ -4,14 +4,14 @@ import {
   ProcessorRegistry,
   type ProcessorContext,
   type ProcessorResult,
-} from '@guideai/session-processing/processors'
+} from '@guideai-dev/session-processing/processors'
 import type {
   PerformanceMetrics,
   UsageMetrics,
   QualityMetrics,
   EngagementMetrics,
   ErrorMetrics,
-} from '@guideai/types'
+} from '@guideai-dev/types'
 
 interface SessionMetricsRow {
   id: string

@@ -5,7 +5,7 @@ import {
   messageProcessorRegistry,
   type BaseSessionMessage,
   type ProcessedTimeline
-} from '@guideai/session-processing/ui'
+} from '@guideai-dev/session-processing/ui'
 
 interface UseLocalSessionContentResult {
   messages: BaseSessionMessage[]

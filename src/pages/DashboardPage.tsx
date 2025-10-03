@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useLocalSessions } from '../hooks/useLocalSessions'
-import { SessionCard } from '@guideai/session-processing/ui'
+import { SessionCard } from '@guideai-dev/session-processing/ui'
 import ProviderIcon from '../components/icons/ProviderIcon'
 import { useSessionActivity } from '../hooks/useSessionActivity'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'

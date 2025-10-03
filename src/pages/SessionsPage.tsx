@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { SessionCard, DateFilter } from '@guideai/session-processing/ui'
+import { SessionCard, DateFilter } from '@guideai-dev/session-processing/ui'
 import { useLocalSessions, useInvalidateSessions } from '../hooks/useLocalSessions'
 import { useAiProcessing } from '../hooks/useAiProcessing'
 import { useSessionProcessing } from '../hooks/useSessionProcessing'
 import { useAuth } from '../hooks/useAuth'
-import type { DateFilterValue } from '@guideai/session-processing/ui'
+import type { DateFilterValue } from '@guideai-dev/session-processing/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import ProviderIcon from '../components/icons/ProviderIcon'
@@ -145,7 +145,7 @@ export default function SessionsPage() {
       })
 
       // Parse session using the content hook's parser
-      const { ProcessorRegistry } = await import('@guideai/session-processing/processors')
+      const { ProcessorRegistry } = await import('@guideai-dev/session-processing/processors')
       const registry = new ProcessorRegistry()
       const processor = registry.getProcessor(provider)
 
