@@ -59,10 +59,31 @@ export function useAiProcessing() {
           if (summaryResult.success && summaryResult.output) {
             result.summary = summaryResult.output as string
             console.log('[AI Processing] Summary generated:', result.summary)
+          } else if (summaryResult.metadata?.error) {
+            // Check if it's an authentication/API error (4xx client errors)
+            const errorMsg = summaryResult.metadata.error.toLowerCase()
+            // Check for HTTP 4xx errors or auth-related keywords
+            if (errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') ||
+                errorMsg.includes('invalid') || errorMsg.includes('api key') || errorMsg.includes('api_key') ||
+                errorMsg.includes('unauthorized') || errorMsg.includes('authentication') ||
+                errorMsg.includes('credentials') || errorMsg.includes('permission') ||
+                errorMsg.match(/\b4\d{2}\b/)) { // Match any 4xx HTTP status code
+              throw new Error(summaryResult.metadata.error)
+            }
+            console.error('[AI Processing] Summary task failed:', summaryResult.metadata.error)
           }
         } catch (err) {
+          // Re-throw auth/API errors to surface them to the UI
+          const errorMsg = err instanceof Error ? err.message.toLowerCase() : ''
+          if (errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') ||
+              errorMsg.includes('invalid') || errorMsg.includes('api key') || errorMsg.includes('api_key') ||
+              errorMsg.includes('unauthorized') || errorMsg.includes('authentication') ||
+              errorMsg.includes('credentials') || errorMsg.includes('permission') ||
+              errorMsg.match(/\b4\d{2}\b/)) { // Match any 4xx HTTP status code
+            throw err
+          }
           console.error('[AI Processing] Summary task failed:', err)
-          // Continue with quality assessment even if summary fails
+          // Continue with quality assessment for other errors
         }
 
         // Run Quality Assessment task
@@ -81,10 +102,31 @@ export function useAiProcessing() {
             result.qualityScore = assessment.score
             result.qualityMetadata = assessment
             console.log('[AI Processing] Quality assessment:', assessment)
+          } else if (qualityResult.metadata?.error) {
+            // Check if it's an authentication/API error (4xx client errors)
+            const errorMsg = qualityResult.metadata.error.toLowerCase()
+            // Check for HTTP 4xx errors or auth-related keywords
+            if (errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') ||
+                errorMsg.includes('invalid') || errorMsg.includes('api key') || errorMsg.includes('api_key') ||
+                errorMsg.includes('unauthorized') || errorMsg.includes('authentication') ||
+                errorMsg.includes('credentials') || errorMsg.includes('permission') ||
+                errorMsg.match(/\b4\d{2}\b/)) { // Match any 4xx HTTP status code
+              throw new Error(qualityResult.metadata.error)
+            }
+            console.error('[AI Processing] Quality assessment failed:', qualityResult.metadata.error)
           }
         } catch (err) {
+          // Re-throw auth/API errors to surface them to the UI
+          const errorMsg = err instanceof Error ? err.message.toLowerCase() : ''
+          if (errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') ||
+              errorMsg.includes('invalid') || errorMsg.includes('api key') || errorMsg.includes('api_key') ||
+              errorMsg.includes('unauthorized') || errorMsg.includes('authentication') ||
+              errorMsg.includes('credentials') || errorMsg.includes('permission') ||
+              errorMsg.match(/\b4\d{2}\b/)) { // Match any 4xx HTTP status code
+            throw err
+          }
           console.error('[AI Processing] Quality assessment task failed:', err)
-          // Continue even if quality assessment fails
+          // Continue even if quality assessment fails for other errors
         }
 
         // Store AI results in database
@@ -97,6 +139,17 @@ export function useAiProcessing() {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
         setError(errorMessage)
         console.error('[AI Processing] Failed:', err)
+
+        // Re-throw auth/API errors so they show in the UI
+        const errorMsg = errorMessage.toLowerCase()
+        if (errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') ||
+            errorMsg.includes('invalid') || errorMsg.includes('api key') || errorMsg.includes('api_key') ||
+            errorMsg.includes('unauthorized') || errorMsg.includes('authentication') ||
+            errorMsg.includes('credentials') || errorMsg.includes('permission') ||
+            errorMsg.match(/\b4\d{2}\b/)) { // Match any 4xx HTTP status code
+          throw err
+        }
+
         return null
       } finally {
         setProcessing(false)

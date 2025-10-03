@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-shell'
 import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
 import ProviderIcon from '../components/icons/ProviderIcon'
 import { useLocalSessionContent } from '../hooks/useLocalSessionContent'
 import { useLocalSessionMetrics } from '../hooks/useLocalSessionMetrics'
@@ -101,6 +102,7 @@ export default function SessionDetailPage() {
   const [processingAi, setProcessingAi] = useState(false)
   const { processSessionWithAi, hasApiKey } = useAiProcessing()
   const { processSession: processMetrics } = useSessionProcessing()
+  const toast = useToast()
 
   // Track session activity from file watchers
   useSessionActivity()
@@ -136,10 +138,10 @@ export default function SessionDetailPage() {
         params: [sessionId],
       })
 
-      alert('Session queued for upload. Check the Upload Queue page for status.')
+      toast.success('Session queued for upload. Check the Upload Queue page for status.')
     } catch (err) {
       console.error('Failed to queue session for upload:', err)
-      alert('Failed to queue session: ' + (err as Error).message)
+      toast.error('Failed to queue session: ' + (err as Error).message)
     }
   }
 
@@ -250,13 +252,13 @@ export default function SessionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['local-sessions'] })
 
       if (hasApiKey()) {
-        alert('✓ Processing complete! Metrics calculated and AI summary generated.')
+        toast.success('Processing complete! Metrics calculated and AI summary generated.')
       } else {
-        alert('✓ Metrics calculated! AI processing skipped (no API key configured).')
+        toast.success('Metrics calculated! AI processing skipped (no API key configured).')
       }
     } catch (err) {
       console.error('Failed to process:', err)
-      alert('Failed to process: ' + (err as Error).message)
+      toast.error('Failed to process: ' + (err as Error).message)
     } finally {
       setProcessingAi(false)
     }
@@ -369,7 +371,7 @@ export default function SessionDetailPage() {
                       <div
                         className="tooltip tooltip-bottom cursor-pointer hover:scale-110 transition-transform"
                         data-tip="Sync failed - Click to view error"
-                        onClick={() => alert(session.sync_failed_reason)}
+                        onClick={() => toast.error(session.sync_failed_reason || 'Unknown sync error', 10000)}
                       >
                         <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />

@@ -6,6 +6,7 @@ import { useLocalSessions, useInvalidateSessions } from '../hooks/useLocalSessio
 import { useAiProcessing } from '../hooks/useAiProcessing'
 import { useSessionProcessing } from '../hooks/useSessionProcessing'
 import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
 import type { DateFilterValue } from '@guideai-dev/session-processing/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -37,6 +38,7 @@ export default function SessionsPage() {
   const [displayCount, setDisplayCount] = useState(SESSIONS_PER_PAGE)
   const { processSessionWithAi, hasApiKey } = useAiProcessing()
   const { processSession: processMetrics } = useSessionProcessing()
+  const toast = useToast()
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const processAllTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -172,15 +174,15 @@ export default function SessionsPage() {
 
       if (!silent) {
         if (hasApiKey()) {
-          alert('✓ Processing complete! Metrics calculated and AI summary generated.')
+          toast.success('Processing complete! Metrics calculated and AI summary generated.')
         } else {
-          alert('✓ Metrics calculated! AI processing skipped (no API key configured).')
+          toast.success('Metrics calculated! AI processing skipped (no API key configured).')
         }
       }
     } catch (err) {
       console.error('Failed to process session:', err)
       if (!silent) {
-        alert('Failed to process session: ' + (err as Error).message)
+        toast.error('Failed to process session: ' + (err as Error).message)
       }
     } finally {
       setProcessingSessionId(null)
@@ -194,7 +196,7 @@ export default function SessionsPage() {
     )
 
     if (sessionsToProcess.length === 0) {
-      alert('No sessions selected or all selected sessions already have AI processing.')
+      toast.info('No sessions selected or all selected sessions already have AI processing.')
       return
     }
 
@@ -245,9 +247,11 @@ export default function SessionsPage() {
     setSelectedSessionIds([])
     refresh()
 
-    alert(
-      `Bulk processing complete!\n✓ ${successCount} successful\n✗ ${errorCount} failed`
-    )
+    if (errorCount > 0) {
+      toast.warning(`Bulk processing complete!\n✓ ${successCount} successful\n✗ ${errorCount} failed`)
+    } else {
+      toast.success(`Bulk processing complete! ${successCount} sessions processed successfully.`)
+    }
   }
 
   const handleProcessAll = async () => {
@@ -261,7 +265,7 @@ export default function SessionsPage() {
     const sessionsToProcess = sessions.filter((s) => s.assessmentStatus !== 'completed')
 
     if (sessionsToProcess.length === 0) {
-      alert('All sessions already processed.')
+      toast.info('All sessions already processed.')
       return
     }
 
@@ -323,7 +327,7 @@ export default function SessionsPage() {
       })
 
       if (sessionResult.length === 0) {
-        alert('Session not found')
+        toast.error('Session not found')
         return
       }
 
@@ -345,11 +349,11 @@ export default function SessionsPage() {
       })
 
       // The upload queue will pick it up automatically on next poll
-      alert('Session queued for upload. Check the Upload Queue page for status.')
+      toast.success('Session queued for upload. Check the Upload Queue page for status.')
       refresh()
     } catch (err) {
       console.error('Failed to queue session for upload:', err)
-      alert('Failed to queue session: ' + (err as Error).message)
+      toast.error('Failed to queue session: ' + (err as Error).message)
     }
   }
 
@@ -402,14 +406,14 @@ export default function SessionsPage() {
 
       console.log(`[SessionsPage] Total found across all providers: ${totalFound}`)
 
-      alert(`Rescanned and found ${totalFound} sessions.\n\nSessions reloaded!`)
+      toast.success(`Rescanned and found ${totalFound} sessions. Sessions reloaded!`)
     } catch (err) {
       console.error('[SessionsPage] FATAL ERROR during rescan:', err)
       console.error('[SessionsPage] Error type:', typeof err)
       console.error('[SessionsPage] Error message:', (err as any)?.message)
       console.error('[SessionsPage] Error string:', String(err))
       console.error('[SessionsPage] Full error object:', JSON.stringify(err, null, 2))
-      alert('Failed to rescan: ' + String(err))
+      toast.error('Failed to rescan: ' + String(err))
       setRescanning(false)
       setTrackingEnabled(true) // Re-enable on error
     }
@@ -466,18 +470,14 @@ export default function SessionsPage() {
 
       console.log(`[SessionsPage] Total found across all providers: ${totalFound}`)
 
-      alert(
-        `${result}\n\n` +
-        `Rescanned and found ${totalFound} sessions.\n\n` +
-        `Sessions reloaded!`
-      )
+      toast.success(`${result}\n\nRescanned and found ${totalFound} sessions.\n\nSessions reloaded!`, 8000)
     } catch (err) {
       console.error('[SessionsPage] FATAL ERROR during clear and rescan:', err)
       console.error('[SessionsPage] Error type:', typeof err)
       console.error('[SessionsPage] Error message:', (err as any)?.message)
       console.error('[SessionsPage] Error string:', String(err))
       console.error('[SessionsPage] Full error object:', JSON.stringify(err, null, 2))
-      alert('Failed to clear and rescan: ' + String(err))
+      toast.error('Failed to clear and rescan: ' + String(err))
       setClearing(false)
       setTrackingEnabled(true) // Re-enable on error
     }

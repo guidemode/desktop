@@ -11,6 +11,7 @@ import SessionDetailPage from './pages/SessionDetailPage'
 import ProjectsPage from './pages/ProjectsPage'
 import SettingsPage from './pages/SettingsPage'
 import UploadQueuePage from './pages/UploadQueuePage'
+import { ToastContainer } from './components/ToastContainer'
 import { listen } from '@tauri-apps/api/event'
 import { useEffect } from 'react'
 
@@ -90,6 +91,7 @@ function App() {
   return (
     <Router>
       <AppContent />
+      <ToastContainer />
     </Router>
   )
 }
