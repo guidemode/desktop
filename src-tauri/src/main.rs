@@ -70,6 +70,18 @@ fn main() {
                             sql: include_str!("../migrations/008_add_project_foreign_key.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 9,
+                            description: "create_session_assessments",
+                            sql: include_str!("../migrations/009_create_session_assessments.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 10,
+                            description: "add_phase_analysis",
+                            sql: include_str!("../migrations/010_add_phase_analysis.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -158,7 +170,9 @@ fn main() {
             commands::clear_all_sessions,
             commands::get_all_projects,
             commands::get_project_by_id,
-            commands::open_folder_in_os
+            commands::open_folder_in_os,
+            commands::quick_rate_session,
+            commands::get_session_rating
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

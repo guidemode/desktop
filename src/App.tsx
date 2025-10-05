@@ -58,10 +58,10 @@ function App() {
   const { isLoading } = useAuth()
   const { isReady: isDbReady, error: dbError } = useDatabase()
 
-  // Get theme from localStorage or default to dark
+  // Get theme from localStorage or default to light
   const theme = typeof window !== 'undefined'
-    ? (localStorage.getItem('theme') || 'guideai-dark')
-    : 'guideai-dark'
+    ? (localStorage.getItem('theme') || 'guideai-light')
+    : 'guideai-light'
 
   if (isLoading || !isDbReady) {
     return (

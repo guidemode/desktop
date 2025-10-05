@@ -40,6 +40,22 @@ apps/desktop/
 └── tsconfig.json
 ```
 
+### CSS Synchronization
+
+**CRITICAL**: The `src/index.css` file must be kept in sync with `apps/server/src/ui/index.css`.
+
+**Required to match:**
+- Theme definitions (guideai-light and guideai-dark)
+- All CSS custom properties and color values
+- Base styles and border compatibility rules
+- Main gradient definitions
+
+**Allowed differences:**
+- Server has drizzle-cube imports: `@import 'drizzle-cube/client/styles.css'` and `@source`
+- Server has modal z-index override layer for drizzle-cube compatibility
+
+When updating theme colors or base styles, **always update both files** to maintain visual consistency across desktop and server apps.
+
 ## Configuration
 
 ### Shared Config with CLI

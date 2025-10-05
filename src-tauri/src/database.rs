@@ -606,3 +606,85 @@ pub fn execute_sql_query(sql: &str, params: Vec<serde_json::Value>) -> Result<Ve
 
     rows.collect()
 }
+
+/// Quick rate a session with thumbs up/meh/thumbs down
+pub fn quick_rate_session(session_id: &str, rating: &str) -> Result<()> {
+    log_info("database", &format!("Quick rating session {} with {}", session_id, rating))
+        .unwrap_or_default();
+
+    let db_conn = DB_CONNECTION.lock().unwrap();
+    let conn = db_conn.as_ref()
+        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
+
+    let now = Utc::now().timestamp_millis();
+
+    // Check if assessment already exists
+    let existing: Option<String> = conn.query_row(
+        "SELECT id FROM session_assessments WHERE session_id = ?",
+        params![session_id],
+        |row| row.get(0),
+    ).ok();
+
+    log_debug("database", &format!("Existing assessment: {:?}", existing))
+        .unwrap_or_default();
+
+    if let Some(id) = existing {
+        // Update existing assessment with new rating
+        conn.execute(
+            "UPDATE session_assessments SET rating = ? WHERE id = ?",
+            params![rating, id],
+        )?;
+
+        log_debug("database", &format!("↻ Updated rating for session {}: {}", session_id, rating))
+            .unwrap_or_default();
+    } else {
+        // Create new minimal assessment with just the rating
+        let assessment_id = Uuid::new_v4().to_string();
+
+        // Get provider from agent_sessions
+        let provider: String = conn.query_row(
+            "SELECT provider FROM agent_sessions WHERE session_id = ?",
+            params![session_id],
+            |row| row.get(0),
+        )?;
+
+        conn.execute(
+            "INSERT INTO session_assessments (id, session_id, provider, responses, rating, completed_at, created_at)
+             VALUES (?, ?, ?, '{}', ?, ?, ?)",
+            params![assessment_id, session_id, provider, rating, now, now],
+        )?;
+
+        log_info("database", &format!("✓ Created rating for session {}: {}", session_id, rating))
+            .unwrap_or_default();
+    }
+
+    // Update agent_sessions assessment_status to 'rating_only' and set completed time
+    conn.execute(
+        "UPDATE agent_sessions SET assessment_status = 'rating_only', assessment_completed_at = ? WHERE session_id = ?",
+        params![now, session_id],
+    )?;
+
+    // Emit event to frontend
+    if let Ok(app_handle_guard) = APP_HANDLE.lock() {
+        if let Some(ref app_handle) = *app_handle_guard {
+            let _ = app_handle.emit("session-updated", session_id);
+        }
+    }
+
+    Ok(())
+}
+
+/// Get the rating for a session
+pub fn get_session_rating(session_id: &str) -> Result<Option<String>> {
+    let db_conn = DB_CONNECTION.lock().unwrap();
+    let conn = db_conn.as_ref()
+        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
+
+    let rating: Option<String> = conn.query_row(
+        "SELECT rating FROM session_assessments WHERE session_id = ?",
+        params![session_id],
+        |row| row.get(0),
+    ).ok();
+
+    Ok(rating)
+}

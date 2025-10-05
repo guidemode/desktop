@@ -166,7 +166,7 @@ pub fn insert_session_immediately(
 /// Extract timing information from session file (start time, end time, duration)
 /// All providers now use JSONL format (including github-copilot snapshots)
 fn extract_session_timing(
-    provider_id: &str,
+    _provider_id: &str,
     file_path: &PathBuf,
 ) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>), Box<dyn std::error::Error + Send + Sync>> {
     use std::fs;

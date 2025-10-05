@@ -6,7 +6,7 @@ function Header() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'guideai-dark'
+    return localStorage.getItem('theme') || 'guideai-light'
   })
 
   useEffect(() => {

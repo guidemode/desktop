@@ -17,8 +17,14 @@ import {
   TimelineGroup,
   isTimelineGroup,
   MetricsOverview,
+  RatingBadge,
+  PhaseTimeline,
+  SessionDetailHeader,
+  type SessionPhaseAnalysis,
 } from '@guideai-dev/session-processing/ui'
+import type { SessionRating } from '@guideai-dev/session-processing/ui'
 import ProviderIcon from '../components/icons/ProviderIcon'
+import { useQuickRating } from '../hooks/useQuickRating'
 import {
   ClockIcon,
   ChartBarIcon,
@@ -26,6 +32,7 @@ import {
   ArrowDownIcon,
   Cog6ToothIcon,
   FolderIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 
 interface AgentSession {
@@ -47,6 +54,7 @@ interface AgentSession {
   uploaded_at: number | null
   cwd: string | null
   sync_failed_reason: string | null
+  ai_model_phase_analysis: string | null
 }
 
 interface LocalProject {
@@ -60,7 +68,10 @@ interface LocalProject {
 // Fetch function for session metadata
 async function fetchSessionMetadata(sessionId: string): Promise<AgentSession | null> {
   const result = await invoke<any[]>('execute_sql', {
-    sql: 'SELECT * FROM agent_sessions WHERE session_id = ? LIMIT 1',
+    sql: `SELECT s.*, a.rating as assessment_rating
+          FROM agent_sessions s
+          LEFT JOIN session_assessments a ON s.session_id = a.session_id
+          WHERE s.session_id = ? LIMIT 1`,
     params: [sessionId],
   })
 
@@ -92,7 +103,6 @@ export default function SessionDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<'timeline' | 'metrics'>('timeline')
   const [reverseOrder, setReverseOrder] = useState(() => {
     const saved = localStorage.getItem('sessionMessageOrder')
     return saved === 'newest-first'
@@ -103,6 +113,7 @@ export default function SessionDetailPage() {
   const { processSessionWithAi, hasApiKey } = useAiProcessing()
   const { processSession: processMetrics } = useSessionProcessing()
   const toast = useToast()
+  const quickRatingMutation = useQuickRating()
 
   // Track session activity from file watchers
   useSessionActivity()
@@ -121,6 +132,14 @@ export default function SessionDetailPage() {
     queryFn: () => fetchSessionProject(sessionId!),
     enabled: !!sessionId,
   })
+
+  // Parse phase analysis if available
+  const phaseAnalysis: SessionPhaseAnalysis | null = session?.ai_model_phase_analysis
+    ? JSON.parse(session.ai_model_phase_analysis)
+    : null
+
+  // Tab state - default to transcript
+  const [activeTab, setActiveTab] = useState<'phase-timeline' | 'transcript' | 'metrics'>('transcript')
 
   // Handle sync session click
   const handleSyncSession = async () => {
@@ -142,6 +161,21 @@ export default function SessionDetailPage() {
     } catch (err) {
       console.error('Failed to queue session for upload:', err)
       toast.error('Failed to queue session: ' + (err as Error).message)
+    }
+  }
+
+  // Handle quick rating
+  const handleQuickRate = async (rating: SessionRating) => {
+    if (!sessionId) return
+
+    try {
+      await quickRatingMutation.mutateAsync({ sessionId, rating })
+      // Invalidate session metadata to refresh rating display
+      queryClient.invalidateQueries({ queryKey: ['session-metadata', sessionId] })
+      toast.success('Rating saved!')
+    } catch (err) {
+      console.error('Failed to rate session:', err)
+      toast.error('Failed to save rating: ' + (err as Error).message)
     }
   }
 
@@ -292,6 +326,15 @@ export default function SessionDetailPage() {
     }
   }
 
+  // Handler for opening folder in OS
+  const handleCwdClick = async (path: string) => {
+    try {
+      await invoke('open_folder_in_os', { path })
+    } catch (err) {
+      console.error('Failed to open folder:', err)
+    }
+  }
+
   const renderTimeline = () => {
     if (!timeline) return null
 
@@ -327,235 +370,6 @@ export default function SessionDetailPage() {
     )
   }
 
-  const renderTimelineTab = () => {
-    if (contentLoading) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <span className="loading loading-spinner loading-lg"></span>
-        </div>
-      )
-    }
-
-    if (contentError) {
-      return (
-        <div className="alert alert-error m-4">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>Failed to load session content: {contentError}</span>
-        </div>
-      )
-    }
-
-    if (!timeline) return null
-
-    const messages = timeline.items.filter(item => !isTimelineGroup(item))
-    const messageCount = messages.length
-
-    return (
-      <div className="space-y-4">
-        <div className="card bg-base-100 border border-base-300">
-          <div className="card-body p-4">
-            {/* Header with avatar, username, project, time on left and action buttons on right */}
-            <div className="mb-2">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-2">
-                {/* Left: Project - Start Time - Sync Status */}
-                {session && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-base md:text-lg">{session.project_name}</span>
-                    <span className="text-base-content/50 text-sm">•</span>
-                    <span className="text-sm text-base-content/70">{formatDate(session.session_start_time)}</span>
-
-                    {/* Sync Status Icon */}
-                    {session.sync_failed_reason ? (
-                      <div
-                        className="tooltip tooltip-bottom cursor-pointer hover:scale-110 transition-transform"
-                        data-tip="Sync failed - Click to view error"
-                        onClick={() => toast.error(session.sync_failed_reason || 'Unknown sync error', 10000)}
-                      >
-                        <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                      </div>
-                    ) : session.synced_to_server === 1 ? (
-                      <div className="tooltip tooltip-bottom" data-tip="Synced to server">
-                        <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    ) : (
-                      <div
-                        className="tooltip tooltip-bottom cursor-pointer hover:scale-110 transition-transform"
-                        data-tip="Click to sync to server"
-                        onClick={handleSyncSession}
-                      >
-                        <svg className="w-4 h-4 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Right: Action Buttons (desktop only) */}
-                <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={() => setReverseOrder(!reverseOrder)}
-                    className={`btn btn-xs gap-1.5 ${reverseOrder ? 'btn-primary' : 'btn-ghost'}`}
-                  >
-                    {reverseOrder ? <ArrowUpIcon className="w-3.5 h-3.5" /> : <ArrowDownIcon className="w-3.5 h-3.5" />}
-                    <span className="hidden lg:inline text-xs">{reverseOrder ? 'Newest First' : 'Oldest First'}</span>
-                  </button>
-                  <button
-                    onClick={() => setShowSettings(!showSettings)}
-                    className={`btn btn-xs gap-1.5 ${showSettings ? 'btn-primary' : 'btn-ghost'}`}
-                  >
-                    <Cog6ToothIcon className="w-3.5 h-3.5" />
-                    <span className="hidden lg:inline text-xs">Settings</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Mobile: Actions Sheet */}
-              <div className="md:hidden mb-2 flex gap-1.5">
-                <button
-                  onClick={() => setReverseOrder(!reverseOrder)}
-                  className={`btn btn-xs gap-1.5 ${reverseOrder ? 'btn-primary' : 'btn-ghost'}`}
-                >
-                  {reverseOrder ? <ArrowUpIcon className="w-3.5 h-3.5" /> : <ArrowDownIcon className="w-3.5 h-3.5" />}
-                  <span className="text-xs">{reverseOrder ? 'Newest First' : 'Oldest First'}</span>
-                </button>
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className={`btn btn-xs gap-1.5 ${showSettings ? 'btn-primary' : 'btn-ghost'}`}
-                >
-                  <Cog6ToothIcon className="w-3.5 h-3.5" />
-                  <span className="text-xs">Settings</span>
-                </button>
-              </div>
-
-              {/* Settings Dropdown */}
-              {showSettings && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowSettings(false)} />
-                  <div className="absolute right-0 md:right-4 top-24 md:top-auto md:mt-2 w-full md:w-80 bg-base-100 border border-base-300 rounded-lg shadow-lg z-20 p-4">
-                    <h3 className="text-sm font-semibold mb-3">Timeline Settings</h3>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showMetaMessages}
-                        onChange={(e) => setShowMetaMessages(e.target.checked)}
-                        className="checkbox checkbox-sm checkbox-primary"
-                      />
-                      <span className="text-sm">Show meta messages</span>
-                    </label>
-                    <p className="text-xs text-base-content/60 mt-2">
-                      Meta messages are internal system messages that provide context but are not part of the main conversation.
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Session Stats Grid - Responsive */}
-            {session && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                <div className="stat bg-base-200 rounded-lg p-2.5">
-                  <div className="stat-title text-xs">Provider</div>
-                  <div className="stat-value text-sm flex items-center gap-1.5">
-                    <ProviderIcon providerId={session.provider} size={16} />
-                    {session.provider}
-                  </div>
-                </div>
-                <div className="stat bg-base-200 rounded-lg p-2.5">
-                  <div className="stat-title text-xs">Duration</div>
-                  <div className="stat-value text-sm">{formatDuration(session.duration_ms)}</div>
-                </div>
-                <div className="stat bg-base-200 rounded-lg p-2.5">
-                  <div className="stat-title text-xs">Messages</div>
-                  <div className="stat-value text-sm">{messageCount}</div>
-                </div>
-                <div className="stat bg-base-200 rounded-lg p-2.5">
-                  <div className="stat-title text-xs">Size</div>
-                  <div className="stat-value text-sm">{formatFileSize(session.file_size)}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Project and Working Directory - 2 columns below stats */}
-            {(project || session?.cwd) && (
-              <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2">
-                {/* Project Info */}
-                {project && (
-                  <div className="stat bg-base-200 rounded-lg p-2.5">
-                    <div className="stat-title text-xs mb-1">Project</div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="stat-value text-sm">
-                        {project.name}
-                      </div>
-                      {project.github_repo && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            open(project.github_repo!.replace(/\.git$/, ''))
-                          }}
-                          className="flex items-center gap-1.5 text-xs text-base-content/60 hover:text-primary transition-colors flex-shrink-0"
-                          title={project.github_repo.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '')}
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                            <path
-                              fillRule="evenodd"
-                              d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <span className="hidden sm:inline truncate max-w-[150px]">
-                            {project.github_repo.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '')}
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Working Directory */}
-                {session?.cwd && (
-                  <div className="stat bg-base-200 rounded-lg p-2.5">
-                    <div className="stat-title text-xs flex items-center gap-1.5">
-                      <FolderIcon className="w-3.5 h-3.5" />
-                      Working Directory
-                    </div>
-                    <div className="stat-value text-sm mt-1">
-                      <button
-                        onClick={async () => {
-                          try {
-                            await invoke('open_folder_in_os', { path: session.cwd })
-                          } catch (err) {
-                            console.error('Failed to open folder:', err)
-                          }
-                        }}
-                        className="text-left hover:text-primary transition-colors font-mono break-all"
-                        title="Click to open in Finder"
-                      >
-                        {session.cwd}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="overflow-auto">
-          {renderTimeline()}
-        </div>
-      </div>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -585,68 +399,180 @@ export default function SessionDetailPage() {
     )
   }
 
+  const messages = timeline?.items.filter(item => !isTimelineGroup(item)) || []
+  const messageCount = messages.length
+
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Page Header */}
       <div>
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">Session Detail</h1>
-              {sessionId && isSessionActive(sessionId) && (
-                <span className="badge badge-success gap-1.5 animate-pulse">
-                  <span className="relative flex h-2 w-2 items-center justify-center">
-                    <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75"></span>
-                    <span className="relative rounded-full h-2 w-2 bg-white"></span>
-                  </span>
-                  <span>LIVE</span>
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => navigate('/sessions')}
-              className="btn btn-sm btn-ghost mt-3 pl-0"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Sessions
-            </button>
-          </div>
-
-          {/* Tabs Navigation - Top Right */}
-          <div className="tabs tabs-bordered">
-            <button
-              className={`tab tab-lg gap-2 ${
-                activeTab === 'timeline'
-                  ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                  : 'bg-base-200 hover:bg-base-300'
-              }`}
-              onClick={() => setActiveTab('timeline')}
-              title="Timeline"
-            >
-              <ClockIcon className="w-5 h-5" />
-              <span className="hidden md:inline">Timeline</span>
-            </button>
-            <button
-              className={`tab tab-lg gap-2 ${
-                activeTab === 'metrics'
-                  ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                  : 'bg-base-200 hover:bg-base-300'
-              }`}
-              onClick={() => setActiveTab('metrics')}
-              title="Metrics"
-            >
-              <ChartBarIcon className="w-5 h-5" />
-              <span className="hidden md:inline">Metrics</span>
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">Session Detail</h1>
+          {sessionId && isSessionActive(sessionId) && (
+            <span className="badge badge-success gap-1.5 animate-pulse">
+              <span className="relative flex h-2 w-2 items-center justify-center">
+                <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75"></span>
+                <span className="relative rounded-full h-2 w-2 bg-white"></span>
+              </span>
+              <span>LIVE</span>
+            </span>
+          )}
         </div>
+        <button
+          onClick={() => navigate('/sessions')}
+          className="btn btn-sm btn-ghost mt-3 pl-0"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Sessions
+        </button>
       </div>
 
-      {/* Content Area */}
+      {/* Session Detail Header - Shared across all tabs */}
+      {session && (
+        <SessionDetailHeader
+          session={{
+            provider: session.provider,
+            projectName: session.project_name,
+            sessionStartTime: session.session_start_time ? new Date(session.session_start_time).toISOString() : null,
+            durationMs: session.duration_ms,
+            fileSize: session.file_size,
+            cwd: session.cwd || undefined,
+            project: project ? {
+              name: project.name,
+              gitRemoteUrl: project.github_repo || undefined,
+              cwd: undefined,
+            } : undefined,
+          }}
+          messageCount={messageCount}
+          rating={((session as any).assessment_rating as SessionRating) || null}
+          onRate={handleQuickRate}
+          onProcessSession={handleProcessWithAi}
+          processingStatus={(session as any).ai_model_summary ? 'completed' : 'pending'}
+          isProcessing={processingAi}
+          onCwdClick={session.cwd ? handleCwdClick : undefined}
+          syncStatus={{
+            synced: session.synced_to_server === 1,
+            failed: !!session.sync_failed_reason,
+            reason: session.sync_failed_reason || undefined,
+            onSync: handleSyncSession,
+            onShowError: (error) => toast.error(error, 10000),
+          }}
+          ProviderIcon={ProviderIcon}
+        />
+      )}
+
+      {/* Tabs Navigation */}
+      <div className="tabs tabs-bordered">
+        <button
+          className={`tab tab-lg gap-2 ${
+            activeTab === 'transcript'
+              ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+              : 'bg-base-200 hover:bg-base-300'
+          }`}
+          onClick={() => setActiveTab('transcript')}
+          title="Transcript"
+        >
+          <ChatBubbleLeftRightIcon className="w-5 h-5" />
+          <span className="hidden md:inline">Transcript</span>
+        </button>
+        {phaseAnalysis && (
+          <button
+            className={`tab tab-lg gap-2 ${
+              activeTab === 'phase-timeline'
+                ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                : 'bg-base-200 hover:bg-base-300'
+            }`}
+            onClick={() => setActiveTab('phase-timeline')}
+            title="Timeline"
+          >
+            <ClockIcon className="w-5 h-5" />
+            <span className="hidden md:inline">Timeline</span>
+          </button>
+        )}
+        <button
+          className={`tab tab-lg gap-2 ${
+            activeTab === 'metrics'
+              ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+              : 'bg-base-200 hover:bg-base-300'
+          }`}
+          onClick={() => setActiveTab('metrics')}
+          title="Metrics"
+        >
+          <ChartBarIcon className="w-5 h-5" />
+          <span className="hidden md:inline">Metrics</span>
+        </button>
+      </div>
+
+      {/* Tab Content */}
       <div>
-        {activeTab === 'timeline' && renderTimelineTab()}
+        {activeTab === 'transcript' && (
+          <div className="space-y-4">
+            {/* Transcript Controls */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setReverseOrder(!reverseOrder)}
+                  className={`btn btn-sm gap-1.5 ${reverseOrder ? 'btn-primary' : 'btn-ghost'}`}
+                >
+                  {reverseOrder ? <ArrowUpIcon className="w-3.5 h-3.5" /> : <ArrowDownIcon className="w-3.5 h-3.5" />}
+                  <span className="text-xs">{reverseOrder ? 'Newest First' : 'Oldest First'}</span>
+                </button>
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`btn btn-sm gap-1.5 ${showSettings ? 'btn-primary' : 'btn-ghost'}`}
+                >
+                  <Cog6ToothIcon className="w-3.5 h-3.5" />
+                  <span className="text-xs">Settings</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Settings Dropdown */}
+            {showSettings && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowSettings(false)} />
+                <div className="absolute right-0 md:right-4 top-auto mt-2 w-full md:w-80 bg-base-100 border border-base-300 rounded-lg shadow-lg z-20 p-4">
+                  <h3 className="text-sm font-semibold mb-3">Timeline Settings</h3>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showMetaMessages}
+                      onChange={(e) => setShowMetaMessages(e.target.checked)}
+                      className="checkbox checkbox-sm checkbox-primary"
+                    />
+                    <span className="text-sm">Show meta messages</span>
+                  </label>
+                  <p className="text-xs text-base-content/60 mt-2">
+                    Meta messages are internal system messages that provide context but are not part of the main conversation.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Timeline Messages */}
+            {contentLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <span className="loading loading-spinner loading-lg"></span>
+              </div>
+            ) : contentError ? (
+              <div className="alert alert-error">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Failed to load session content: {contentError}</span>
+              </div>
+            ) : (
+              <div className="overflow-auto">
+                {renderTimeline()}
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === 'phase-timeline' && phaseAnalysis && (
+          <PhaseTimeline phaseAnalysis={phaseAnalysis} />
+        )}
         {activeTab === 'metrics' && (
           <MetricsOverview
             sessionId={session.session_id}

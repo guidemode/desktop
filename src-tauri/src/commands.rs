@@ -1250,3 +1250,24 @@ pub async fn open_folder_in_os(path: String) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Quick rate a session
+#[tauri::command]
+pub async fn quick_rate_session(
+    session_id: String,
+    rating: String,
+) -> Result<(), String> {
+    use crate::database::quick_rate_session;
+    
+    quick_rate_session(&session_id, &rating)
+        .map_err(|e| format!("Failed to save rating: {}", e))
+}
+
+/// Get assessment rating for a session
+#[tauri::command]
+pub async fn get_session_rating(session_id: String) -> Result<Option<String>, String> {
+    use crate::database::get_session_rating;
+    
+    get_session_rating(&session_id)
+        .map_err(|e| format!("Failed to get rating: {}", e))
+}

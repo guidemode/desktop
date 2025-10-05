@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SessionCard, DateFilter } from '@guideai-dev/session-processing/ui'
+import type { SessionRating } from '@guideai-dev/session-processing/ui'
 import ProviderIcon from '../components/icons/ProviderIcon'
 import { useLocalSessions, useInvalidateSessions } from '../hooks/useLocalSessions'
 import { useAiProcessing } from '../hooks/useAiProcessing'
@@ -15,6 +16,7 @@ import { useSessionActivity } from '../hooks/useSessionActivity'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useLocalProjects } from '../hooks/useLocalProjects'
+import { useQuickRating } from '../hooks/useQuickRating'
 
 const SESSIONS_PER_PAGE = 50
 
@@ -57,6 +59,7 @@ export default function SessionsPage() {
   })
   const invalidateSessions = useInvalidateSessions()
   const { projects } = useLocalProjects()
+  const quickRatingMutation = useQuickRating()
 
   // Initialize project filter from URL parameter
   useEffect(() => {
@@ -353,6 +356,16 @@ export default function SessionsPage() {
 
   const handleShowSyncError = (sessionId: string, error: string) => {
     setSyncErrorModal({ sessionId, error })
+  }
+
+  const handleQuickRate = async (sessionId: string, rating: SessionRating) => {
+    try {
+      await quickRatingMutation.mutateAsync({ sessionId, rating })
+      toast.success('Rating saved!')
+    } catch (err) {
+      console.error('Failed to rate session:', err)
+      toast.error('Failed to save rating: ' + (err as Error).message)
+    }
   }
 
   const handleRescan = async () => {
@@ -743,6 +756,7 @@ export default function SessionsPage() {
                       ? undefined
                       : () => handleProcessSession(session.sessionId as string, session.provider, session.filePath as string)
                   }
+                  onRateSession={handleQuickRate}
                   onSyncSession={handleSyncSession}
                   onShowSyncError={handleShowSyncError}
                   isProcessing={processingSessionId === session.sessionId || (bulkProcessing && isSelected)}

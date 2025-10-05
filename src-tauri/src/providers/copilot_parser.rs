@@ -90,6 +90,7 @@ pub fn load_copilot_config() -> Result<CopilotConfig, String> {
 }
 
 /// Detect project name from timeline entries by matching against trusted folders
+#[allow(dead_code)]
 pub fn detect_project_from_timeline(timeline: &[TimelineEntry], trusted_folders: &[String]) -> Option<String> {
     detect_project_and_cwd_from_timeline(timeline, trusted_folders)
         .map(|(name, _cwd)| name)
@@ -146,16 +147,19 @@ fn match_trusted_folder_with_cwd(path: &str, trusted_folders: &[String]) -> Opti
 }
 
 /// Match a path against trusted folders, returning the folder name if matched
+#[allow(dead_code)]
 fn match_trusted_folder(path: &str, trusted_folders: &[String]) -> Option<String> {
     match_trusted_folder_with_cwd(path, trusted_folders)
         .map(|(name, _cwd)| name)
 }
 
 impl CopilotParser {
+    #[allow(dead_code)]
     pub fn new(storage_path: PathBuf) -> Self {
         Self { storage_path }
     }
 
+    #[allow(dead_code)]
     pub fn parse_session(&self, session_file_path: &Path) -> Result<ParsedSession, String> {
         // Read the session file
         let content = fs::read_to_string(session_file_path)

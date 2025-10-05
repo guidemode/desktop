@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useConfigStore } from '../stores/configStore'
 import { ClaudeModelAdapter, GeminiModelAdapter } from '@guideai-dev/session-processing/ai-models'
-import { SessionSummaryTask, QualityAssessmentTask } from '@guideai-dev/session-processing/ai-models'
+import { SessionSummaryTask, QualityAssessmentTask, SessionPhaseAnalysisTask } from '@guideai-dev/session-processing/ai-models'
 import type { ParsedSession } from '@guideai-dev/session-processing/processors'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -13,6 +13,13 @@ interface AiProcessingResult {
     reasoning: string
     strengths?: string[]
     improvements?: string[]
+  }
+  phaseAnalysis?: {
+    phases: any[]
+    totalPhases: number
+    totalSteps: number
+    sessionDurationMs: number
+    pattern: string
   }
 }
 
@@ -129,8 +136,49 @@ export function useAiProcessing() {
           // Continue even if quality assessment fails for other errors
         }
 
+        // Run Phase Analysis task
+        try {
+          const phaseAnalysisTask = new SessionPhaseAnalysisTask()
+          const phaseAnalysisResult = await adapter.executeTask(phaseAnalysisTask, {
+            sessionId,
+            tenantId: 'local',
+            userId: 'local',
+            provider: parsedSession.provider,
+            session: parsedSession,
+          })
+
+          if (phaseAnalysisResult.success && phaseAnalysisResult.output) {
+            result.phaseAnalysis = phaseAnalysisResult.output as any
+            console.log('[AI Processing] Phase analysis:', phaseAnalysisResult.output)
+          } else if (phaseAnalysisResult.metadata?.error) {
+            // Check if it's an authentication/API error (4xx client errors)
+            const errorMsg = phaseAnalysisResult.metadata.error.toLowerCase()
+            // Check for HTTP 4xx errors or auth-related keywords
+            if (errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') ||
+                errorMsg.includes('invalid') || errorMsg.includes('api key') || errorMsg.includes('api_key') ||
+                errorMsg.includes('unauthorized') || errorMsg.includes('authentication') ||
+                errorMsg.includes('credentials') || errorMsg.includes('permission') ||
+                errorMsg.match(/\b4\d{2}\b/)) { // Match any 4xx HTTP status code
+              throw new Error(phaseAnalysisResult.metadata.error)
+            }
+            console.error('[AI Processing] Phase analysis failed:', phaseAnalysisResult.metadata.error)
+          }
+        } catch (err) {
+          // Re-throw auth/API errors to surface them to the UI
+          const errorMsg = err instanceof Error ? err.message.toLowerCase() : ''
+          if (errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') ||
+              errorMsg.includes('invalid') || errorMsg.includes('api key') || errorMsg.includes('api_key') ||
+              errorMsg.includes('unauthorized') || errorMsg.includes('authentication') ||
+              errorMsg.includes('credentials') || errorMsg.includes('permission') ||
+              errorMsg.match(/\b4\d{2}\b/)) { // Match any 4xx HTTP status code
+            throw err
+          }
+          console.error('[AI Processing] Phase analysis task failed:', err)
+          // Continue even if phase analysis fails for other errors
+        }
+
         // Store AI results in database
-        if (result.summary || result.qualityScore !== undefined) {
+        if (result.summary || result.qualityScore !== undefined || result.phaseAnalysis) {
           await storeAiResults(sessionId, result)
         }
 
@@ -182,13 +230,15 @@ async function storeAiResults(sessionId: string, results: AiProcessingResult): P
         SET
           ai_model_summary = ?,
           ai_model_quality_score = ?,
-          ai_model_metadata = ?
+          ai_model_metadata = ?,
+          ai_model_phase_analysis = ?
         WHERE session_id = ?
       `,
       params: [
         results.summary || null,
         results.qualityScore ?? null,
         results.qualityMetadata ? JSON.stringify(results.qualityMetadata) : null,
+        results.phaseAnalysis ? JSON.stringify(results.phaseAnalysis) : null,
         sessionId,
       ],
     })

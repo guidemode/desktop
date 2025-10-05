@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import {
-  ProcessorRegistry,
-  type ProcessorContext,
-  type ProcessorResult,
+import type {
+  ProcessorContext,
+  ProcessorResult,
 } from '@guideai-dev/session-processing/processors'
 import type {
   PerformanceMetrics,
@@ -60,7 +59,6 @@ interface SessionMetricsRow {
 export function useSessionProcessing() {
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const registry = new ProcessorRegistry()
 
   const processSession = useCallback(
     async (sessionId: string, provider: string, content: string, userId: string = 'local') => {
@@ -68,6 +66,10 @@ export function useSessionProcessing() {
       setError(null)
 
       try {
+        // Dynamic import to avoid bundling issues
+        const { ProcessorRegistry } = await import('@guideai-dev/session-processing/processors')
+        const registry = new ProcessorRegistry()
+
         // Get processor for provider
         const processor = registry.getProcessor(provider)
         if (!processor) {
@@ -97,7 +99,7 @@ export function useSessionProcessing() {
         setProcessing(false)
       }
     },
-    [registry]
+    []
   )
 
   return {

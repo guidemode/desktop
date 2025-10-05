@@ -1,7 +1,7 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const processingStatusEnum = ['pending', 'processing', 'completed', 'failed'] as const
-export const assessmentStatusEnum = ['not_started', 'in_progress', 'completed'] as const
+export const assessmentStatusEnum = ['not_started', 'rating_only', 'in_progress', 'completed'] as const
 
 export const agentSessions = sqliteTable(
   'agent_sessions',
@@ -26,6 +26,7 @@ export const agentSessions = sqliteTable(
     aiModelSummary: text('ai_model_summary'), // Generated summary from AI model
     aiModelQualityScore: integer('ai_model_quality_score'), // Quality assessment score (0-100)
     aiModelMetadata: text('ai_model_metadata', { mode: 'json' }), // Structured AI outputs (intents, assessments, etc.)
+    aiModelPhaseAnalysis: text('ai_model_phase_analysis', { mode: 'json' }), // Phase analysis breakdown of session
     // Sync fields
     syncedToServer: integer('synced_to_server', { mode: 'boolean' }).default(false),
     syncedAt: integer('synced_at', { mode: 'timestamp_ms' }),

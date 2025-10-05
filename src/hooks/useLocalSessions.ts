@@ -168,9 +168,11 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
       m.interruption_rate,
       m.session_length_minutes,
       m.error_count,
-      m.fatal_errors
+      m.fatal_errors,
+      a.rating as assessment_rating
     FROM agent_sessions s
     LEFT JOIN session_metrics m ON s.session_id = m.session_id
+    LEFT JOIN session_assessments a ON s.session_id = a.session_id
     ${whereClause}
     ORDER BY s.session_end_time DESC NULLS LAST
   `
@@ -224,6 +226,7 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
       processedAt: row.processed_at ? new Date(row.processed_at).toISOString() : null,
       assessmentStatus: row.assessment_status || 'not_started',
       assessmentCompletedAt: row.assessment_completed_at ? new Date(row.assessment_completed_at).toISOString() : null,
+      assessmentRating: row.assessment_rating || null,
       aiModelSummary: row.ai_model_summary || null,
       aiModelQualityScore: row.ai_model_quality_score || null,
       aiModelMetadata: row.ai_model_metadata ? JSON.parse(row.ai_model_metadata) : null,
