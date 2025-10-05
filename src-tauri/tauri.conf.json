@@ -84,7 +84,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2RjIyNTZEQzU4REUyREMKUldUYzRvM0ZiU1h5RnV2TTM2aGx0MFYyVS9xM1U3aUhGZjNseWJBZjZBMmRzUXdmL1lWQVRTbEsK",
       "endpoints": [
-        "https://install.guideai.dev/desktop/{{target}}-{{arch}}/{{current_version}}"
+        "https://install.guideai.dev/desktop/{{target}}-{{arch}}/latest.json"
       ]
     }
   }
