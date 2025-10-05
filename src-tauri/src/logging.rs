@@ -25,17 +25,19 @@ pub struct LogEntry {
 static LOGGER_INITIALIZED: std::sync::Once = std::sync::Once::new();
 use std::sync::LazyLock;
 #[allow(dead_code)]
-static LOG_WRITERS: LazyLock<Mutex<std::collections::HashMap<String, File>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
+static LOG_WRITERS: LazyLock<Mutex<std::collections::HashMap<String, File>>> =
+    LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 
 // Keep the guard alive for the lifetime of the program
-static FILE_APPENDER_GUARD: LazyLock<Mutex<Option<tracing_appender::non_blocking::WorkerGuard>>> = LazyLock::new(|| Mutex::new(None));
+static FILE_APPENDER_GUARD: LazyLock<Mutex<Option<tracing_appender::non_blocking::WorkerGuard>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
     ensure_logs_dir()?;
 
     LOGGER_INITIALIZED.call_once(|| {
-        let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("info"));
+        let env_filter =
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
         // Console logging for development - compact format
         let console_layer = fmt::layer()
@@ -220,7 +222,8 @@ fn transform_opencode_log(log_content: &str) -> Option<LogEntry> {
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown");
 
-            let timestamp = value.get("time")
+            let timestamp = value
+                .get("time")
                 .and_then(|t| t.get("updated").or_else(|| t.get("created")))
                 .and_then(|ts| ts.as_i64())
                 .and_then(|ts| chrono::DateTime::from_timestamp_millis(ts))
@@ -244,33 +247,44 @@ fn transform_codex_log(log_content: &str) -> Option<LogEntry> {
 
     // Try to parse as Codex log entry
     if let Ok(value) = serde_json::from_str::<Value>(log_content) {
-        let timestamp = value.get("timestamp")
+        let timestamp = value
+            .get("timestamp")
             .and_then(|t| t.as_str())
             .map(|s| s.to_string())
             .unwrap_or_else(|| Utc::now().to_rfc3339());
 
-        let entry_type = value.get("type")
+        let entry_type = value
+            .get("type")
             .and_then(|t| t.as_str())
             .unwrap_or("unknown");
 
         let message = match entry_type {
             "session_meta" => {
                 if let Some(payload) = value.get("payload") {
-                    let session_id = payload.get("id").and_then(|id| id.as_str()).unwrap_or("unknown");
-                    let cwd = payload.get("cwd").and_then(|c| c.as_str()).unwrap_or("unknown");
+                    let session_id = payload
+                        .get("id")
+                        .and_then(|id| id.as_str())
+                        .unwrap_or("unknown");
+                    let cwd = payload
+                        .get("cwd")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("unknown");
                     format!("Session started: {} in {}", session_id, cwd)
                 } else {
                     "Session metadata".to_string()
                 }
-            },
+            }
             "response_item" => {
                 if let Some(payload) = value.get("payload") {
-                    let role = payload.get("role").and_then(|r| r.as_str()).unwrap_or("unknown");
+                    let role = payload
+                        .get("role")
+                        .and_then(|r| r.as_str())
+                        .unwrap_or("unknown");
                     format!("Message from {}", role)
                 } else {
                     "Response item".to_string()
                 }
-            },
+            }
             _ => format!("Codex event: {}", entry_type),
         };
 
@@ -308,7 +322,9 @@ pub fn read_provider_logs(
                     entries.push(entry);
                 } else {
                     // If it fails, try to transform from provider-specific format
-                    if let Some(transformed_entry) = transform_provider_log_to_claude_format(provider, &line_content) {
+                    if let Some(transformed_entry) =
+                        transform_provider_log_to_claude_format(provider, &line_content)
+                    {
                         entries.push(transformed_entry);
                     }
                 }

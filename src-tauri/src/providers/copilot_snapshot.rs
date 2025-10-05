@@ -113,14 +113,14 @@ pub struct SnapshotManager {
 impl SnapshotManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-        
+
         let base_dir = home.join(".guideai").join("providers").join("copilot");
         let snapshot_dir = base_dir.join("snapshots");
         let metadata_path = base_dir.join("metadata.json");
-        
+
         // Create directories if they don't exist
         fs::create_dir_all(&snapshot_dir)?;
-        
+
         // Set permissions to 700 on Unix systems
         #[cfg(unix)]
         {
@@ -130,7 +130,7 @@ impl SnapshotManager {
             permissions.set_mode(0o700);
             fs::set_permissions(&base_dir, permissions)?;
         }
-        
+
         Ok(Self {
             snapshot_dir,
             metadata_path,
@@ -138,23 +138,25 @@ impl SnapshotManager {
     }
 
     /// Load metadata with exclusive file lock
-    pub fn load_metadata_locked(&self) -> Result<(Metadata, File), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn load_metadata_locked(
+        &self,
+    ) -> Result<(Metadata, File), Box<dyn std::error::Error + Send + Sync>> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .open(&self.metadata_path)?;
-        
+
         // Exclusive lock (blocks until available)
         file.lock_exclusive()?;
-        
+
         let metadata = if file.metadata()?.len() > 0 {
             let reader = std::io::BufReader::new(&file);
             serde_json::from_reader(reader)?
         } else {
             Metadata::default()
         };
-        
+
         Ok((metadata, file))
     }
 
@@ -165,22 +167,22 @@ impl SnapshotManager {
         lock_file: File,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let temp_path = self.metadata_path.with_extension(".tmp");
-        
+
         // Write to temp file
         let temp_file = File::create(&temp_path)?;
         let writer = BufWriter::new(temp_file);
         serde_json::to_writer_pretty(writer, metadata)?;
-        
+
         // Sync to disk
         let file = OpenOptions::new().write(true).open(&temp_path)?;
         file.sync_all()?;
-        
+
         // Atomic rename (still holding lock)
         fs::rename(temp_path, &self.metadata_path)?;
-        
+
         // Release lock
         lock_file.unlock()?;
-        
+
         Ok(())
     }
 
@@ -199,39 +201,39 @@ impl SnapshotManager {
         let snapshot_path = self.get_snapshot_path(snapshot_id);
         let file = File::create(&snapshot_path)?;
         let mut writer = BufWriter::new(file);
-        
+
         for entry in timeline {
             // Flatten the timeline entry to JSONL format
             let mut json_obj = serde_json::Map::new();
-            
+
             // Add timestamp if present
             if let Some(ref ts) = entry.timestamp {
                 json_obj.insert("timestamp".to_string(), serde_json::json!(ts));
             }
-            
+
             // Add cwd if provided
             if let Some(cwd_path) = cwd {
                 json_obj.insert("cwd".to_string(), serde_json::json!(cwd_path));
             }
-            
+
             // Add all other fields from the data
             if let serde_json::Value::Object(data_map) = &entry.data {
                 for (key, value) in data_map {
                     json_obj.insert(key.clone(), value.clone());
                 }
             }
-            
+
             // Write as single JSON line
             writeln!(writer, "{}", serde_json::to_string(&json_obj)?)?;
         }
-        
+
         writer.flush()?;
         drop(writer);
-        
+
         // Sync to disk
         let file = OpenOptions::new().write(true).open(&snapshot_path)?;
         file.sync_all()?;
-        
+
         Ok(snapshot_path)
     }
 
@@ -258,30 +260,30 @@ impl SnapshotManager {
             Ok(s) => s,
             Err(_) => return false, // No active snapshot means first time
         };
-        
+
         let last_count = active.last_timeline_count;
         let last_size = active.last_source_file_size;
-        
+
         // Must have had content before
         if last_count == 0 {
             return false;
         }
-        
+
         // Signal 1: Timeline length dropped significantly (>50%)
         let timeline_dropped = current_timeline_len < (last_count / 2);
-        
+
         // Signal 2: File size dropped significantly (>50%)
         let size_dropped = last_size > 10000 && current_file_size < (last_size / 2);
-        
+
         // Signal 3: Timeline is now empty
         let timeline_empty = current_timeline_len == 0;
-        
+
         // Require at least 2 signals to avoid false positives
         let signal_count = [timeline_dropped, size_dropped, timeline_empty]
             .iter()
             .filter(|&&x| x)
             .count();
-        
+
         signal_count >= 2
     }
 
@@ -299,18 +301,18 @@ impl SnapshotManager {
             .file_name()
             .and_then(|n| n.to_str())
             .ok_or("Invalid filename")?;
-        
+
         if let Some(session) = metadata.sessions.get(file_name) {
             return Ok(session.active_snapshot_id);
         }
-        
+
         // First time - create initial snapshot with full timeline
         let snapshot_id = Uuid::new_v4();
         self.create_snapshot_file(snapshot_id, timeline, cwd)?;
-        
+
         let now = Utc::now().to_rfc3339();
         let file_size = fs::metadata(source_file)?.len();
-        
+
         let session = SessionEntry {
             source_file: file_name.to_string(),
             source_session_id: source_session_id.to_string(),
@@ -325,9 +327,9 @@ impl SnapshotManager {
             }],
             active_snapshot_id: snapshot_id,
         };
-        
+
         metadata.sessions.insert(file_name.to_string(), session);
-        
+
         Ok(snapshot_id)
     }
 }
@@ -357,7 +359,9 @@ mod tests {
         ];
 
         let snapshot_id = Uuid::new_v4();
-        let path = manager.create_snapshot_file(snapshot_id, &timeline).unwrap();
+        let path = manager
+            .create_snapshot_file(snapshot_id, &timeline)
+            .unwrap();
 
         assert!(path.exists());
         let content = fs::read_to_string(&path).unwrap();

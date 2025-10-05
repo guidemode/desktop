@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use shellexpand::tilde;
 use std::fs;
 use std::path::{Path, PathBuf};
-use shellexpand::tilde;
 
 /// GitHub Copilot config.json format
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -73,33 +73,38 @@ pub struct CopilotParser {
 pub fn load_copilot_config() -> Result<CopilotConfig, String> {
     let config_path = tilde("~/.copilot/config.json");
     let config_path = Path::new(config_path.as_ref());
-    
+
     if !config_path.exists() {
         return Ok(CopilotConfig {
             trusted_folders: Vec::new(),
         });
     }
-    
+
     let content = fs::read_to_string(config_path)
         .map_err(|e| format!("Failed to read copilot config: {}", e))?;
-    
+
     let config: CopilotConfig = serde_json::from_str(&content)
         .map_err(|e| format!("Failed to parse copilot config: {}", e))?;
-    
+
     Ok(config)
 }
 
 /// Detect project name from timeline entries by matching against trusted folders
 #[allow(dead_code)]
-pub fn detect_project_from_timeline(timeline: &[TimelineEntry], trusted_folders: &[String]) -> Option<String> {
-    detect_project_and_cwd_from_timeline(timeline, trusted_folders)
-        .map(|(name, _cwd)| name)
+pub fn detect_project_from_timeline(
+    timeline: &[TimelineEntry],
+    trusted_folders: &[String],
+) -> Option<String> {
+    detect_project_and_cwd_from_timeline(timeline, trusted_folders).map(|(name, _cwd)| name)
 }
 
 /// Detect project name AND cwd path from timeline entries by matching against trusted folders
 /// Returns (project_name, cwd_path)
 /// Scans ALL timeline entries and returns on first match with a trusted folder
-pub fn detect_project_and_cwd_from_timeline(timeline: &[TimelineEntry], trusted_folders: &[String]) -> Option<(String, String)> {
+pub fn detect_project_and_cwd_from_timeline(
+    timeline: &[TimelineEntry],
+    trusted_folders: &[String],
+) -> Option<(String, String)> {
     // Scan timeline entries to find one with an "arguments" property containing a "path"
     for entry in timeline {
         if let Some(args) = entry.data.get("arguments") {
@@ -109,7 +114,9 @@ pub fn detect_project_and_cwd_from_timeline(timeline: &[TimelineEntry], trusted_
                 if let Ok(args_json) = serde_json::from_str::<serde_json::Value>(args_str) {
                     if let Some(path) = args_json.get("path").and_then(|p| p.as_str()) {
                         // Match against trusted folders (partial match from the front)
-                        if let Some((project, cwd)) = match_trusted_folder_with_cwd(path, trusted_folders) {
+                        if let Some((project, cwd)) =
+                            match_trusted_folder_with_cwd(path, trusted_folders)
+                        {
                             return Some((project, cwd));
                         }
                     }
@@ -124,16 +131,19 @@ pub fn detect_project_and_cwd_from_timeline(timeline: &[TimelineEntry], trusted_
             }
         }
     }
-    
+
     None
 }
 
 /// Match a path against trusted folders, returning (folder_name, folder_path) if matched
-fn match_trusted_folder_with_cwd(path: &str, trusted_folders: &[String]) -> Option<(String, String)> {
+fn match_trusted_folder_with_cwd(
+    path: &str,
+    trusted_folders: &[String],
+) -> Option<(String, String)> {
     for folder in trusted_folders {
         let expanded_folder = tilde(folder);
         let folder_path = expanded_folder.as_ref();
-        
+
         // Check if the path starts with this trusted folder
         if path.starts_with(folder_path) {
             // Extract the folder name (last component of the path)
@@ -142,15 +152,14 @@ fn match_trusted_folder_with_cwd(path: &str, trusted_folders: &[String]) -> Opti
             }
         }
     }
-    
+
     None
 }
 
 /// Match a path against trusted folders, returning the folder name if matched
 #[allow(dead_code)]
 fn match_trusted_folder(path: &str, trusted_folders: &[String]) -> Option<String> {
-    match_trusted_folder_with_cwd(path, trusted_folders)
-        .map(|(name, _cwd)| name)
+    match_trusted_folder_with_cwd(path, trusted_folders).map(|(name, _cwd)| name)
 }
 
 impl CopilotParser {
@@ -172,25 +181,22 @@ impl CopilotParser {
         // Extract start and end times from timeline
         let (session_start_time, session_end_time) = if !copilot_session.timeline.is_empty() {
             // Find first entry with a timestamp
-            let start = copilot_session.timeline.iter()
-                .find_map(|entry| {
-                    entry.timestamp.as_ref().and_then(|ts| {
-                        DateTime::parse_from_rfc3339(ts)
-                            .ok()
-                            .map(|dt| dt.with_timezone(&Utc))
-                    })
-                });
+            let start = copilot_session.timeline.iter().find_map(|entry| {
+                entry.timestamp.as_ref().and_then(|ts| {
+                    DateTime::parse_from_rfc3339(ts)
+                        .ok()
+                        .map(|dt| dt.with_timezone(&Utc))
+                })
+            });
 
             // Find last entry with a timestamp
-            let end = copilot_session.timeline.iter()
-                .rev()
-                .find_map(|entry| {
-                    entry.timestamp.as_ref().and_then(|ts| {
-                        DateTime::parse_from_rfc3339(ts)
-                            .ok()
-                            .map(|dt| dt.with_timezone(&Utc))
-                    })
-                });
+            let end = copilot_session.timeline.iter().rev().find_map(|entry| {
+                entry.timestamp.as_ref().and_then(|ts| {
+                    DateTime::parse_from_rfc3339(ts)
+                        .ok()
+                        .map(|dt| dt.with_timezone(&Utc))
+                })
+            });
 
             (start, end)
         } else {
@@ -204,24 +210,28 @@ impl CopilotParser {
         // Convert timeline to JSONL format - minimal conversion
         // Each timeline entry becomes one JSONL line with no interpretation
         let jsonl_content = if !copilot_session.timeline.is_empty() {
-            copilot_session.timeline
+            copilot_session
+                .timeline
                 .iter()
                 .filter_map(|entry| {
                     // Create a simple JSON object combining timestamp and all data fields
                     let mut json_obj = serde_json::Map::new();
-                    
+
                     // Add timestamp if present
                     if let Some(ref ts) = entry.timestamp {
-                        json_obj.insert("timestamp".to_string(), serde_json::Value::String(ts.clone()));
+                        json_obj.insert(
+                            "timestamp".to_string(),
+                            serde_json::Value::String(ts.clone()),
+                        );
                     }
-                    
+
                     // Add all other fields from the data
                     if let serde_json::Value::Object(data_map) = &entry.data {
                         for (key, value) in data_map {
                             json_obj.insert(key.clone(), value.clone());
                         }
                     }
-                    
+
                     // Serialize to JSON string (one line per entry)
                     serde_json::to_string(&json_obj).ok()
                 })

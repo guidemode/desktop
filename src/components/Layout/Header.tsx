@@ -1,10 +1,12 @@
 import { useAuth } from '../../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useUpdater } from '../../hooks/useUpdater'
 
 function Header() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { hasUpdate, latestVersion, checkForUpdates } = useUpdater()
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'guideai-light'
   })
@@ -14,6 +16,11 @@ function Header() {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    // Check for updates on mount
+    checkForUpdates()
+  }, [checkForUpdates])
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'guideai-dark' ? 'guideai-light' : 'guideai-dark')
@@ -44,6 +51,20 @@ function Header() {
 
         {/* Theme Toggle and User Info */}
         <div className="flex items-center gap-2">
+          {/* Update Available Notification */}
+          {hasUpdate && (
+            <button
+              onClick={() => navigate('/settings')}
+              className="btn btn-warning btn-sm gap-1"
+              title={`Update available: v${latestVersion}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <span className="hidden sm:inline">Update</span>
+            </button>
+          )}
+
           {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}

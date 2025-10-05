@@ -1,11 +1,11 @@
-use rusqlite::{Connection, Result, params};
-use std::sync::Mutex;
-use lazy_static::lazy_static;
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use crate::logging::{log_debug, log_info};
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
+use chrono::{DateTime, Utc};
+use lazy_static::lazy_static;
+use rusqlite::{params, Connection, Result};
+use std::sync::Mutex;
 use tauri::Emitter;
+use uuid::Uuid;
 
 lazy_static! {
     static ref DB_CONNECTION: Mutex<Option<Connection>> = Mutex::new(None);
@@ -37,8 +37,11 @@ pub fn init_database() -> Result<()> {
     let mut db_conn = DB_CONNECTION.lock().unwrap();
     *db_conn = Some(conn);
 
-    log_info("database", &format!("✓ Database connection established at {:?}", db_path))
-        .unwrap_or_default();
+    log_info(
+        "database",
+        &format!("✓ Database connection established at {:?}", db_path),
+    )
+    .unwrap_or_default();
 
     Ok(())
 }
@@ -56,7 +59,6 @@ fn get_db_path() -> Result<std::path::PathBuf> {
     Ok(app_dir.join("guideai.db"))
 }
 
-
 /// Insert a session into the database
 pub fn insert_session(
     provider: &str,
@@ -71,7 +73,8 @@ pub fn insert_session(
     cwd: Option<&str>,
 ) -> Result<String> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let id = Uuid::new_v4().to_string();
@@ -101,8 +104,11 @@ pub fn insert_session(
         ],
     )?;
 
-    log_info("database", &format!("✓ Inserted session {} into local database", session_id))
-        .unwrap_or_default();
+    log_info(
+        "database",
+        &format!("✓ Inserted session {} into local database", session_id),
+    )
+    .unwrap_or_default();
 
     // Emit event to frontend
     if let Ok(app_handle_guard) = APP_HANDLE.lock() {
@@ -124,7 +130,8 @@ pub fn update_session(
     cwd: Option<&str>,
 ) -> Result<()> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let now = Utc::now().timestamp_millis();
@@ -140,14 +147,14 @@ pub fn update_session(
     let final_start_time_ms = match (existing_start_time_ms, session_start_time) {
         (None, Some(new_start)) => Some(new_start.timestamp_millis()), // Database has null, use new value
         (Some(existing), _) => Some(existing), // Keep existing non-null value
-        (None, None) => None, // Both null, stay null
+        (None, None) => None,                  // Both null, stay null
     };
 
     // Use new cwd if provided and existing is null, otherwise keep existing
     let final_cwd = match (existing_cwd, cwd) {
         (None, Some(new_cwd)) => Some(new_cwd.to_string()), // Database has null, use new value
-        (Some(existing), _) => Some(existing), // Keep existing non-null value
-        (None, None) => None, // Both null, stay null
+        (Some(existing), _) => Some(existing),              // Keep existing non-null value
+        (None, None) => None,                               // Both null, stay null
     };
 
     // Calculate duration if we have both start and end times
@@ -179,8 +186,14 @@ pub fn update_session(
         ],
     )?;
 
-    log_debug("database", &format!("↻ Updated session {} (size: {} bytes, needs re-sync)", session_id, file_size))
-        .unwrap_or_default();
+    log_debug(
+        "database",
+        &format!(
+            "↻ Updated session {} (size: {} bytes, needs re-sync)",
+            session_id, file_size
+        ),
+    )
+    .unwrap_or_default();
 
     // Emit event to frontend
     if let Ok(app_handle_guard) = APP_HANDLE.lock() {
@@ -195,7 +208,8 @@ pub fn update_session(
 /// Check if a session already exists in the database
 pub fn session_exists(session_id: &str, file_name: &str) -> Result<bool> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let count: i64 = conn.query_row(
@@ -214,7 +228,8 @@ pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
     use crate::config::load_provider_config;
 
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let mut stmt = conn.prepare(
@@ -225,35 +240,39 @@ pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
            AND session_start_time IS NOT NULL
            AND session_end_time IS NOT NULL
            AND sync_failed_reason IS NULL
-         ORDER BY created_at ASC"
+         ORDER BY created_at ASC",
     )?;
 
-    let all_sessions = stmt.query_map([], |row| {
-        Ok(UnsyncedSession {
-            id: row.get(0)?,
-            provider: row.get(1)?,
-            project_name: row.get(2)?,
-            session_id: row.get(3)?,
-            file_name: row.get(4)?,
-            file_path: row.get(5)?,
-            file_size: row.get(6)?,
-            cwd: row.get(7)?,
-            session_start_time: row.get(8)?,
-            session_end_time: row.get(9)?,
-        })
-    })?
-    .collect::<Result<Vec<_>>>()?;
+    let all_sessions = stmt
+        .query_map([], |row| {
+            Ok(UnsyncedSession {
+                id: row.get(0)?,
+                provider: row.get(1)?,
+                project_name: row.get(2)?,
+                session_id: row.get(3)?,
+                file_name: row.get(4)?,
+                file_path: row.get(5)?,
+                file_size: row.get(6)?,
+                cwd: row.get(7)?,
+                session_start_time: row.get(8)?,
+                session_end_time: row.get(9)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
 
     // Filter out sessions from providers with sync mode "Nothing" or "Metrics Only"
-    let sessions = all_sessions.into_iter().filter(|session| {
-        match load_provider_config(&session.provider) {
-            Ok(config) => config.sync_mode == "Transcript and Metrics",
-            Err(_) => {
-                // If we can't load config, default to not syncing (safe default)
-                false
+    let sessions = all_sessions
+        .into_iter()
+        .filter(|session| {
+            match load_provider_config(&session.provider) {
+                Ok(config) => config.sync_mode == "Transcript and Metrics",
+                Err(_) => {
+                    // If we can't load config, default to not syncing (safe default)
+                    false
+                }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(sessions)
 }
@@ -261,7 +280,8 @@ pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
 /// Mark a session as synced
 pub fn mark_session_synced(session_id: &str, server_session_id: Option<&str>) -> Result<()> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let now = Utc::now().timestamp_millis();
@@ -273,8 +293,11 @@ pub fn mark_session_synced(session_id: &str, server_session_id: Option<&str>) ->
         params![now, server_session_id, session_id],
     )?;
 
-    log_info("database", &format!("✓ Marked session {} as synced", session_id))
-        .unwrap_or_default();
+    log_info(
+        "database",
+        &format!("✓ Marked session {} as synced", session_id),
+    )
+    .unwrap_or_default();
 
     Ok(())
 }
@@ -282,7 +305,8 @@ pub fn mark_session_synced(session_id: &str, server_session_id: Option<&str>) ->
 /// Mark a session as sync failed with reason
 pub fn mark_session_sync_failed(session_id: &str, reason: &str) -> Result<()> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     conn.execute(
@@ -292,8 +316,11 @@ pub fn mark_session_sync_failed(session_id: &str, reason: &str) -> Result<()> {
         params![reason, session_id],
     )?;
 
-    log_info("database", &format!("✗ Marked session {} as sync failed: {}", session_id, reason))
-        .unwrap_or_default();
+    log_info(
+        "database",
+        &format!("✗ Marked session {} as sync failed: {}", session_id, reason),
+    )
+    .unwrap_or_default();
 
     Ok(())
 }
@@ -314,7 +341,8 @@ pub struct FailedSession {
 /// Get all failed sessions (for upload queue display)
 pub fn get_failed_sessions() -> Result<Vec<FailedSession>> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let mut stmt = conn.prepare(
@@ -324,20 +352,21 @@ pub fn get_failed_sessions() -> Result<Vec<FailedSession>> {
          ORDER BY created_at DESC"
     )?;
 
-    let sessions = stmt.query_map([], |row| {
-        Ok(FailedSession {
-            id: row.get(0)?,
-            provider: row.get(1)?,
-            project_name: row.get(2)?,
-            session_id: row.get(3)?,
-            file_name: row.get(4)?,
-            file_path: row.get(5)?,
-            file_size: row.get(6)?,
-            cwd: row.get(7)?,
-            sync_failed_reason: row.get(8)?,
-        })
-    })?
-    .collect::<Result<Vec<_>>>()?;
+    let sessions = stmt
+        .query_map([], |row| {
+            Ok(FailedSession {
+                id: row.get(0)?,
+                provider: row.get(1)?,
+                project_name: row.get(2)?,
+                session_id: row.get(3)?,
+                file_name: row.get(4)?,
+                file_path: row.get(5)?,
+                file_size: row.get(6)?,
+                cwd: row.get(7)?,
+                sync_failed_reason: row.get(8)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(sessions)
 }
@@ -350,7 +379,8 @@ pub fn get_upload_stats() -> Result<UploadStats> {
     let pending = unsynced.len();
 
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     // Count synced sessions
@@ -361,11 +391,7 @@ pub fn get_upload_stats() -> Result<UploadStats> {
     )?;
 
     // Count total sessions
-    let total: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM agent_sessions",
-        [],
-        |row| row.get(0),
-    )?;
+    let total: i64 = conn.query_row("SELECT COUNT(*) FROM agent_sessions", [], |row| row.get(0))?;
 
     Ok(UploadStats {
         pending,
@@ -407,17 +433,20 @@ pub fn insert_or_get_project(
     project_type: &str,
 ) -> Result<String> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let now = Utc::now().timestamp_millis();
 
     // Try to get existing project by CWD
-    let existing: Option<String> = conn.query_row(
-        "SELECT id FROM projects WHERE cwd = ?",
-        params![cwd],
-        |row| row.get(0),
-    ).ok();
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT id FROM projects WHERE cwd = ?",
+            params![cwd],
+            |row| row.get(0),
+        )
+        .ok();
 
     if let Some(project_id) = existing {
         // Update existing project
@@ -426,8 +455,11 @@ pub fn insert_or_get_project(
             params![name, github_repo, project_type, now, project_id],
         )?;
 
-        log_debug("database", &format!("↻ Updated project {} ({})", name, project_id))
-            .unwrap_or_default();
+        log_debug(
+            "database",
+            &format!("↻ Updated project {} ({})", name, project_id),
+        )
+        .unwrap_or_default();
 
         Ok(project_id)
     } else {
@@ -439,8 +471,7 @@ pub fn insert_or_get_project(
             params![id, name, github_repo, cwd, project_type, now, now],
         )?;
 
-        log_info("database", &format!("✓ Inserted project {} ({})", name, id))
-            .unwrap_or_default();
+        log_info("database", &format!("✓ Inserted project {} ({})", name, id)).unwrap_or_default();
 
         // Emit event to frontend
         if let Ok(app_handle_guard) = APP_HANDLE.lock() {
@@ -456,7 +487,8 @@ pub fn insert_or_get_project(
 /// Get all projects with session counts
 pub fn get_all_projects() -> Result<Vec<ProjectWithCount>> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let mut stmt = conn.prepare(
@@ -465,41 +497,11 @@ pub fn get_all_projects() -> Result<Vec<ProjectWithCount>> {
          FROM projects p
          LEFT JOIN agent_sessions s ON p.id = s.project_id
          GROUP BY p.id
-         ORDER BY p.updated_at DESC"
+         ORDER BY p.updated_at DESC",
     )?;
 
-    let projects = stmt.query_map([], |row| {
-        Ok(ProjectWithCount {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            github_repo: row.get(2)?,
-            cwd: row.get(3)?,
-            project_type: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
-            session_count: row.get(7)?,
-        })
-    })?
-    .collect::<Result<Vec<_>>>()?;
-
-    Ok(projects)
-}
-
-/// Get a single project by ID
-pub fn get_project_by_id(project_id: &str) -> Result<Option<ProjectWithCount>> {
-    let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
-        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
-
-    let project: Option<ProjectWithCount> = conn.query_row(
-        "SELECT p.id, p.name, p.github_repo, p.cwd, p.type, p.created_at, p.updated_at,
-                COUNT(s.id) as session_count
-         FROM projects p
-         LEFT JOIN agent_sessions s ON p.id = s.project_id
-         WHERE p.id = ?
-         GROUP BY p.id",
-        params![project_id],
-        |row| {
+    let projects = stmt
+        .query_map([], |row| {
             Ok(ProjectWithCount {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -510,8 +512,42 @@ pub fn get_project_by_id(project_id: &str) -> Result<Option<ProjectWithCount>> {
                 updated_at: row.get(6)?,
                 session_count: row.get(7)?,
             })
-        },
-    ).ok();
+        })?
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(projects)
+}
+
+/// Get a single project by ID
+pub fn get_project_by_id(project_id: &str) -> Result<Option<ProjectWithCount>> {
+    let db_conn = DB_CONNECTION.lock().unwrap();
+    let conn = db_conn
+        .as_ref()
+        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
+
+    let project: Option<ProjectWithCount> = conn
+        .query_row(
+            "SELECT p.id, p.name, p.github_repo, p.cwd, p.type, p.created_at, p.updated_at,
+                COUNT(s.id) as session_count
+         FROM projects p
+         LEFT JOIN agent_sessions s ON p.id = s.project_id
+         WHERE p.id = ?
+         GROUP BY p.id",
+            params![project_id],
+            |row| {
+                Ok(ProjectWithCount {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    github_repo: row.get(2)?,
+                    cwd: row.get(3)?,
+                    project_type: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                    session_count: row.get(7)?,
+                })
+            },
+        )
+        .ok();
 
     Ok(project)
 }
@@ -519,7 +555,8 @@ pub fn get_project_by_id(project_id: &str) -> Result<Option<ProjectWithCount>> {
 /// Attach a session to a project
 pub fn attach_session_to_project(session_id: &str, project_id: &str) -> Result<()> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     conn.execute(
@@ -527,8 +564,14 @@ pub fn attach_session_to_project(session_id: &str, project_id: &str) -> Result<(
         params![project_id, session_id],
     )?;
 
-    log_debug("database", &format!("↻ Attached session {} to project {}", session_id, project_id))
-        .unwrap_or_default();
+    log_debug(
+        "database",
+        &format!(
+            "↻ Attached session {} to project {}",
+            session_id, project_id
+        ),
+    )
+    .unwrap_or_default();
 
     Ok(())
 }
@@ -547,16 +590,21 @@ pub struct ProjectWithCount {
 
 /// Execute a raw SQL query and return results as JSON
 /// This is used by the React frontend to query the database dynamically
-pub fn execute_sql_query(sql: &str, params: Vec<serde_json::Value>) -> Result<Vec<serde_json::Value>> {
+pub fn execute_sql_query(
+    sql: &str,
+    params: Vec<serde_json::Value>,
+) -> Result<Vec<serde_json::Value>> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let mut stmt = conn.prepare(sql)?;
 
     // Convert JSON params to rusqlite params
-    let rusqlite_params: Vec<Box<dyn rusqlite::ToSql>> = params.iter().map(|p| {
-        match p {
+    let rusqlite_params: Vec<Box<dyn rusqlite::ToSql>> = params
+        .iter()
+        .map(|p| match p {
             serde_json::Value::String(s) => Box::new(s.clone()) as Box<dyn rusqlite::ToSql>,
             serde_json::Value::Number(n) => {
                 if let Some(i) = n.as_i64() {
@@ -566,16 +614,15 @@ pub fn execute_sql_query(sql: &str, params: Vec<serde_json::Value>) -> Result<Ve
                 } else {
                     Box::new(rusqlite::types::Null) as Box<dyn rusqlite::ToSql>
                 }
-            },
+            }
             serde_json::Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
             serde_json::Value::Null => Box::new(rusqlite::types::Null) as Box<dyn rusqlite::ToSql>,
             _ => Box::new(rusqlite::types::Null) as Box<dyn rusqlite::ToSql>,
-        }
-    }).collect();
-
-    let param_refs: Vec<&dyn rusqlite::ToSql> = rusqlite_params.iter()
-        .map(|p| p.as_ref())
+        })
         .collect();
+
+    let param_refs: Vec<&dyn rusqlite::ToSql> =
+        rusqlite_params.iter().map(|p| p.as_ref()).collect();
 
     let rows = stmt.query_map(param_refs.as_slice(), |row| {
         let mut map = serde_json::Map::new();
@@ -586,17 +633,15 @@ pub fn execute_sql_query(sql: &str, params: Vec<serde_json::Value>) -> Result<Ve
             let value: serde_json::Value = match row.get_ref(i)? {
                 rusqlite::types::ValueRef::Null => serde_json::Value::Null,
                 rusqlite::types::ValueRef::Integer(i) => serde_json::Value::Number(i.into()),
-                rusqlite::types::ValueRef::Real(f) => {
-                    serde_json::Number::from_f64(f)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or(serde_json::Value::Null)
-                },
+                rusqlite::types::ValueRef::Real(f) => serde_json::Number::from_f64(f)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null),
                 rusqlite::types::ValueRef::Text(s) => {
                     serde_json::Value::String(String::from_utf8_lossy(s).to_string())
-                },
+                }
                 rusqlite::types::ValueRef::Blob(b) => {
                     serde_json::Value::String(general_purpose::STANDARD.encode(b))
-                },
+                }
             };
             map.insert(column_name, value);
         }
@@ -609,24 +654,29 @@ pub fn execute_sql_query(sql: &str, params: Vec<serde_json::Value>) -> Result<Ve
 
 /// Quick rate a session with thumbs up/meh/thumbs down
 pub fn quick_rate_session(session_id: &str, rating: &str) -> Result<()> {
-    log_info("database", &format!("Quick rating session {} with {}", session_id, rating))
-        .unwrap_or_default();
+    log_info(
+        "database",
+        &format!("Quick rating session {} with {}", session_id, rating),
+    )
+    .unwrap_or_default();
 
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let now = Utc::now().timestamp_millis();
 
     // Check if assessment already exists
-    let existing: Option<String> = conn.query_row(
-        "SELECT id FROM session_assessments WHERE session_id = ?",
-        params![session_id],
-        |row| row.get(0),
-    ).ok();
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT id FROM session_assessments WHERE session_id = ?",
+            params![session_id],
+            |row| row.get(0),
+        )
+        .ok();
 
-    log_debug("database", &format!("Existing assessment: {:?}", existing))
-        .unwrap_or_default();
+    log_debug("database", &format!("Existing assessment: {:?}", existing)).unwrap_or_default();
 
     if let Some(id) = existing {
         // Update existing assessment with new rating
@@ -635,8 +685,11 @@ pub fn quick_rate_session(session_id: &str, rating: &str) -> Result<()> {
             params![rating, id],
         )?;
 
-        log_debug("database", &format!("↻ Updated rating for session {}: {}", session_id, rating))
-            .unwrap_or_default();
+        log_debug(
+            "database",
+            &format!("↻ Updated rating for session {}: {}", session_id, rating),
+        )
+        .unwrap_or_default();
     } else {
         // Create new minimal assessment with just the rating
         let assessment_id = Uuid::new_v4().to_string();
@@ -654,8 +707,11 @@ pub fn quick_rate_session(session_id: &str, rating: &str) -> Result<()> {
             params![assessment_id, session_id, provider, rating, now, now],
         )?;
 
-        log_info("database", &format!("✓ Created rating for session {}: {}", session_id, rating))
-            .unwrap_or_default();
+        log_info(
+            "database",
+            &format!("✓ Created rating for session {}: {}", session_id, rating),
+        )
+        .unwrap_or_default();
     }
 
     // Update agent_sessions assessment_status to 'rating_only' and set completed time
@@ -677,14 +733,17 @@ pub fn quick_rate_session(session_id: &str, rating: &str) -> Result<()> {
 /// Get the rating for a session
 pub fn get_session_rating(session_id: &str) -> Result<Option<String>> {
     let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn.as_ref()
+    let conn = db_conn
+        .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
-    let rating: Option<String> = conn.query_row(
-        "SELECT rating FROM session_assessments WHERE session_id = ?",
-        params![session_id],
-        |row| row.get(0),
-    ).ok();
+    let rating: Option<String> = conn
+        .query_row(
+            "SELECT rating FROM session_assessments WHERE session_id = ?",
+            params![session_id],
+            |row| row.get(0),
+        )
+        .ok();
 
     Ok(rating)
 }

@@ -2,8 +2,8 @@ use crate::config::load_provider_config;
 use crate::logging::{log_debug, log_error, log_info};
 use crate::providers::db_helpers::insert_session_immediately;
 use crate::upload_queue::UploadQueue;
-use serde::{Deserialize, Serialize};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -72,17 +72,28 @@ impl CodexWatcher {
         let base_path = Path::new(expanded_home.as_ref());
 
         if !base_path.exists() {
-            return Err(format!("Codex home directory does not exist: {}", base_path.display()).into());
+            return Err(format!(
+                "Codex home directory does not exist: {}",
+                base_path.display()
+            )
+            .into());
         }
 
         let sessions_path = base_path.join("sessions");
         if !sessions_path.exists() {
-            return Err(format!("Codex sessions directory does not exist: {}", sessions_path.display()).into());
+            return Err(format!(
+                "Codex sessions directory does not exist: {}",
+                sessions_path.display()
+            )
+            .into());
         }
 
         if let Err(e) = log_info(
             PROVIDER_ID,
-            &format!("📁 Monitoring Codex sessions directory: {}", sessions_path.display()),
+            &format!(
+                "📁 Monitoring Codex sessions directory: {}",
+                sessions_path.display()
+            ),
         ) {
             eprintln!("Logging error: {}", e);
         }
@@ -149,7 +160,9 @@ impl CodexWatcher {
             // Process file system events with timeout
             match rx.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(event)) => {
-                    if let Some(file_event) = Self::process_file_event(&event, &sessions_path, &session_states) {
+                    if let Some(file_event) =
+                        Self::process_file_event(&event, &sessions_path, &session_states)
+                    {
                         // Check if this is a new session or significant change (before updating state)
                         let should_log = Self::should_log_event(&file_event, &session_states);
 
@@ -174,13 +187,19 @@ impl CodexWatcher {
 
                         if should_log {
                             if file_event.is_new_session {
-                                let log_message = format!("🆕 New Codex session detected: {} → Saved to database", file_event.session_id);
+                                let log_message = format!(
+                                    "🆕 New Codex session detected: {} → Saved to database",
+                                    file_event.session_id
+                                );
                                 if let Err(e) = log_info(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
                             } else {
                                 // Use debug level for routine session activity
-                                let log_message = format!("📝 Codex session active: {} (size: {} bytes)", file_event.session_id, file_event.file_size);
+                                let log_message = format!(
+                                    "📝 Codex session active: {} (size: {} bytes)",
+                                    file_event.session_id, file_event.file_size
+                                );
                                 if let Err(e) = log_debug(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
@@ -189,7 +208,10 @@ impl CodexWatcher {
                     }
                 }
                 Ok(Err(error)) => {
-                    if let Err(e) = log_error(PROVIDER_ID, &format!("Codex file watcher error: {:?}", error)) {
+                    if let Err(e) = log_error(
+                        PROVIDER_ID,
+                        &format!("Codex file watcher error: {:?}", error),
+                    ) {
                         eprintln!("Logging error: {}", e);
                     }
                 }
@@ -197,7 +219,9 @@ impl CodexWatcher {
                     // Timeout is normal, continue watching
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    if let Err(e) = log_error(PROVIDER_ID, "Codex file watcher channel disconnected") {
+                    if let Err(e) =
+                        log_error(PROVIDER_ID, "Codex file watcher channel disconnected")
+                    {
                         eprintln!("Logging error: {}", e);
                     }
                     break;
@@ -311,7 +335,11 @@ impl CodexWatcher {
         Ok(metadata.len())
     }
 
-    fn is_new_session(session_id: &str, path: &Path, session_states: &HashMap<String, SessionState>) -> bool {
+    fn is_new_session(
+        session_id: &str,
+        path: &Path,
+        session_states: &HashMap<String, SessionState>,
+    ) -> bool {
         // First check if we've already seen this session
         if session_states.contains_key(session_id) {
             return false; // Already tracking this session
@@ -329,13 +357,19 @@ impl CodexWatcher {
         }
     }
 
-    fn should_log_event(file_event: &FileChangeEvent, session_states: &HashMap<String, SessionState>) -> bool {
+    fn should_log_event(
+        file_event: &FileChangeEvent,
+        session_states: &HashMap<String, SessionState>,
+    ) -> bool {
         match session_states.get(&file_event.session_id) {
             Some(existing_state) => {
                 // Only log if significant size change or new session
-                file_event.is_new_session ||
-                file_event.file_size.saturating_sub(existing_state.last_size) >= MIN_SIZE_CHANGE_BYTES
-            },
+                file_event.is_new_session
+                    || file_event
+                        .file_size
+                        .saturating_sub(existing_state.last_size)
+                        >= MIN_SIZE_CHANGE_BYTES
+            }
             None => {
                 // Only log if this is actually a new session (small file size)
                 // This prevents duplicate logging for the same session when multiple
@@ -345,7 +379,10 @@ impl CodexWatcher {
         }
     }
 
-    fn update_session_state(session_states: &mut HashMap<String, SessionState>, file_event: &FileChangeEvent) {
+    fn update_session_state(
+        session_states: &mut HashMap<String, SessionState>,
+        file_event: &FileChangeEvent,
+    ) {
         match session_states.get_mut(&file_event.session_id) {
             Some(existing_state) => {
                 // Update existing session state
@@ -355,22 +392,28 @@ impl CodexWatcher {
 
                 // Smart re-upload logic: clear upload_pending if conditions met
                 if existing_state.upload_pending {
-                    let should_allow_reupload = if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                        // Check if cooldown has elapsed OR size changed significantly
-                        let cooldown_elapsed = file_event.last_modified.duration_since(last_uploaded_time) >= RE_UPLOAD_COOLDOWN;
-                        let size_changed_significantly = file_event.file_size.saturating_sub(existing_state.last_uploaded_size) >= MIN_SIZE_CHANGE_BYTES;
+                    let should_allow_reupload =
+                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
+                            // Check if cooldown has elapsed OR size changed significantly
+                            let cooldown_elapsed =
+                                file_event.last_modified.duration_since(last_uploaded_time)
+                                    >= RE_UPLOAD_COOLDOWN;
+                            let size_changed_significantly = file_event
+                                .file_size
+                                .saturating_sub(existing_state.last_uploaded_size)
+                                >= MIN_SIZE_CHANGE_BYTES;
 
-                        cooldown_elapsed || size_changed_significantly
-                    } else {
-                        // No last upload time recorded, allow re-upload
-                        true
-                    };
+                            cooldown_elapsed || size_changed_significantly
+                        } else {
+                            // No last upload time recorded, allow re-upload
+                            true
+                        };
 
                     if should_allow_reupload {
                         existing_state.upload_pending = false;
                     }
                 }
-            },
+            }
             None => {
                 // Create new session state
                 let session_state = SessionState {
@@ -385,7 +428,6 @@ impl CodexWatcher {
             }
         }
     }
-
 
     pub fn stop(&self) {
         if let Ok(mut running) = self.is_running.lock() {
@@ -444,18 +486,33 @@ mod tests {
         let mut session_states = HashMap::new();
 
         // Create a small file - should be considered new
-        fs::write(&file_path, r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"session_meta"}"#).unwrap();
-        assert!(CodexWatcher::is_new_session(session_id, &file_path, &session_states));
+        fs::write(
+            &file_path,
+            r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"session_meta"}"#,
+        )
+        .unwrap();
+        assert!(CodexWatcher::is_new_session(
+            session_id,
+            &file_path,
+            &session_states
+        ));
 
         // Add session to states - should not be considered new even if file is small
-        session_states.insert(session_id.to_string(), SessionState {
-            last_modified: Instant::now(),
-            last_size: 100,
-            is_active: true,
-            upload_pending: false,
-            last_uploaded_time: None,
-            last_uploaded_size: 0,
-        });
-        assert!(!CodexWatcher::is_new_session(session_id, &file_path, &session_states));
+        session_states.insert(
+            session_id.to_string(),
+            SessionState {
+                last_modified: Instant::now(),
+                last_size: 100,
+                is_active: true,
+                upload_pending: false,
+                last_uploaded_time: None,
+                last_uploaded_size: 0,
+            },
+        );
+        assert!(!CodexWatcher::is_new_session(
+            session_id,
+            &file_path,
+            &session_states
+        ));
     }
 }

@@ -184,7 +184,8 @@ impl OpenCodeParser {
     pub fn parse_session(&self, session_id: &str) -> Result<ParsedSession, String> {
         // Load session metadata first to get project ID
         let session = self.load_session(session_id)?;
-        let project_id = session.project_id
+        let project_id = session
+            .project_id
             .ok_or_else(|| format!("Session {} has no project ID", session_id))?;
         let project = self.load_project(&project_id)?;
 
@@ -210,7 +211,9 @@ impl OpenCodeParser {
             // Process parts and create separate entries for tool use/results
             let mut text_content: Vec<OpenCodeJsonLContent> = Vec::new();
 
-            let base_timestamp = message.time.created
+            let base_timestamp = message
+                .time
+                .created
                 .or(message.time.initialized)
                 .or(message.time.updated)
                 .and_then(|ts| DateTime::from_timestamp_millis(ts))
@@ -227,12 +230,17 @@ impl OpenCodeParser {
                         }
                     }
                     "tool" => {
-                        if let (Some(tool_name), Some(call_id), Some(state)) =
-                            (part.tool.as_ref(), part.call_id.as_ref(), part.state.as_ref()) {
+                        if let (Some(tool_name), Some(call_id), Some(state)) = (
+                            part.tool.as_ref(),
+                            part.call_id.as_ref(),
+                            part.state.as_ref(),
+                        ) {
                             tool_count += 1;
 
                             // Get timestamp from part if available
-                            let part_timestamp = part.time.as_ref()
+                            let part_timestamp = part
+                                .time
+                                .as_ref()
                                 .and_then(|t| t.start)
                                 .and_then(|ts| DateTime::from_timestamp_millis(ts))
                                 .unwrap_or(base_timestamp);
@@ -248,7 +256,10 @@ impl OpenCodeParser {
                                         content_type: "tool_use".to_string(),
                                         id: call_id.clone(),
                                         name: tool_name.clone(),
-                                        input: state.input.clone().unwrap_or(serde_json::Value::Null),
+                                        input: state
+                                            .input
+                                            .clone()
+                                            .unwrap_or(serde_json::Value::Null),
                                     }],
                                 },
                             };
@@ -256,10 +267,14 @@ impl OpenCodeParser {
 
                             // Create separate entry for tool result if output exists
                             if let Some(output) = state.output.as_ref() {
-                                let result_timestamp = part.time.as_ref()
+                                let result_timestamp = part
+                                    .time
+                                    .as_ref()
                                     .and_then(|t| t.end)
                                     .and_then(|ts| DateTime::from_timestamp_millis(ts))
-                                    .unwrap_or_else(|| part_timestamp + chrono::Duration::milliseconds(1));
+                                    .unwrap_or_else(|| {
+                                        part_timestamp + chrono::Duration::milliseconds(1)
+                                    });
 
                                 let tool_result_entry = OpenCodeJsonLEntry {
                                     session_id: session_id.to_string(),
@@ -280,8 +295,11 @@ impl OpenCodeParser {
                         }
                     }
                     "file" => {
-                        if let (Some(filename), Some(mime), Some(url)) =
-                            (part.filename.as_ref(), part.mime.as_ref(), part.url.as_ref()) {
+                        if let (Some(filename), Some(mime), Some(url)) = (
+                            part.filename.as_ref(),
+                            part.mime.as_ref(),
+                            part.url.as_ref(),
+                        ) {
                             file_count += 1;
                             text_content.push(OpenCodeJsonLContent::File {
                                 content_type: "file".to_string(),
@@ -292,8 +310,8 @@ impl OpenCodeParser {
                         }
                     }
                     "patch" => {
-                        if let (Some(files), Some(hash)) =
-                            (part.files.as_ref(), part.hash.as_ref()) {
+                        if let (Some(files), Some(hash)) = (part.files.as_ref(), part.hash.as_ref())
+                        {
                             if !files.is_empty() {
                                 text_content.push(OpenCodeJsonLContent::Patch {
                                     content_type: "patch".to_string(),
@@ -371,11 +389,23 @@ impl OpenCodeParser {
             Some(OpenCodeTokens {
                 input: Some(total_input_tokens),
                 output: Some(total_output_tokens),
-                reasoning: if total_reasoning_tokens > 0 { Some(total_reasoning_tokens) } else { None },
+                reasoning: if total_reasoning_tokens > 0 {
+                    Some(total_reasoning_tokens)
+                } else {
+                    None
+                },
                 cache: if total_cache_read > 0 || total_cache_write > 0 {
                     Some(OpenCodeTokenCache {
-                        write: if total_cache_write > 0 { Some(total_cache_write) } else { None },
-                        read: if total_cache_read > 0 { Some(total_cache_read) } else { None },
+                        write: if total_cache_write > 0 {
+                            Some(total_cache_write)
+                        } else {
+                            None
+                        },
+                        read: if total_cache_read > 0 {
+                            Some(total_cache_read)
+                        } else {
+                            None
+                        },
                     })
                 } else {
                     None
@@ -393,7 +423,11 @@ impl OpenCodeParser {
             duration_ms,
             jsonl_content,
             total_tokens,
-            total_cost: if total_cost > 0.0 { Some(total_cost) } else { None },
+            total_cost: if total_cost > 0.0 {
+                Some(total_cost)
+            } else {
+                None
+            },
             tool_count,
             file_count,
             cwd: Some(project.worktree.clone()),
@@ -467,8 +501,10 @@ impl OpenCodeParser {
 
                     // If projectID is not in the JSON, infer it from the directory path
                     if session.project_id.is_none() {
-                        if let Some(project_id) = project_session_dir.file_name()
-                            .and_then(|name| name.to_str()) {
+                        if let Some(project_id) = project_session_dir
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                        {
                             session.project_id = Some(project_id.to_string());
                         }
                     }
@@ -482,13 +518,16 @@ impl OpenCodeParser {
     }
 
     fn load_project(&self, project_id: &str) -> Result<OpenCodeProject, String> {
-        let project_file = self.storage_path.join("project").join(format!("{}.json", project_id));
+        let project_file = self
+            .storage_path
+            .join("project")
+            .join(format!("{}.json", project_id));
         self.load_project_from_path(&project_file)
     }
 
     fn load_project_from_path(&self, path: &Path) -> Result<OpenCodeProject, String> {
-        let content = fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read project file: {}", e))?;
+        let content =
+            fs::read_to_string(path).map_err(|e| format!("Failed to read project file: {}", e))?;
 
         let project: OpenCodeProject = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse project JSON: {}", e))?;
@@ -521,7 +560,8 @@ impl OpenCodeParser {
 
         // Sort messages by creation time
         messages.sort_by_key(|msg| {
-            msg.time.created
+            msg.time
+                .created
                 .or(msg.time.initialized)
                 .or(msg.time.updated)
                 .unwrap_or(0)
@@ -536,8 +576,8 @@ impl OpenCodeParser {
             return Ok(Vec::new());
         }
 
-        let entries = fs::read_dir(&part_dir)
-            .map_err(|e| format!("Failed to read part directory: {}", e))?;
+        let entries =
+            fs::read_dir(&part_dir).map_err(|e| format!("Failed to read part directory: {}", e))?;
 
         let mut parts = Vec::new();
         for entry in entries.flatten() {
@@ -554,9 +594,7 @@ impl OpenCodeParser {
         }
 
         // Sort parts by start time if available
-        parts.sort_by_key(|part| {
-            part.time.as_ref().and_then(|t| t.start).unwrap_or(0)
-        });
+        parts.sort_by_key(|part| part.time.as_ref().and_then(|t| t.start).unwrap_or(0));
 
         Ok(parts)
     }
@@ -564,9 +602,18 @@ impl OpenCodeParser {
     pub fn get_session_for_part(&self, part_path: &Path) -> Option<String> {
         // Extract session ID from part path
         // Path format: ~/.local/share/opencode/storage/part/{messageId}/{partId}.json
-        if let Some(message_id) = part_path.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str()) {
+        if let Some(message_id) = part_path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+        {
             // Load the message to get session ID
-            if let Ok(content) = fs::read_to_string(self.storage_path.join("message").join(message_id).join(format!("{}.json", message_id))) {
+            if let Ok(content) = fs::read_to_string(
+                self.storage_path
+                    .join("message")
+                    .join(message_id)
+                    .join(format!("{}.json", message_id)),
+            ) {
                 if let Ok(message) = serde_json::from_str::<OpenCodeMessage>(&content) {
                     return Some(message.session_id);
                 }
@@ -602,23 +649,56 @@ mod tests {
 
         // Create test project
         let project = r#"{"id":"test_project","worktree":"/path/to/project","time":{"created":1609459200000}}"#;
-        fs::write(storage_path.join("project").join("test_project.json"), project).unwrap();
+        fs::write(
+            storage_path.join("project").join("test_project.json"),
+            project,
+        )
+        .unwrap();
 
         // Create test session (without projectID - will be inferred from directory)
-        let session = r#"{"id":"test_session","title":"Test Session","time":{"created":1609459200000}}"#;
-        fs::write(storage_path.join("session").join("test_project").join("test_session.json"), session).unwrap();
+        let session =
+            r#"{"id":"test_session","title":"Test Session","time":{"created":1609459200000}}"#;
+        fs::write(
+            storage_path
+                .join("session")
+                .join("test_project")
+                .join("test_session.json"),
+            session,
+        )
+        .unwrap();
 
         // Create test message
         let message = r#"{"id":"test_message","role":"user","sessionID":"test_session","time":{"created":1609459200000}}"#;
-        fs::write(storage_path.join("message").join("test_session").join("test_message.json"), message).unwrap();
+        fs::write(
+            storage_path
+                .join("message")
+                .join("test_session")
+                .join("test_message.json"),
+            message,
+        )
+        .unwrap();
 
         // Create test part with text
         let part = r#"{"id":"test_part","type":"text","text":"Hello, world!","messageID":"test_message","sessionID":"test_session"}"#;
-        fs::write(storage_path.join("part").join("test_message").join("test_part.json"), part).unwrap();
+        fs::write(
+            storage_path
+                .join("part")
+                .join("test_message")
+                .join("test_part.json"),
+            part,
+        )
+        .unwrap();
 
         // Create test part with tool use and result
         let tool_part = r#"{"id":"test_tool_part","type":"tool","tool":"read","callID":"call_123","state":{"status":"completed","input":{"filePath":"/test/file.txt"},"output":"File contents here","title":"test"},"messageID":"test_message","sessionID":"test_session"}"#;
-        fs::write(storage_path.join("part").join("test_message").join("test_tool_part.json"), tool_part).unwrap();
+        fs::write(
+            storage_path
+                .join("part")
+                .join("test_message")
+                .join("test_tool_part.json"),
+            tool_part,
+        )
+        .unwrap();
 
         let parser = OpenCodeParser::new(storage_path);
         (temp_dir, parser)

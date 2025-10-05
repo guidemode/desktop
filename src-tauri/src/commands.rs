@@ -5,8 +5,11 @@ use crate::config::{
     ProviderConfig,
 };
 use crate::logging::{read_provider_logs, LogEntry};
-use crate::providers::{ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus, CopilotWatcher, CopilotWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo, scan_all_sessions};
-use crate::upload_queue::{UploadQueue, UploadStatus, QueueItems};
+use crate::providers::{
+    scan_all_sessions, ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus,
+    CopilotWatcher, CopilotWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo,
+};
+use crate::upload_queue::{QueueItems, UploadQueue, UploadStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -364,7 +367,9 @@ pub async fn stop_claude_watcher(state: State<'_, AppState>) -> Result<(), Strin
 }
 
 #[tauri::command]
-pub async fn get_claude_watcher_status(state: State<'_, AppState>) -> Result<ClaudeWatcherStatus, String> {
+pub async fn get_claude_watcher_status(
+    state: State<'_, AppState>,
+) -> Result<ClaudeWatcherStatus, String> {
     if let Ok(watchers) = state.watchers.lock() {
         if let Some(Watcher::Claude(watcher)) = watchers.get("claude-code") {
             Ok(watcher.get_status())
@@ -415,7 +420,9 @@ pub async fn stop_opencode_watcher(state: State<'_, AppState>) -> Result<(), Str
 }
 
 #[tauri::command]
-pub async fn get_opencode_watcher_status(state: State<'_, AppState>) -> Result<OpenCodeWatcherStatus, String> {
+pub async fn get_opencode_watcher_status(
+    state: State<'_, AppState>,
+) -> Result<OpenCodeWatcherStatus, String> {
     if let Ok(watchers) = state.watchers.lock() {
         if let Some(Watcher::OpenCode(watcher)) = watchers.get("opencode") {
             Ok(watcher.get_status())
@@ -466,7 +473,9 @@ pub async fn stop_codex_watcher(state: State<'_, AppState>) -> Result<(), String
 }
 
 #[tauri::command]
-pub async fn get_codex_watcher_status(state: State<'_, AppState>) -> Result<CodexWatcherStatus, String> {
+pub async fn get_codex_watcher_status(
+    state: State<'_, AppState>,
+) -> Result<CodexWatcherStatus, String> {
     if let Ok(watchers) = state.watchers.lock() {
         if let Some(Watcher::Codex(watcher)) = watchers.get("codex") {
             Ok(watcher.get_status())
@@ -517,7 +526,9 @@ pub async fn stop_copilot_watcher(state: State<'_, AppState>) -> Result<(), Stri
 }
 
 #[tauri::command]
-pub async fn get_copilot_watcher_status(state: State<'_, AppState>) -> Result<CopilotWatcherStatus, String> {
+pub async fn get_copilot_watcher_status(
+    state: State<'_, AppState>,
+) -> Result<CopilotWatcherStatus, String> {
     if let Ok(watchers) = state.watchers.lock() {
         if let Some(Watcher::Copilot(watcher)) = watchers.get("github-copilot") {
             Ok(watcher.get_status())
@@ -557,7 +568,10 @@ pub async fn get_upload_queue_items(state: State<'_, AppState>) -> Result<QueueI
 }
 
 #[tauri::command]
-pub async fn retry_single_upload(state: State<'_, AppState>, item_id: String) -> Result<(), String> {
+pub async fn retry_single_upload(
+    state: State<'_, AppState>,
+    item_id: String,
+) -> Result<(), String> {
     state.upload_queue.retry_item(&item_id)
 }
 
@@ -639,13 +653,14 @@ where
 }
 
 #[tauri::command]
-pub async fn scan_historical_sessions(
-    provider_id: String,
-) -> Result<Vec<SessionInfo>, String> {
-    use crate::logging::{log_info, log_warn, log_debug};
+pub async fn scan_historical_sessions(provider_id: String) -> Result<Vec<SessionInfo>, String> {
+    use crate::logging::{log_debug, log_info, log_warn};
 
     // Log start of scan
-    if let Err(e) = log_info(&provider_id, &format!("🔍 Starting historical session scan for {}", provider_id)) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!("🔍 Starting historical session scan for {}", provider_id),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -655,7 +670,8 @@ pub async fn scan_historical_sessions(
         progress.current_provider = provider_id.clone();
         progress.errors.clear();
         progress.sessions_found.clear();
-    }).ok();
+    })
+    .ok();
 
     // Load provider config
     let config = load_provider_config(&provider_id)
@@ -669,47 +685,72 @@ pub async fn scan_historical_sessions(
         return Err(err_msg);
     }
 
-    if let Err(e) = log_info(&provider_id, &format!("📂 Scanning directory: {}", config.home_directory)) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!("📂 Scanning directory: {}", config.home_directory),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
     // Scan for sessions
-    let all_sessions = scan_all_sessions(&provider_id, &config.home_directory)
-        .map_err(|e| {
-            // Log the error
-            if let Err(log_err) = log_warn(&provider_id, &format!("✗ Failed to scan sessions: {}", e)) {
-                eprintln!("Logging error: {}", log_err);
-            }
-            // Update progress with error
-            update_sync_progress_for_provider(&provider_id, |progress| {
-                progress.errors.push(e.clone());
-                progress.is_scanning = false;
-            }).ok();
-            e
-        })?;
+    let all_sessions = scan_all_sessions(&provider_id, &config.home_directory).map_err(|e| {
+        // Log the error
+        if let Err(log_err) = log_warn(&provider_id, &format!("✗ Failed to scan sessions: {}", e))
+        {
+            eprintln!("Logging error: {}", log_err);
+        }
+        // Update progress with error
+        update_sync_progress_for_provider(&provider_id, |progress| {
+            progress.errors.push(e.clone());
+            progress.is_scanning = false;
+        })
+        .ok();
+        e
+    })?;
 
-    if let Err(e) = log_info(&provider_id, &format!("📊 Found {} total sessions before filtering", all_sessions.len())) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!(
+            "📊 Found {} total sessions before filtering",
+            all_sessions.len()
+        ),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
     // Filter sessions based on project selection
     let sessions: Vec<SessionInfo> = if config.project_selection == "ALL" {
-        if let Err(e) = log_info(&provider_id, "📋 Using ALL project selection - no filtering") {
+        if let Err(e) = log_info(
+            &provider_id,
+            "📋 Using ALL project selection - no filtering",
+        ) {
             eprintln!("Logging error: {}", e);
         }
         all_sessions
     } else {
-        if let Err(e) = log_info(&provider_id, &format!("📋 Filtering to {} selected projects: {}",
-            config.selected_projects.len(), config.selected_projects.join(", "))) {
+        if let Err(e) = log_info(
+            &provider_id,
+            &format!(
+                "📋 Filtering to {} selected projects: {}",
+                config.selected_projects.len(),
+                config.selected_projects.join(", ")
+            ),
+        ) {
             eprintln!("Logging error: {}", e);
         }
 
-        let filtered: Vec<SessionInfo> = all_sessions.into_iter()
+        let filtered: Vec<SessionInfo> = all_sessions
+            .into_iter()
             .filter(|session| {
                 let is_selected = config.selected_projects.contains(&session.project_name);
                 if !is_selected {
-                    if let Err(e) = log_debug(&provider_id, &format!("  Skipping session {} (project '{}' not in selected projects)",
-                        session.session_id, session.project_name)) {
+                    if let Err(e) = log_debug(
+                        &provider_id,
+                        &format!(
+                            "  Skipping session {} (project '{}' not in selected projects)",
+                            session.session_id, session.project_name
+                        ),
+                    ) {
                         eprintln!("Logging error: {}", e);
                     }
                 }
@@ -717,14 +758,20 @@ pub async fn scan_historical_sessions(
             })
             .collect();
 
-        if let Err(e) = log_info(&provider_id, &format!("📊 Filtered to {} sessions", filtered.len())) {
+        if let Err(e) = log_info(
+            &provider_id,
+            &format!("📊 Filtered to {} sessions", filtered.len()),
+        ) {
             eprintln!("Logging error: {}", e);
         }
 
         filtered
     };
 
-    if let Err(e) = log_info(&provider_id, &format!("✓ Scan complete: found {} sessions", sessions.len())) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!("✓ Scan complete: found {} sessions", sessions.len()),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -743,14 +790,20 @@ pub async fn scan_historical_sessions(
                 inserted_count += 1;
             }
             Err(e) => {
-                if let Err(log_err) = log_warn(&provider_id, &format!("⚠ Failed to insert session {}: {}", session.session_id, e)) {
+                if let Err(log_err) = log_warn(
+                    &provider_id,
+                    &format!("⚠ Failed to insert session {}: {}", session.session_id, e),
+                ) {
                     eprintln!("Logging error: {}", log_err);
                 }
             }
         }
     }
 
-    if let Err(e) = log_info(&provider_id, &format!("✓ Inserted {} sessions into database", inserted_count)) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!("✓ Inserted {} sessions into database", inserted_count),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -759,7 +812,8 @@ pub async fn scan_historical_sessions(
         progress.is_scanning = false;
         progress.total_sessions = sessions.len();
         progress.sessions_found = sessions.clone();
-    }).ok();
+    })
+    .ok();
 
     Ok(sessions)
 }
@@ -769,9 +823,12 @@ pub async fn sync_historical_sessions(
     state: State<'_, AppState>,
     provider_id: String,
 ) -> Result<(), String> {
-    use crate::logging::{log_info, log_warn, log_error};
+    use crate::logging::{log_error, log_info, log_warn};
 
-    if let Err(e) = log_info(&provider_id, &format!("📤 Starting historical session sync for {}", provider_id)) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!("📤 Starting historical session sync for {}", provider_id),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -809,11 +866,11 @@ pub async fn sync_historical_sessions(
         progress.synced_sessions = 0;
         progress.is_complete = false;
         progress.errors.clear();
-    }).ok();
+    })
+    .ok();
 
     // Get sessions from progress state (they should have been scanned and filtered first)
-    let sessions = get_sync_progress_for_provider(&provider_id)?
-        .sessions_found;
+    let sessions = get_sync_progress_for_provider(&provider_id)?.sessions_found;
 
     if sessions.is_empty() {
         let err_msg = "No sessions found to sync. Run scan first.".to_string();
@@ -823,7 +880,10 @@ pub async fn sync_historical_sessions(
         return Err(err_msg);
     }
 
-    if let Err(e) = log_info(&provider_id, &format!("📋 Queueing {} sessions for upload", sessions.len())) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!("📋 Queueing {} sessions for upload", sessions.len()),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -837,10 +897,20 @@ pub async fn sync_historical_sessions(
         // Update current progress
         update_sync_progress_for_provider(&provider_id, |progress| {
             progress.current_project = session.project_name.clone();
-        }).ok();
+        })
+        .ok();
 
-        if let Err(e) = log_info(&provider_id, &format!("  [{}/{}] Queueing session {} (project: {}, cwd: {:?})",
-            index + 1, sessions.len(), session.session_id, session.project_name, session.cwd)) {
+        if let Err(e) = log_info(
+            &provider_id,
+            &format!(
+                "  [{}/{}] Queueing session {} (project: {}, cwd: {:?})",
+                index + 1,
+                sessions.len(),
+                session.session_id,
+                session.project_name,
+                session.cwd
+            ),
+        ) {
             eprintln!("Logging error: {}", e);
         }
 
@@ -852,14 +922,23 @@ pub async fn sync_historical_sessions(
             }
             update_sync_progress_for_provider(&provider_id, |progress| {
                 progress.errors.push(error_msg);
-            }).ok();
+            })
+            .ok();
             error_count += 1;
         } else {
             queued_count += 1;
         }
     }
 
-    if let Err(e) = log_info(&provider_id, &format!("✓ Queued {}/{} sessions ({} errors)", queued_count, sessions.len(), error_count)) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!(
+            "✓ Queued {}/{} sessions ({} errors)",
+            queued_count,
+            sessions.len(),
+            error_count
+        ),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -870,10 +949,16 @@ pub async fn sync_historical_sessions(
         progress.is_uploading = true; // Mark as uploading
         progress.is_complete = false; // Will be determined by polling
         progress.initial_queue_size = Some(final_status.pending);
-    }).ok();
+    })
+    .ok();
 
-    if let Err(e) = log_info(&provider_id, &format!("📊 Upload queue status: {} pending, {} processing",
-        final_status.pending, final_status.processing)) {
+    if let Err(e) = log_info(
+        &provider_id,
+        &format!(
+            "📊 Upload queue status: {} pending, {} processing",
+            final_status.pending, final_status.processing
+        ),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -935,8 +1020,7 @@ pub async fn execute_sql(
     sql: String,
     params: Vec<serde_json::Value>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    crate::database::execute_sql_query(&sql, params)
-        .map_err(|e| e.to_string())
+    crate::database::execute_sql_query(&sql, params).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -944,41 +1028,36 @@ pub async fn clear_all_sessions() -> Result<String, String> {
     use crate::logging::log_info;
 
     // Get counts before deleting
-    let metrics_count = crate::database::execute_sql_query(
-        "SELECT COUNT(*) as count FROM session_metrics",
-        vec![]
-    ).map_err(|e| e.to_string())?;
+    let metrics_count =
+        crate::database::execute_sql_query("SELECT COUNT(*) as count FROM session_metrics", vec![])
+            .map_err(|e| e.to_string())?;
 
-    let sessions_count = crate::database::execute_sql_query(
-        "SELECT COUNT(*) as count FROM agent_sessions",
-        vec![]
-    ).map_err(|e| e.to_string())?;
+    let sessions_count =
+        crate::database::execute_sql_query("SELECT COUNT(*) as count FROM agent_sessions", vec![])
+            .map_err(|e| e.to_string())?;
 
-    let metrics_num = metrics_count.get(0)
+    let metrics_num = metrics_count
+        .get(0)
         .and_then(|r| r.get("count"))
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
 
-    let sessions_num = sessions_count.get(0)
+    let sessions_num = sessions_count
+        .get(0)
         .and_then(|r| r.get("count"))
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
 
     // Clear both tables
-    crate::database::execute_sql_query(
-        "DELETE FROM session_metrics",
-        vec![]
-    ).map_err(|e| e.to_string())?;
+    crate::database::execute_sql_query("DELETE FROM session_metrics", vec![])
+        .map_err(|e| e.to_string())?;
 
-    crate::database::execute_sql_query(
-        "DELETE FROM agent_sessions",
-        vec![]
-    ).map_err(|e| e.to_string())?;
+    crate::database::execute_sql_query("DELETE FROM agent_sessions", vec![])
+        .map_err(|e| e.to_string())?;
 
     let message = format!(
         "Cleared {} session metrics and {} sessions from database",
-        metrics_num,
-        sessions_num
+        metrics_num, sessions_num
     );
 
     let _ = log_info("system", &message);
@@ -993,10 +1072,10 @@ pub async fn get_session_content(
     file_path: String,
     session_id: String,
 ) -> Result<String, String> {
-    use std::path::PathBuf;
     use crate::config::load_provider_config;
     use crate::providers::OpenCodeParser;
     use shellexpand::tilde;
+    use std::path::PathBuf;
 
     let path = PathBuf::from(&file_path);
 
@@ -1011,11 +1090,13 @@ pub async fn get_session_content(
             let provider_config = load_provider_config("opencode")
                 .map_err(|e| format!("Failed to load OpenCode config: {}", e))?;
 
-            let storage_path = PathBuf::from(tilde(&provider_config.home_directory).as_ref()).join("storage");
+            let storage_path =
+                PathBuf::from(tilde(&provider_config.home_directory).as_ref()).join("storage");
             let parser = OpenCodeParser::new(storage_path);
 
             // Parse session to consolidate files
-            let parsed_session = parser.parse_session(&session_id)
+            let parsed_session = parser
+                .parse_session(&session_id)
                 .map_err(|e| format!("Failed to parse OpenCode session: {}", e))?;
 
             // Return consolidated JSONL content
@@ -1023,8 +1104,7 @@ pub async fn get_session_content(
         }
         _ => {
             // Claude Code, Codex: Read file content directly
-            std::fs::read_to_string(&path)
-                .map_err(|e| format!("Failed to read file: {}", e))
+            std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
         }
     }
 }
@@ -1052,10 +1132,16 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                     };
 
                     if !projects_to_watch.is_empty() {
-                        match ClaudeWatcher::new(projects_to_watch, Arc::clone(&app_state.upload_queue)) {
+                        match ClaudeWatcher::new(
+                            projects_to_watch,
+                            Arc::clone(&app_state.upload_queue),
+                        ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
-                                    watchers.insert("claude-code".to_string(), Watcher::Claude(watcher));
+                                    watchers.insert(
+                                        "claude-code".to_string(),
+                                        Watcher::Claude(watcher),
+                                    );
                                     println!("Claude Code watcher started automatically");
                                 }
                             }
@@ -1085,10 +1171,14 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                     };
 
                     if !projects_to_watch.is_empty() {
-                        match OpenCodeWatcher::new(projects_to_watch, Arc::clone(&app_state.upload_queue)) {
+                        match OpenCodeWatcher::new(
+                            projects_to_watch,
+                            Arc::clone(&app_state.upload_queue),
+                        ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
-                                    watchers.insert("opencode".to_string(), Watcher::OpenCode(watcher));
+                                    watchers
+                                        .insert("opencode".to_string(), Watcher::OpenCode(watcher));
                                     println!("OpenCode watcher started automatically");
                                 }
                             }
@@ -1118,7 +1208,10 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                     };
 
                     if !projects_to_watch.is_empty() {
-                        match CodexWatcher::new(projects_to_watch, Arc::clone(&app_state.upload_queue)) {
+                        match CodexWatcher::new(
+                            projects_to_watch,
+                            Arc::clone(&app_state.upload_queue),
+                        ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
                                     watchers.insert("codex".to_string(), Watcher::Codex(watcher));
@@ -1142,7 +1235,8 @@ pub fn start_enabled_watchers(app_state: &AppState) {
     if let Ok(copilot_config) = load_provider_config("github-copilot") {
         if copilot_config.enabled {
             // Scan for projects
-            match crate::providers::scan_projects("github-copilot", &copilot_config.home_directory) {
+            match crate::providers::scan_projects("github-copilot", &copilot_config.home_directory)
+            {
                 Ok(projects) => {
                     let projects_to_watch = if copilot_config.project_selection == "ALL" {
                         projects.iter().map(|p| p.name.clone()).collect()
@@ -1151,10 +1245,16 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                     };
 
                     if !projects_to_watch.is_empty() {
-                        match CopilotWatcher::new(projects_to_watch, Arc::clone(&app_state.upload_queue)) {
+                        match CopilotWatcher::new(
+                            projects_to_watch,
+                            Arc::clone(&app_state.upload_queue),
+                        ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
-                                    watchers.insert("github-copilot".to_string(), Watcher::Copilot(watcher));
+                                    watchers.insert(
+                                        "github-copilot".to_string(),
+                                        Watcher::Copilot(watcher),
+                                    );
                                     println!("GitHub Copilot watcher started automatically");
                                 }
                             }
@@ -1177,22 +1277,24 @@ pub fn start_enabled_watchers(app_state: &AppState) {
 pub async fn get_all_projects() -> Result<Vec<serde_json::Value>, String> {
     use crate::database::get_all_projects;
 
-    let projects = get_all_projects()
-        .map_err(|e| format!("Failed to get projects: {}", e))?;
+    let projects = get_all_projects().map_err(|e| format!("Failed to get projects: {}", e))?;
 
     // Convert to JSON
-    let projects_json: Vec<serde_json::Value> = projects.iter().map(|p| {
-        serde_json::json!({
-            "id": p.id,
-            "name": p.name,
-            "githubRepo": p.github_repo,
-            "cwd": p.cwd,
-            "type": p.project_type,
-            "createdAt": p.created_at,
-            "updatedAt": p.updated_at,
-            "sessionCount": p.session_count,
+    let projects_json: Vec<serde_json::Value> = projects
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "id": p.id,
+                "name": p.name,
+                "githubRepo": p.github_repo,
+                "cwd": p.cwd,
+                "type": p.project_type,
+                "createdAt": p.created_at,
+                "updatedAt": p.updated_at,
+                "sessionCount": p.session_count,
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(projects_json)
 }
@@ -1202,8 +1304,8 @@ pub async fn get_all_projects() -> Result<Vec<serde_json::Value>, String> {
 pub async fn get_project_by_id(project_id: String) -> Result<Option<serde_json::Value>, String> {
     use crate::database::get_project_by_id;
 
-    let project = get_project_by_id(&project_id)
-        .map_err(|e| format!("Failed to get project: {}", e))?;
+    let project =
+        get_project_by_id(&project_id).map_err(|e| format!("Failed to get project: {}", e))?;
 
     Ok(project.map(|p| {
         serde_json::json!({
@@ -1253,21 +1355,16 @@ pub async fn open_folder_in_os(path: String) -> Result<(), String> {
 
 /// Quick rate a session
 #[tauri::command]
-pub async fn quick_rate_session(
-    session_id: String,
-    rating: String,
-) -> Result<(), String> {
+pub async fn quick_rate_session(session_id: String, rating: String) -> Result<(), String> {
     use crate::database::quick_rate_session;
-    
-    quick_rate_session(&session_id, &rating)
-        .map_err(|e| format!("Failed to save rating: {}", e))
+
+    quick_rate_session(&session_id, &rating).map_err(|e| format!("Failed to save rating: {}", e))
 }
 
 /// Get assessment rating for a session
 #[tauri::command]
 pub async fn get_session_rating(session_id: String) -> Result<Option<String>, String> {
     use crate::database::get_session_rating;
-    
-    get_session_rating(&session_id)
-        .map_err(|e| format!("Failed to get rating: {}", e))
+
+    get_session_rating(&session_id).map_err(|e| format!("Failed to get rating: {}", e))
 }

@@ -1,4 +1,4 @@
-use crate::logging::{log_info, log_warn, log_debug};
+use crate::logging::{log_debug, log_info, log_warn};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
@@ -17,9 +17,8 @@ pub struct SessionInfo {
     pub duration_ms: Option<i64>,
     pub file_size: u64,
     pub content: Option<String>, // For OpenCode sessions with in-memory content
-    pub cwd: Option<String>, // Working directory for the session
+    pub cwd: Option<String>,     // Working directory for the session
 }
-
 
 #[derive(Debug, Deserialize)]
 struct ClaudeLogEntry {
@@ -27,7 +26,6 @@ struct ClaudeLogEntry {
     session_id: Option<String>,
     timestamp: Option<String>,
 }
-
 
 #[derive(Debug, Deserialize)]
 struct CodexLogEntry {
@@ -41,7 +39,10 @@ struct CodexPayload {
     cwd: Option<String>,
 }
 
-pub fn scan_all_sessions(provider_id: &str, home_directory: &str) -> Result<Vec<SessionInfo>, String> {
+pub fn scan_all_sessions(
+    provider_id: &str,
+    home_directory: &str,
+) -> Result<Vec<SessionInfo>, String> {
     let expanded = tilde(home_directory);
     let base_path = Path::new(expanded.as_ref());
 
@@ -125,38 +126,45 @@ fn extract_cwd_from_claude_session(content: &str) -> Option<String> {
 }
 
 fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionInfo, String> {
-    let content = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content =
+        fs::read_to_string(file_path).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    let lines: Vec<&str> = content.lines().filter(|line| !line.trim().is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
     if lines.is_empty() {
         return Err("File is empty".to_string());
     }
 
     // Parse first line for session start
-    let first_entry: ClaudeLogEntry = serde_json::from_str(lines[0])
-        .map_err(|e| format!("Failed to parse first line: {}", e))?;
+    let first_entry: ClaudeLogEntry =
+        serde_json::from_str(lines[0]).map_err(|e| format!("Failed to parse first line: {}", e))?;
 
     // Parse last line for session end
     let last_entry: ClaudeLogEntry = serde_json::from_str(lines[lines.len() - 1])
         .map_err(|e| format!("Failed to parse last line: {}", e))?;
 
     // Extract session ID (prefer from first entry, fallback to filename)
-    let session_id = first_entry.session_id
+    let session_id = first_entry
+        .session_id
         .or_else(|| last_entry.session_id)
         .or_else(|| {
-            file_path.file_stem()
+            file_path
+                .file_stem()
                 .and_then(|stem| stem.to_str())
                 .map(|s| s.to_string())
         })
         .ok_or("Cannot determine session ID")?;
 
     // Parse timestamps
-    let session_start_time = first_entry.timestamp
+    let session_start_time = first_entry
+        .timestamp
         .and_then(|ts| DateTime::parse_from_rfc3339(&ts).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
-    let session_end_time = last_entry.timestamp
+    let session_end_time = last_entry
+        .timestamp
         .and_then(|ts| DateTime::parse_from_rfc3339(&ts).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
@@ -167,11 +175,10 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
     };
 
     // Get file size
-    let file_size = fs::metadata(file_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
 
-    let file_name = file_path.file_name()
+    let file_name = file_path
+        .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("unknown.jsonl")
         .to_string();
@@ -182,7 +189,11 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
     if cwd.is_none() {
         if let Err(e) = log_debug(
             "claude-code",
-            &format!("No CWD found in session {} (file: {})", session_id, file_path.display()),
+            &format!(
+                "No CWD found in session {} (file: {})",
+                session_id,
+                file_path.display()
+            ),
         ) {
             eprintln!("Logging error: {}", e);
         }
@@ -208,7 +219,7 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
         duration_ms,
         file_size,
         content: None, // Claude Code sessions use files directly
-        cwd, // CWD will be used to derive real project name during upload
+        cwd,           // CWD will be used to derive real project name during upload
     })
 }
 
@@ -225,12 +236,14 @@ fn scan_opencode_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> 
     let mut sessions = Vec::new();
 
     // Get all projects first
-    let projects = parser.get_all_projects()
+    let projects = parser
+        .get_all_projects()
         .map_err(|e| format!("Failed to get OpenCode projects: {}", e))?;
 
     for project in projects {
         // Get all sessions for this project
-        let session_ids = parser.get_sessions_for_project(&project.id)
+        let session_ids = parser
+            .get_sessions_for_project(&project.id)
             .map_err(|e| format!("Failed to get sessions for project {}: {}", project.id, e))?;
 
         for session_id in session_ids {
@@ -264,7 +277,8 @@ fn parse_opencode_session(
     _project: &super::opencode_parser::OpenCodeProject,
 ) -> Result<SessionInfo, String> {
     // Parse the session using the OpenCode parser
-    let parsed_session = parser.parse_session(session_id)
+    let parsed_session = parser
+        .parse_session(session_id)
         .map_err(|e| format!("Failed to parse session with OpenCode parser: {}", e))?;
 
     // Create a temporary file path for the session (since we're generating in-memory content)
@@ -282,7 +296,7 @@ fn parse_opencode_session(
         duration_ms: parsed_session.duration_ms,
         file_size: parsed_session.jsonl_content.len() as u64,
         content: Some(parsed_session.jsonl_content), // OpenCode sessions have in-memory content
-        cwd: parsed_session.cwd, // OpenCode sessions have CWD
+        cwd: parsed_session.cwd,                     // OpenCode sessions have CWD
     })
 }
 
@@ -322,7 +336,11 @@ fn scan_codex_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
             Err(e) => {
                 if let Err(log_err) = log_warn(
                     "codex",
-                    &format!("Failed to parse Codex session {}: {}", file_path.display(), e),
+                    &format!(
+                        "Failed to parse Codex session {}: {}",
+                        file_path.display(),
+                        e
+                    ),
                 ) {
                     eprintln!("Logging error: {}", log_err);
                 }
@@ -353,10 +371,12 @@ fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
 
     for entry in entries.flatten() {
         let file_path = entry.path();
-        
+
         // Only process session files (start with "session_" and end with ".json")
         if let Some(file_name) = file_path.file_name().and_then(|n| n.to_str()) {
-            if file_name.starts_with("session_") && file_path.extension().and_then(|ext| ext.to_str()) == Some("json") {
+            if file_name.starts_with("session_")
+                && file_path.extension().and_then(|ext| ext.to_str()) == Some("json")
+            {
                 match parse_copilot_session(&file_path) {
                     Ok(session_info) => {
                         sessions.push(session_info);
@@ -364,7 +384,11 @@ fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
                     Err(e) => {
                         if let Err(log_err) = log_warn(
                             "github-copilot",
-                            &format!("Failed to parse Copilot session {}: {}", file_path.display(), e),
+                            &format!(
+                                "Failed to parse Copilot session {}: {}",
+                                file_path.display(),
+                                e
+                            ),
                         ) {
                             eprintln!("Logging error: {}", log_err);
                         }
@@ -385,20 +409,25 @@ fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
 }
 
 fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
-    let content = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content =
+        fs::read_to_string(file_path).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    let lines: Vec<&str> = content.lines().filter(|line| !line.trim().is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
     if lines.is_empty() {
         return Err("File is empty".to_string());
     }
 
     // Parse first line for session metadata
-    let first_entry: CodexLogEntry = serde_json::from_str(lines[0])
-        .map_err(|e| format!("Failed to parse first line: {}", e))?;
+    let first_entry: CodexLogEntry =
+        serde_json::from_str(lines[0]).map_err(|e| format!("Failed to parse first line: {}", e))?;
 
     // Extract session info from first line metadata
-    let payload = first_entry.payload.ok_or("No payload in session metadata")?;
+    let payload = first_entry
+        .payload
+        .ok_or("No payload in session metadata")?;
     let session_id = payload.id.ok_or("No session ID in payload")?;
     let cwd = payload.cwd.ok_or("No cwd in payload")?;
 
@@ -410,7 +439,8 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
         .to_string();
 
     // Parse session start time from first line
-    let session_start_time = first_entry.timestamp
+    let session_start_time = first_entry
+        .timestamp
         .and_then(|ts| DateTime::parse_from_rfc3339(&ts).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
@@ -418,7 +448,8 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
     let last_entry: CodexLogEntry = serde_json::from_str(lines[lines.len() - 1])
         .map_err(|e| format!("Failed to parse last line: {}", e))?;
 
-    let session_end_time = last_entry.timestamp
+    let session_end_time = last_entry
+        .timestamp
         .and_then(|ts| DateTime::parse_from_rfc3339(&ts).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
@@ -429,11 +460,10 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
     };
 
     // Get file size
-    let file_size = fs::metadata(file_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
 
-    let file_name = file_path.file_name()
+    let file_name = file_path
+        .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("unknown.jsonl")
         .to_string();
@@ -448,7 +478,7 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
         session_end_time,
         duration_ms,
         file_size,
-        content: None, // Codex sessions use files directly
+        content: None,  // Codex sessions use files directly
         cwd: Some(cwd), // Codex sessions have CWD from parsing
     })
 }
@@ -464,8 +494,8 @@ struct CopilotSessionFile {
 }
 
 fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
-    let content = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content =
+        fs::read_to_string(file_path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     // Parse the Copilot session JSON
     let session: CopilotSessionFile = serde_json::from_str(&content)
@@ -489,17 +519,17 @@ fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
     };
 
     // Get file size
-    let file_size = fs::metadata(file_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
 
-    let file_name = file_path.file_name()
+    let file_name = file_path
+        .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("unknown.json")
         .to_string();
 
     // Extract session ID from filename if needed (format: session_{uuid}_{timestamp}.json)
-    let session_id = file_path.file_stem()
+    let session_id = file_path
+        .file_stem()
         .and_then(|stem| stem.to_str())
         .and_then(|name| {
             // Remove "session_" prefix and everything after the last underscore (timestamp)
@@ -523,11 +553,9 @@ fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
         duration_ms,
         file_size,
         content: None, // Copilot sessions use files directly
-        cwd: None, // Copilot sessions don't have explicit CWD
+        cwd: None,     // Copilot sessions don't have explicit CWD
     })
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -562,7 +590,9 @@ mod tests {
     #[test]
     fn test_parse_codex_session() {
         let temp_dir = tempdir().unwrap();
-        let file_path = temp_dir.path().join("rollout-2025-09-28T10-23-35-test.jsonl");
+        let file_path = temp_dir
+            .path()
+            .join("rollout-2025-09-28T10-23-35-test.jsonl");
 
         let content = r#"{"timestamp":"2025-09-28T08:23:35.126Z","type":"session_meta","payload":{"id":"01998f6b-8fc9-7782-8d57-ca53fbfd057a","timestamp":"2025-09-28T08:23:35.113Z","cwd":"/Users/cliftonc/work/guideai","originator":"codex_cli_rs","cli_version":"0.42.0","instructions":null}}
 {"timestamp":"2025-09-28T08:24:16.297Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Hello"}]}}"#;

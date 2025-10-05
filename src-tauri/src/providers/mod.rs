@@ -18,9 +18,9 @@ mod session_scanner;
 pub use claude_watcher::{ClaudeWatcher, ClaudeWatcherStatus};
 pub use codex_watcher::{CodexWatcher, CodexWatcherStatus};
 pub use copilot_watcher::{CopilotWatcher, CopilotWatcherStatus};
-pub use opencode_watcher::{OpenCodeWatcher, OpenCodeWatcherStatus};
 pub use opencode_parser::OpenCodeParser;
-pub use session_scanner::{SessionInfo, scan_all_sessions};
+pub use opencode_watcher::{OpenCodeWatcher, OpenCodeWatcherStatus};
+pub use session_scanner::{scan_all_sessions, SessionInfo};
 
 pub fn scan_projects(provider_id: &str, home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     match provider_id {

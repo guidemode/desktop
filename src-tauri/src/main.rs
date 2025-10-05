@@ -11,12 +11,15 @@ mod project_metadata;
 mod providers;
 mod upload_queue;
 
-use commands::{AppState, start_enabled_watchers};
+use commands::{start_enabled_watchers, AppState};
 use file_watcher::start_config_file_watcher;
 use tauri::Manager;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(
             tauri_plugin_sql::Builder::new()
                 .add_migrations(
@@ -88,7 +91,6 @@ fn main() {
         )
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-
             // Initialize logging system
             if let Err(e) = logging::init_logging() {
                 eprintln!("Failed to initialize logging: {}", e);

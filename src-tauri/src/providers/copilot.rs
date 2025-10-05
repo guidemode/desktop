@@ -25,7 +25,12 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     let base_path = base_candidates
         .into_iter()
         .find(|path| path.exists())
-        .ok_or_else(|| format!("GitHub Copilot home directory not found. Tried: {}", home_directory))?;
+        .ok_or_else(|| {
+            format!(
+                "GitHub Copilot home directory not found. Tried: {}",
+                home_directory
+            )
+        })?;
 
     // Load the copilot config to get trusted folders
     let copilot_config = load_copilot_config().unwrap_or_else(|e| {
@@ -40,7 +45,7 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
         for folder in &copilot_config.trusted_folders {
             let expanded_folder = tilde(folder);
             let folder_path = PathBuf::from(expanded_folder.into_owned());
-            
+
             // Get the folder name (last component of the path)
             if let Some(name) = folder_path.file_name().and_then(|n| n.to_str()) {
                 // Get the last modified time if the folder exists

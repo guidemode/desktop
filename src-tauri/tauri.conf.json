@@ -1,6 +1,6 @@
 {
   "productName": "GuideAI Desktop",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "identifier": "com.guideai.desktop",
   "build": {
     "beforeBuildCommand": "pnpm build",
@@ -43,7 +43,18 @@
             "sql:allow-select",
             "sql:allow-close",
             "shell:default",
-            "shell:allow-open"
+            "shell:allow-open",
+            "http:default",
+            {
+              "identifier": "http:default",
+              "allow": [
+                {
+                  "url": "https://install.guideai.dev/*"
+                }
+              ]
+            },
+            "updater:default",
+            "updater:allow-check"
           ]
         }
       ]
@@ -52,6 +63,8 @@
   "bundle": {
     "active": true,
     "category": "DeveloperTool",
+    "createUpdaterArtifacts": "v1Compatible",
+    "publisher": "GuideAI",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -67,6 +80,12 @@
     },
     "shell": {
       "open": true
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2RjIyNTZEQzU4REUyREMKUldUYzRvM0ZiU1h5RnV2TTM2aGx0MFYyVS9xM1U3aUhGZjNseWJBZjZBMmRzUXdmL1lWQVRTbEsK",
+      "endpoints": [
+        "https://install.guideai.dev/desktop/{{target}}-{{arch}}/{{current_version}}"
+      ]
     }
   }
 }

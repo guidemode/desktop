@@ -1,6 +1,8 @@
 use crate::config::load_provider_config;
 use crate::logging::{log_debug, log_error, log_info};
-use crate::providers::copilot_parser::{CopilotSession, detect_project_and_cwd_from_timeline, load_copilot_config};
+use crate::providers::copilot_parser::{
+    detect_project_and_cwd_from_timeline, load_copilot_config, CopilotSession,
+};
 use crate::providers::copilot_snapshot::SnapshotManager;
 use crate::providers::db_helpers::insert_session_immediately;
 use crate::upload_queue::UploadQueue;
@@ -75,17 +77,28 @@ impl CopilotWatcher {
         let base_path = Path::new(expanded_home.as_ref());
 
         if !base_path.exists() {
-            return Err(format!("GitHub Copilot home directory does not exist: {}", base_path.display()).into());
+            return Err(format!(
+                "GitHub Copilot home directory does not exist: {}",
+                base_path.display()
+            )
+            .into());
         }
 
         let session_dir = base_path.join("history-session-state");
         if !session_dir.exists() {
-            return Err(format!("GitHub Copilot session directory does not exist: {}", session_dir.display()).into());
+            return Err(format!(
+                "GitHub Copilot session directory does not exist: {}",
+                session_dir.display()
+            )
+            .into());
         }
 
         if let Err(e) = log_info(
             PROVIDER_ID,
-            &format!("📁 Monitoring GitHub Copilot sessions: {}", session_dir.display()),
+            &format!(
+                "📁 Monitoring GitHub Copilot sessions: {}",
+                session_dir.display()
+            ),
         ) {
             eprintln!("Logging error: {}", e);
         }
@@ -103,7 +116,10 @@ impl CopilotWatcher {
         watcher.watch(&session_dir, RecursiveMode::NonRecursive)?;
         if let Err(e) = log_info(
             PROVIDER_ID,
-            &format!("📂 Watching GitHub Copilot sessions: {}", session_dir.display()),
+            &format!(
+                "📂 Watching GitHub Copilot sessions: {}",
+                session_dir.display()
+            ),
         ) {
             eprintln!("Logging error: {}", e);
         }
@@ -114,12 +130,7 @@ impl CopilotWatcher {
 
         // Start background thread to handle file events
         let thread_handle = thread::spawn(move || {
-            Self::file_event_processor(
-                rx,
-                session_dir,
-                upload_queue_clone,
-                is_running_clone,
-            );
+            Self::file_event_processor(rx, session_dir, upload_queue_clone, is_running_clone);
         });
 
         Ok(CopilotWatcher {
@@ -138,7 +149,7 @@ impl CopilotWatcher {
     ) {
         // Track SNAPSHOT states, not source file states
         let mut snapshot_states: HashMap<String, SessionState> = HashMap::new();
-        
+
         // Create snapshot manager
         let snapshot_manager = match SnapshotManager::new() {
             Ok(manager) => manager,
@@ -181,15 +192,18 @@ impl CopilotWatcher {
             match rx.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(event)) => {
                     // Detect if this is a copilot source file change
-                    if let Some(source_file) = Self::detect_copilot_source_file(&event, &session_dir) {
+                    if let Some(source_file) =
+                        Self::detect_copilot_source_file(&event, &session_dir)
+                    {
                         // Translate to snapshot event
-                        match Self::handle_copilot_file_change(&source_file, &snapshot_manager, &provider_config) {
+                        match Self::handle_copilot_file_change(
+                            &source_file,
+                            &snapshot_manager,
+                            &provider_config,
+                        ) {
                             Ok(Some(snapshot_event)) => {
                                 // Process the snapshot event (not the source file event!)
-                                Self::process_snapshot_event(
-                                    snapshot_event,
-                                    &mut snapshot_states,
-                                );
+                                Self::process_snapshot_event(snapshot_event, &mut snapshot_states);
                             }
                             Ok(None) => {
                                 // No new entries, skip
@@ -197,7 +211,11 @@ impl CopilotWatcher {
                             Err(e) => {
                                 if let Err(log_err) = log_error(
                                     PROVIDER_ID,
-                                    &format!("Failed to process copilot file {}: {}", source_file.display(), e),
+                                    &format!(
+                                        "Failed to process copilot file {}: {}",
+                                        source_file.display(),
+                                        e
+                                    ),
                                 ) {
                                     eprintln!("Logging error: {}", log_err);
                                 }
@@ -206,7 +224,9 @@ impl CopilotWatcher {
                     }
                 }
                 Ok(Err(error)) => {
-                    if let Err(e) = log_error(PROVIDER_ID, &format!("File watcher error: {:?}", error)) {
+                    if let Err(e) =
+                        log_error(PROVIDER_ID, &format!("File watcher error: {:?}", error))
+                    {
                         eprintln!("Logging error: {}", e);
                     }
                 }
@@ -278,18 +298,20 @@ impl CopilotWatcher {
         let content = fs::read_to_string(source_file)?;
         let copilot_session: CopilotSession = serde_json::from_str(&content)?;
         let timeline = &copilot_session.timeline;
-        
+
         // Skip if timeline is empty and we haven't seen this file before
         if timeline.is_empty() {
             return Ok(None);
         }
-        
+
         // 2. Detect project name and cwd from timeline entries
         let (project_name, project_cwd) = match load_copilot_config() {
             Ok(config) => {
                 if !config.trusted_folders.is_empty() {
                     // Try to detect project from timeline
-                    if let Some((name, cwd)) = detect_project_and_cwd_from_timeline(timeline, &config.trusted_folders) {
+                    if let Some((name, cwd)) =
+                        detect_project_and_cwd_from_timeline(timeline, &config.trusted_folders)
+                    {
                         (name, Some(cwd))
                     } else {
                         ("copilot-sessions".to_string(), None)
@@ -301,14 +323,17 @@ impl CopilotWatcher {
             Err(e) => {
                 if let Err(log_err) = log_debug(
                     PROVIDER_ID,
-                    &format!("Failed to load copilot config: {}, using default project name", e),
+                    &format!(
+                        "Failed to load copilot config: {}, using default project name",
+                        e
+                    ),
                 ) {
                     eprintln!("Logging error: {}", log_err);
                 }
                 ("copilot-sessions".to_string(), None)
             }
         };
-        
+
         // 3. Check if this project should be processed based on config
         if provider_config.project_selection != "ALL" {
             // Only process selected projects
@@ -316,68 +341,92 @@ impl CopilotWatcher {
                 // Project not selected - ignore it completely
                 if let Err(e) = log_debug(
                     PROVIDER_ID,
-                    &format!("⏭️ Skipping project '{}' (not in selected projects)", project_name),
+                    &format!(
+                        "⏭️ Skipping project '{}' (not in selected projects)",
+                        project_name
+                    ),
                 ) {
                     eprintln!("Logging error: {}", e);
                 }
                 return Ok(None);
             }
         }
-        
+
         // 4. Load metadata (with file lock)
         let (mut metadata, lock_file) = snapshot_manager.load_metadata_locked()?;
-        
+
         // 5. Get or check session entry
         let file_name = source_file
             .file_name()
             .and_then(|n| n.to_str())
             .ok_or("Invalid filename")?;
-        
+
         let file_size = fs::metadata(source_file)?.len();
-        
+
         // 6. Check for truncation or first-time
         let snapshot_event = if let Some(session) = metadata.sessions.get_mut(file_name) {
             // Existing session - check for truncation
             if SnapshotManager::is_truncated(session, timeline.len(), file_size) {
                 // TRUNCATION DETECTED - close current and create new snapshot
                 session.close_active_snapshot()?;
-                
+
                 let new_snapshot_id = uuid::Uuid::new_v4();
-                let snapshot_path = snapshot_manager.create_snapshot_file(new_snapshot_id, timeline, project_cwd.as_deref())?;
+                let snapshot_path = snapshot_manager.create_snapshot_file(
+                    new_snapshot_id,
+                    timeline,
+                    project_cwd.as_deref(),
+                )?;
                 session.add_snapshot(new_snapshot_id, timeline.len(), file_size)?;
-                
+
                 // Save metadata
                 snapshot_manager.save_metadata_atomic(&metadata, lock_file)?;
-                
+
                 if let Err(e) = log_info(
                     PROVIDER_ID,
-                    &format!("🔄 Copilot session truncated, new snapshot: {}", new_snapshot_id),
+                    &format!(
+                        "🔄 Copilot session truncated, new snapshot: {}",
+                        new_snapshot_id
+                    ),
                 ) {
                     eprintln!("Logging error: {}", e);
                 }
-                
+
                 // Return event for NEW snapshot
-                Some(Self::create_snapshot_event(&snapshot_path, new_snapshot_id, true, &project_name))
+                Some(Self::create_snapshot_event(
+                    &snapshot_path,
+                    new_snapshot_id,
+                    true,
+                    &project_name,
+                ))
             } else {
                 // Normal update - rewrite entire snapshot file
                 // This captures updates to existing entries (e.g., tool call results)
                 let active = session.get_active_snapshot_mut()?;
                 let last_count = active.last_timeline_count;
                 let snapshot_id = active.snapshot_id; // Copy the UUID before borrowing ends
-                
+
                 if timeline.len() >= last_count {
                     // Rewrite the entire file with the full timeline
-                    let snapshot_path = snapshot_manager.append_to_snapshot_file(snapshot_id, timeline, project_cwd.as_deref())?;
-                    
+                    let snapshot_path = snapshot_manager.append_to_snapshot_file(
+                        snapshot_id,
+                        timeline,
+                        project_cwd.as_deref(),
+                    )?;
+
                     active.last_timeline_count = timeline.len();
                     active.last_updated = chrono::Utc::now().to_rfc3339();
                     active.last_source_file_size = file_size;
-                    
+
                     // Save metadata
                     snapshot_manager.save_metadata_atomic(&metadata, lock_file)?;
-                    
+
                     // Return event for UPDATED snapshot
-                    Some(Self::create_snapshot_event(&snapshot_path, snapshot_id, false, &project_name))
+                    Some(Self::create_snapshot_event(
+                        &snapshot_path,
+                        snapshot_id,
+                        false,
+                        &project_name,
+                    ))
                 } else {
                     // No changes
                     snapshot_manager.save_metadata_atomic(&metadata, lock_file)?;
@@ -394,23 +443,28 @@ impl CopilotWatcher {
                 timeline,
                 project_cwd.as_deref(),
             )?;
-            
+
             // Save metadata
             snapshot_manager.save_metadata_atomic(&metadata, lock_file)?;
-            
+
             let snapshot_path = snapshot_manager.get_snapshot_path(snapshot_id);
-            
+
             if let Err(e) = log_info(
                 PROVIDER_ID,
                 &format!("🆕 New Copilot snapshot created: {}", snapshot_id),
             ) {
                 eprintln!("Logging error: {}", e);
             }
-            
+
             // Return event for NEW snapshot
-            Some(Self::create_snapshot_event(&snapshot_path, snapshot_id, true, &project_name))
+            Some(Self::create_snapshot_event(
+                &snapshot_path,
+                snapshot_id,
+                true,
+                &project_name,
+            ))
         };
-        
+
         Ok(snapshot_event)
     }
 
@@ -421,7 +475,7 @@ impl CopilotWatcher {
         project_name: &str,
     ) -> FileChangeEvent {
         let file_size = fs::metadata(snapshot_path).map(|m| m.len()).unwrap_or(0);
-        
+
         FileChangeEvent {
             path: snapshot_path.to_path_buf(), // SNAPSHOT path, not source!
             project_name: project_name.to_string(),
@@ -437,13 +491,13 @@ impl CopilotWatcher {
         snapshot_states: &mut HashMap<String, SessionState>,
     ) {
         let should_log = Self::should_log_event(&snapshot_event, snapshot_states);
-        
+
         // INSERT SNAPSHOT TO DATABASE (snapshot path, snapshot id)
         if let Err(e) = insert_session_immediately(
             PROVIDER_ID,
             &snapshot_event.project_name,
             &snapshot_event.session_id, // snapshot UUID
-            &snapshot_event.path,        // snapshot .jsonl path
+            &snapshot_event.path,       // snapshot .jsonl path
             snapshot_event.file_size,
         ) {
             if let Err(log_err) = log_error(
@@ -453,10 +507,10 @@ impl CopilotWatcher {
                 eprintln!("Logging error: {}", log_err);
             }
         }
-        
+
         // Update snapshot state tracking
         Self::update_session_state(snapshot_states, &snapshot_event);
-        
+
         // Log events
         if should_log {
             if snapshot_event.is_new_session {
@@ -483,13 +537,19 @@ impl CopilotWatcher {
         }
     }
 
-    fn should_log_event(file_event: &FileChangeEvent, session_states: &HashMap<String, SessionState>) -> bool {
+    fn should_log_event(
+        file_event: &FileChangeEvent,
+        session_states: &HashMap<String, SessionState>,
+    ) -> bool {
         match session_states.get(&file_event.session_id) {
             Some(existing_state) => {
                 // Only log if significant size change or new session
-                file_event.is_new_session ||
-                file_event.file_size.saturating_sub(existing_state.last_size) >= MIN_SIZE_CHANGE_BYTES
-            },
+                file_event.is_new_session
+                    || file_event
+                        .file_size
+                        .saturating_sub(existing_state.last_size)
+                        >= MIN_SIZE_CHANGE_BYTES
+            }
             None => {
                 // Only log if this is actually a new session
                 file_event.is_new_session
@@ -497,7 +557,10 @@ impl CopilotWatcher {
         }
     }
 
-    fn update_session_state(session_states: &mut HashMap<String, SessionState>, file_event: &FileChangeEvent) {
+    fn update_session_state(
+        session_states: &mut HashMap<String, SessionState>,
+        file_event: &FileChangeEvent,
+    ) {
         match session_states.get_mut(&file_event.session_id) {
             Some(existing_state) => {
                 // Update existing session state
@@ -507,22 +570,28 @@ impl CopilotWatcher {
 
                 // Smart re-upload logic: clear upload_pending if conditions met
                 if existing_state.upload_pending {
-                    let should_allow_reupload = if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                        // Check if cooldown has elapsed OR size changed significantly
-                        let cooldown_elapsed = file_event.last_modified.duration_since(last_uploaded_time) >= RE_UPLOAD_COOLDOWN;
-                        let size_changed_significantly = file_event.file_size.saturating_sub(existing_state.last_uploaded_size) >= MIN_SIZE_CHANGE_BYTES;
+                    let should_allow_reupload =
+                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
+                            // Check if cooldown has elapsed OR size changed significantly
+                            let cooldown_elapsed =
+                                file_event.last_modified.duration_since(last_uploaded_time)
+                                    >= RE_UPLOAD_COOLDOWN;
+                            let size_changed_significantly = file_event
+                                .file_size
+                                .saturating_sub(existing_state.last_uploaded_size)
+                                >= MIN_SIZE_CHANGE_BYTES;
 
-                        cooldown_elapsed || size_changed_significantly
-                    } else {
-                        // No last upload time recorded, allow re-upload
-                        true
-                    };
+                            cooldown_elapsed || size_changed_significantly
+                        } else {
+                            // No last upload time recorded, allow re-upload
+                            true
+                        };
 
                     if should_allow_reupload {
                         existing_state.upload_pending = false;
                     }
                 }
-            },
+            }
             None => {
                 // Create new session state
                 let session_state = SessionState {
@@ -588,14 +657,16 @@ mod tests {
 
     #[test]
     fn test_extract_session_id() {
-        let path = Path::new("/home/user/.copilot/history-session-state/session_abc-123-def_1234567890.json");
+        let path = Path::new(
+            "/home/user/.copilot/history-session-state/session_abc-123-def_1234567890.json",
+        );
         let session_id = CopilotWatcher::extract_session_id(path);
         assert_eq!(session_id, "abc-123-def");
     }
 
     #[test]
     fn test_process_file_event_filters_correctly() {
-        use notify::event::{CreateKind};
+        use notify::event::CreateKind;
 
         let temp_dir = tempdir().unwrap();
         let session_dir = temp_dir.path();

@@ -2,8 +2,8 @@ use crate::config::load_provider_config;
 use crate::logging::{log_debug, log_error, log_info, log_warn};
 use crate::providers::db_helpers::insert_session_immediately;
 use crate::upload_queue::UploadQueue;
-use serde::{Deserialize, Serialize};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -72,12 +72,20 @@ impl ClaudeWatcher {
         let base_path = Path::new(expanded_home.as_ref());
 
         if !base_path.exists() {
-            return Err(format!("Claude Code home directory does not exist: {}", base_path.display()).into());
+            return Err(format!(
+                "Claude Code home directory does not exist: {}",
+                base_path.display()
+            )
+            .into());
         }
 
         let projects_path = base_path.join("projects");
         if !projects_path.exists() {
-            return Err(format!("Claude Code projects directory does not exist: {}", projects_path.display()).into());
+            return Err(format!(
+                "Claude Code projects directory does not exist: {}",
+                projects_path.display()
+            )
+            .into());
         }
 
         // Determine which projects to watch
@@ -86,7 +94,9 @@ impl ClaudeWatcher {
             Self::discover_all_projects(&projects_path)?
         } else {
             // Watch only selected projects
-            let selected_projects: Vec<String> = config.selected_projects.into_iter()
+            let selected_projects: Vec<String> = config
+                .selected_projects
+                .into_iter()
                 .filter(|project| projects.contains(project))
                 .collect();
 
@@ -99,7 +109,11 @@ impl ClaudeWatcher {
 
         if let Err(e) = log_info(
             PROVIDER_ID,
-            &format!("📁 Monitoring {} Claude Code projects: {}", projects_to_watch.len(), projects_to_watch.join(", ")),
+            &format!(
+                "📁 Monitoring {} Claude Code projects: {}",
+                projects_to_watch.len(),
+                projects_to_watch.join(", ")
+            ),
         ) {
             eprintln!("Logging error: {}", e);
         }
@@ -120,7 +134,10 @@ impl ClaudeWatcher {
                 watcher.watch(&project_path, RecursiveMode::Recursive)?;
                 if let Err(e) = log_info(
                     PROVIDER_ID,
-                    &format!("📂 Watching Claude Code project: {}", project_path.display()),
+                    &format!(
+                        "📂 Watching Claude Code project: {}",
+                        project_path.display()
+                    ),
                 ) {
                     eprintln!("Logging error: {}", e);
                 }
@@ -157,7 +174,9 @@ impl ClaudeWatcher {
         })
     }
 
-    fn discover_all_projects(projects_path: &Path) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    fn discover_all_projects(
+        projects_path: &Path,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
         let entries = std::fs::read_dir(projects_path)
             .map_err(|e| format!("Failed to read projects directory: {}", e))?;
 
@@ -195,7 +214,9 @@ impl ClaudeWatcher {
             // Process file system events with timeout
             match rx.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(event)) => {
-                    if let Some(file_event) = Self::process_file_event(&event, &projects_path, &session_states) {
+                    if let Some(file_event) =
+                        Self::process_file_event(&event, &projects_path, &session_states)
+                    {
                         // Check if this is a new session or significant change (before updating state)
                         let should_log = Self::should_log_event(&file_event, &session_states);
 
@@ -220,13 +241,19 @@ impl ClaudeWatcher {
 
                         if should_log {
                             if file_event.is_new_session {
-                                let log_message = format!("🆕 New Claude Code session detected: {} → Saved to database", file_event.session_id);
+                                let log_message = format!(
+                                    "🆕 New Claude Code session detected: {} → Saved to database",
+                                    file_event.session_id
+                                );
                                 if let Err(e) = log_info(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
                             } else {
                                 // Use debug level for routine session activity
-                                let log_message = format!("📝 Claude Code session active: {} (size: {} bytes)", file_event.session_id, file_event.file_size);
+                                let log_message = format!(
+                                    "📝 Claude Code session active: {} (size: {} bytes)",
+                                    file_event.session_id, file_event.file_size
+                                );
                                 if let Err(e) = log_debug(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
@@ -235,7 +262,9 @@ impl ClaudeWatcher {
                     }
                 }
                 Ok(Err(error)) => {
-                    if let Err(e) = log_error(PROVIDER_ID, &format!("File watcher error: {:?}", error)) {
+                    if let Err(e) =
+                        log_error(PROVIDER_ID, &format!("File watcher error: {:?}", error))
+                    {
                         eprintln!("Logging error: {}", e);
                     }
                 }
@@ -331,19 +360,29 @@ impl ClaudeWatcher {
         }
     }
 
-    fn is_new_session(session_id: &str, _path: &Path, session_states: &HashMap<String, SessionState>) -> bool {
+    fn is_new_session(
+        session_id: &str,
+        _path: &Path,
+        session_states: &HashMap<String, SessionState>,
+    ) -> bool {
         // A session is considered new if we haven't seen it before
         // We don't check file size because sessions can grow quickly
         !session_states.contains_key(session_id)
     }
 
-    fn should_log_event(file_event: &FileChangeEvent, session_states: &HashMap<String, SessionState>) -> bool {
+    fn should_log_event(
+        file_event: &FileChangeEvent,
+        session_states: &HashMap<String, SessionState>,
+    ) -> bool {
         match session_states.get(&file_event.session_id) {
             Some(existing_state) => {
                 // Only log if significant size change or new session
-                file_event.is_new_session ||
-                file_event.file_size.saturating_sub(existing_state.last_size) >= MIN_SIZE_CHANGE_BYTES
-            },
+                file_event.is_new_session
+                    || file_event
+                        .file_size
+                        .saturating_sub(existing_state.last_size)
+                        >= MIN_SIZE_CHANGE_BYTES
+            }
             None => {
                 // Only log if this is actually a new session (small file size)
                 // This prevents duplicate logging for the same session when multiple
@@ -353,7 +392,10 @@ impl ClaudeWatcher {
         }
     }
 
-    fn update_session_state(session_states: &mut HashMap<String, SessionState>, file_event: &FileChangeEvent) {
+    fn update_session_state(
+        session_states: &mut HashMap<String, SessionState>,
+        file_event: &FileChangeEvent,
+    ) {
         match session_states.get_mut(&file_event.session_id) {
             Some(existing_state) => {
                 // Update existing session state
@@ -363,22 +405,28 @@ impl ClaudeWatcher {
 
                 // Smart re-upload logic: clear upload_pending if conditions met
                 if existing_state.upload_pending {
-                    let should_allow_reupload = if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                        // Check if cooldown has elapsed OR size changed significantly
-                        let cooldown_elapsed = file_event.last_modified.duration_since(last_uploaded_time) >= RE_UPLOAD_COOLDOWN;
-                        let size_changed_significantly = file_event.file_size.saturating_sub(existing_state.last_uploaded_size) >= MIN_SIZE_CHANGE_BYTES;
+                    let should_allow_reupload =
+                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
+                            // Check if cooldown has elapsed OR size changed significantly
+                            let cooldown_elapsed =
+                                file_event.last_modified.duration_since(last_uploaded_time)
+                                    >= RE_UPLOAD_COOLDOWN;
+                            let size_changed_significantly = file_event
+                                .file_size
+                                .saturating_sub(existing_state.last_uploaded_size)
+                                >= MIN_SIZE_CHANGE_BYTES;
 
-                        cooldown_elapsed || size_changed_significantly
-                    } else {
-                        // No last upload time recorded, allow re-upload
-                        true
-                    };
+                            cooldown_elapsed || size_changed_significantly
+                        } else {
+                            // No last upload time recorded, allow re-upload
+                            true
+                        };
 
                     if should_allow_reupload {
                         existing_state.upload_pending = false;
                     }
                 }
-            },
+            }
             None => {
                 // Create new session state
                 let session_state = SessionState {
@@ -393,7 +441,6 @@ impl ClaudeWatcher {
             }
         }
     }
-
 
     pub fn stop(&self) {
         if let Ok(mut running) = self.is_running.lock() {
@@ -499,7 +546,8 @@ mod tests {
             attrs: Default::default(),
         };
         let session_states = HashMap::new();
-        let result = ClaudeWatcher::process_file_event(&hidden_event, projects_path, &session_states);
+        let result =
+            ClaudeWatcher::process_file_event(&hidden_event, projects_path, &session_states);
         assert!(result.is_none(), "Hidden file should be ignored");
 
         // Test normal file is processed
@@ -508,7 +556,8 @@ mod tests {
             paths: vec![normal_file.clone()],
             attrs: Default::default(),
         };
-        let result = ClaudeWatcher::process_file_event(&normal_event, projects_path, &session_states);
+        let result =
+            ClaudeWatcher::process_file_event(&normal_event, projects_path, &session_states);
         assert!(result.is_some(), "Normal file should be processed");
         assert_eq!(result.unwrap().session_id, "session-123");
     }

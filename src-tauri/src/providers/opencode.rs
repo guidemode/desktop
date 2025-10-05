@@ -8,7 +8,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-
 pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     let expanded = tilde(home_directory);
     let primary_base = PathBuf::from(expanded.into_owned());
@@ -56,7 +55,8 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     // Use the new OpenCode parser for better project discovery
     let parser = OpenCodeParser::new(storage_path);
 
-    let opencode_projects = parser.get_all_projects()
+    let opencode_projects = parser
+        .get_all_projects()
         .map_err(|e| format!("Failed to get OpenCode projects: {}", e))?;
 
     let mut projects = Vec::new();
@@ -72,10 +72,13 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
         };
 
         // Get the most recent session activity for this project
-        let session_ids = parser.get_sessions_for_project(&project.id)
+        let session_ids = parser
+            .get_sessions_for_project(&project.id)
             .unwrap_or_default();
 
-        let mut most_recent_activity = project.time.updated
+        let mut most_recent_activity = project
+            .time
+            .updated
             .or(project.time.initialized)
             .or(project.time.created)
             .and_then(DateTime::<Utc>::from_timestamp_millis);
@@ -120,4 +123,3 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
 
     Ok(sort_projects_by_modified(projects))
 }
-

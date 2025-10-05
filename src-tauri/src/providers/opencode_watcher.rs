@@ -73,12 +73,20 @@ impl OpenCodeWatcher {
         let base_path = Path::new(expanded_home.as_ref());
 
         if !base_path.exists() {
-            return Err(format!("OpenCode home directory does not exist: {}", base_path.display()).into());
+            return Err(format!(
+                "OpenCode home directory does not exist: {}",
+                base_path.display()
+            )
+            .into());
         }
 
         let storage_path = base_path.join("storage");
         if !storage_path.exists() {
-            return Err(format!("OpenCode storage directory does not exist: {}", storage_path.display()).into());
+            return Err(format!(
+                "OpenCode storage directory does not exist: {}",
+                storage_path.display()
+            )
+            .into());
         }
 
         // Create parser for session analysis
@@ -90,7 +98,9 @@ impl OpenCodeWatcher {
             Self::discover_all_projects(&parser)?
         } else {
             // Watch only selected projects
-            let selected_projects: Vec<String> = config.selected_projects.into_iter()
+            let selected_projects: Vec<String> = config
+                .selected_projects
+                .into_iter()
                 .filter(|project| projects.contains(project))
                 .collect();
 
@@ -103,7 +113,11 @@ impl OpenCodeWatcher {
 
         if let Err(e) = log_info(
             PROVIDER_ID,
-            &format!("📁 Monitoring {} OpenCode projects: {}", projects_to_watch.len(), projects_to_watch.join(", ")),
+            &format!(
+                "📁 Monitoring {} OpenCode projects: {}",
+                projects_to_watch.len(),
+                projects_to_watch.join(", ")
+            ),
         ) {
             eprintln!("Logging error: {}", e);
         }
@@ -151,8 +165,11 @@ impl OpenCodeWatcher {
         })
     }
 
-    fn discover_all_projects(parser: &OpenCodeParser) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
-        let projects = parser.get_all_projects()
+    fn discover_all_projects(
+        parser: &OpenCodeParser,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+        let projects = parser
+            .get_all_projects()
             .map_err(|e| format!("Failed to discover projects: {}", e))?;
 
         let project_names: Vec<String> = projects
@@ -192,7 +209,13 @@ impl OpenCodeWatcher {
             // Process file system events with timeout
             match rx.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(event)) => {
-                    if let Some(session_event) = Self::process_file_event(&event, &storage_path, &parser, &projects_to_watch, &session_states) {
+                    if let Some(session_event) = Self::process_file_event(
+                        &event,
+                        &storage_path,
+                        &parser,
+                        &projects_to_watch,
+                        &session_states,
+                    ) {
                         // Check if this is a new session or significant change
                         let should_log = Self::should_log_event(&session_event, &session_states);
 
@@ -243,7 +266,10 @@ impl OpenCodeWatcher {
                     }
                 }
                 Ok(Err(error)) => {
-                    if let Err(e) = log_error(PROVIDER_ID, &format!("OpenCode file watcher error: {:?}", error)) {
+                    if let Err(e) = log_error(
+                        PROVIDER_ID,
+                        &format!("OpenCode file watcher error: {:?}", error),
+                    ) {
                         eprintln!("Logging error: {}", e);
                     }
                 }
@@ -251,7 +277,9 @@ impl OpenCodeWatcher {
                     // Timeout is normal, continue watching
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    if let Err(e) = log_error(PROVIDER_ID, "OpenCode file watcher channel disconnected") {
+                    if let Err(e) =
+                        log_error(PROVIDER_ID, "OpenCode file watcher channel disconnected")
+                    {
                         eprintln!("Logging error: {}", e);
                     }
                     break;
@@ -300,7 +328,9 @@ impl OpenCodeWatcher {
                             Some("part") => {
                                 // Part file changed: part/{messageId}/{partId}.json
                                 if let Some(session_id) = parser.get_session_for_part(path) {
-                                    if let Some(project_id) = parser.get_project_for_session(&session_id) {
+                                    if let Some(project_id) =
+                                        parser.get_project_for_session(&session_id)
+                                    {
                                         // Check if this project is being watched
                                         if let Ok(project) = parser.get_all_projects() {
                                             for proj in project {
@@ -310,12 +340,18 @@ impl OpenCodeWatcher {
                                                         .and_then(|name| name.to_str())
                                                         .unwrap_or("unknown");
 
-                                                    if projects_to_watch.contains(&project_name.to_string()) {
+                                                    if projects_to_watch
+                                                        .contains(&project_name.to_string())
+                                                    {
                                                         return Some(SessionChangeEvent {
                                                             session_id: session_id.clone(),
                                                             project_id,
                                                             last_modified: Instant::now(),
-                                                            is_new_session: Self::is_new_session(&session_id, path, session_states),
+                                                            is_new_session: Self::is_new_session(
+                                                                &session_id,
+                                                                path,
+                                                                session_states,
+                                                            ),
                                                             affected_files: vec![path.clone()],
                                                         });
                                                     }
@@ -329,13 +365,21 @@ impl OpenCodeWatcher {
                             Some("message") => {
                                 // Message file changed: message/{sessionId}/{messageId}.json
                                 if components.len() >= 3 {
-                                    if let Some(session_id) = components.get(1).and_then(|c| c.as_os_str().to_str()) {
-                                        if let Some(project_id) = parser.get_project_for_session(session_id) {
+                                    if let Some(session_id) =
+                                        components.get(1).and_then(|c| c.as_os_str().to_str())
+                                    {
+                                        if let Some(project_id) =
+                                            parser.get_project_for_session(session_id)
+                                        {
                                             return Some(SessionChangeEvent {
                                                 session_id: session_id.to_string(),
                                                 project_id,
                                                 last_modified: Instant::now(),
-                                                is_new_session: Self::is_new_session(session_id, path, session_states),
+                                                is_new_session: Self::is_new_session(
+                                                    session_id,
+                                                    path,
+                                                    session_states,
+                                                ),
                                                 affected_files: vec![path.clone()],
                                             });
                                         }
@@ -345,15 +389,23 @@ impl OpenCodeWatcher {
                             Some("session") => {
                                 // Session file changed: session/{projectId}/{sessionId}.json
                                 if components.len() >= 3 {
-                                    if let Some(project_id) = components.get(1).and_then(|c| c.as_os_str().to_str()) {
-                                        if let Some(session_id) = components.get(2)
+                                    if let Some(project_id) =
+                                        components.get(1).and_then(|c| c.as_os_str().to_str())
+                                    {
+                                        if let Some(session_id) = components
+                                            .get(2)
                                             .and_then(|c| c.as_os_str().to_str())
-                                            .and_then(|s| s.strip_suffix(".json")) {
+                                            .and_then(|s| s.strip_suffix(".json"))
+                                        {
                                             return Some(SessionChangeEvent {
                                                 session_id: session_id.to_string(),
                                                 project_id: project_id.to_string(),
                                                 last_modified: Instant::now(),
-                                                is_new_session: Self::is_new_session(session_id, path, session_states),
+                                                is_new_session: Self::is_new_session(
+                                                    session_id,
+                                                    path,
+                                                    session_states,
+                                                ),
                                                 affected_files: vec![path.clone()],
                                             });
                                         }
@@ -373,7 +425,11 @@ impl OpenCodeWatcher {
         None
     }
 
-    fn is_new_session(session_id: &str, path: &Path, session_states: &HashMap<String, SessionState>) -> bool {
+    fn is_new_session(
+        session_id: &str,
+        path: &Path,
+        session_states: &HashMap<String, SessionState>,
+    ) -> bool {
         // First check if we've already seen this session
         if session_states.contains_key(session_id) {
             return false; // Already tracking this session
@@ -390,12 +446,15 @@ impl OpenCodeWatcher {
         }
     }
 
-    fn should_log_event(session_event: &SessionChangeEvent, session_states: &HashMap<String, SessionState>) -> bool {
+    fn should_log_event(
+        session_event: &SessionChangeEvent,
+        session_states: &HashMap<String, SessionState>,
+    ) -> bool {
         match session_states.get(&session_event.session_id) {
             Some(_existing_state) => {
                 // Only log if this is a new session
                 session_event.is_new_session
-            },
+            }
             None => {
                 // Only log if this is actually a new session
                 session_event.is_new_session
@@ -403,7 +462,10 @@ impl OpenCodeWatcher {
         }
     }
 
-    fn update_session_state(session_states: &mut HashMap<String, SessionState>, session_event: &SessionChangeEvent) {
+    fn update_session_state(
+        session_states: &mut HashMap<String, SessionState>,
+        session_event: &SessionChangeEvent,
+    ) {
         match session_states.get_mut(&session_event.session_id) {
             Some(existing_state) => {
                 // Track old file count for change detection
@@ -419,23 +481,28 @@ impl OpenCodeWatcher {
                 // Smart re-upload logic: clear upload_pending if conditions met
                 if existing_state.upload_pending {
                     let new_file_count = existing_state.affected_files.len();
-                    let file_count_changed = new_file_count.saturating_sub(old_file_count) >= MIN_FILE_COUNT_CHANGE;
+                    let file_count_changed =
+                        new_file_count.saturating_sub(old_file_count) >= MIN_FILE_COUNT_CHANGE;
 
-                    let should_allow_reupload = if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                        // Check if cooldown has elapsed OR file count changed significantly
-                        let cooldown_elapsed = session_event.last_modified.duration_since(last_uploaded_time) >= RE_UPLOAD_COOLDOWN;
+                    let should_allow_reupload =
+                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
+                            // Check if cooldown has elapsed OR file count changed significantly
+                            let cooldown_elapsed = session_event
+                                .last_modified
+                                .duration_since(last_uploaded_time)
+                                >= RE_UPLOAD_COOLDOWN;
 
-                        cooldown_elapsed || file_count_changed
-                    } else {
-                        // No last upload time recorded, allow re-upload
-                        true
-                    };
+                            cooldown_elapsed || file_count_changed
+                        } else {
+                            // No last upload time recorded, allow re-upload
+                            true
+                        };
 
                     if should_allow_reupload {
                         existing_state.upload_pending = false;
                     }
                 }
-            },
+            }
             None => {
                 // Create new session state
                 let mut affected_files = HashSet::new();
@@ -455,7 +522,6 @@ impl OpenCodeWatcher {
             }
         }
     }
-
 
     pub fn stop(&self) {
         if let Ok(mut running) = self.is_running.lock() {
@@ -516,24 +582,39 @@ mod tests {
 
         // Create a small file - should be considered new
         fs::write(&file_path, "{}").unwrap();
-        assert!(OpenCodeWatcher::is_new_session(session_id, &file_path, &session_states));
+        assert!(OpenCodeWatcher::is_new_session(
+            session_id,
+            &file_path,
+            &session_states
+        ));
 
         // Create a larger file - should not be considered new based on size
         let large_content = "x".repeat(2000);
         fs::write(&file_path, large_content).unwrap();
-        assert!(!OpenCodeWatcher::is_new_session(session_id, &file_path, &session_states));
+        assert!(!OpenCodeWatcher::is_new_session(
+            session_id,
+            &file_path,
+            &session_states
+        ));
 
         // Add session to states - should not be considered new even if file is small
-        session_states.insert(session_id.to_string(), SessionState {
-            last_modified: Instant::now(),
-            is_active: true,
-            upload_pending: false,
-            affected_files: HashSet::new(),
-            last_uploaded_time: None,
-            last_uploaded_size: 0,
-        });
+        session_states.insert(
+            session_id.to_string(),
+            SessionState {
+                last_modified: Instant::now(),
+                is_active: true,
+                upload_pending: false,
+                affected_files: HashSet::new(),
+                last_uploaded_time: None,
+                last_uploaded_size: 0,
+            },
+        );
         fs::write(&file_path, "{}").unwrap();
-        assert!(!OpenCodeWatcher::is_new_session(session_id, &file_path, &session_states));
+        assert!(!OpenCodeWatcher::is_new_session(
+            session_id,
+            &file_path,
+            &session_states
+        ));
     }
 
     #[test]
@@ -566,7 +647,13 @@ mod tests {
             paths: vec![hidden_file.clone()],
             attrs: Default::default(),
         };
-        let result = OpenCodeWatcher::process_file_event(&hidden_event, storage_path, &parser, &projects_to_watch, &session_states);
+        let result = OpenCodeWatcher::process_file_event(
+            &hidden_event,
+            storage_path,
+            &parser,
+            &projects_to_watch,
+            &session_states,
+        );
         assert!(result.is_none(), "Hidden file should be ignored");
 
         // Test normal file would be processed (will fail to find project, but the file isn't filtered out)
@@ -575,7 +662,13 @@ mod tests {
             paths: vec![normal_file.clone()],
             attrs: Default::default(),
         };
-        let _result = OpenCodeWatcher::process_file_event(&normal_event, storage_path, &parser, &projects_to_watch, &session_states);
+        let _result = OpenCodeWatcher::process_file_event(
+            &normal_event,
+            storage_path,
+            &parser,
+            &projects_to_watch,
+            &session_states,
+        );
         // Result might be None if project lookup fails, but that's OK - we're just testing file filtering
         // The important thing is it didn't get filtered out like the hidden file
     }

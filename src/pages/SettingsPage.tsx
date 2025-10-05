@@ -1,23 +1,30 @@
 import { useAuth } from '../hooks/useAuth'
 import { useConfigStore } from '../stores/configStore'
+import { useUpdater } from '../hooks/useUpdater'
 import Login from '../components/Login'
-import { useState, useEffect } from 'react'
-import { getVersion } from '@tauri-apps/api/app'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 function SettingsPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const { aiApiKeys, setAiApiKey, deleteAiApiKey } = useConfigStore()
+  const {
+    hasUpdate,
+    currentVersion,
+    latestVersion,
+    isChecking,
+    isDownloading,
+    isInstalling,
+    downloadProgress,
+    error,
+    checkForUpdates,
+    downloadAndInstall,
+  } = useUpdater()
   const [showClaudeKey, setShowClaudeKey] = useState(false)
   const [showGeminiKey, setShowGeminiKey] = useState(false)
   const [claudeKey, setClaudeKey] = useState(aiApiKeys.claude || '')
   const [geminiKey, setGeminiKey] = useState(aiApiKeys.gemini || '')
-  const [appVersion, setAppVersion] = useState<string>('Loading...')
-
-  useEffect(() => {
-    getVersion().then(setAppVersion).catch(() => setAppVersion('Unknown'))
-  }, [])
 
   const handleLogout = async () => {
     if (confirm('Are you sure you want to logout?')) {
@@ -267,8 +274,14 @@ function SettingsPage() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-base-content/70">Version</span>
-                <span>{appVersion}</span>
+                <span>{currentVersion}</span>
               </div>
+              {hasUpdate && (
+                <div className="flex justify-between items-center">
+                  <span className="text-base-content/70">Latest Version</span>
+                  <span className="text-warning font-medium">{latestVersion}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-base-content/70">Build</span>
                 <span>Desktop</span>
@@ -278,6 +291,82 @@ function SettingsPage() {
                 <span>Tauri</span>
               </div>
             </div>
+
+            {error && (
+              <>
+                <div className="divider"></div>
+                <div className="alert alert-error">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="font-bold">Update Error</h3>
+                    <div className="text-sm">{error}</div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {hasUpdate && (
+              <>
+                <div className="divider"></div>
+                <div className="alert alert-success">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <div className="flex-1">
+                    <h3 className="font-bold">Update Available</h3>
+                    <div className="text-sm">Version {latestVersion} is now available. Click below to download and install.</div>
+                  </div>
+                </div>
+
+                {isDownloading || isInstalling ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>{isInstalling ? 'Installing...' : 'Downloading...'}</span>
+                      <span>{downloadProgress}%</span>
+                    </div>
+                    <progress className="progress progress-success w-full" value={downloadProgress} max="100"></progress>
+                  </div>
+                ) : (
+                  <button
+                    onClick={downloadAndInstall}
+                    className="btn btn-success btn-block"
+                    disabled={isDownloading || isInstalling}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download and Install Update
+                  </button>
+                )}
+              </>
+            )}
+
+            {!hasUpdate && !isChecking && (
+              <>
+                <div className="divider"></div>
+                <button
+                  onClick={checkForUpdates}
+                  className="btn btn-outline btn-block"
+                  disabled={isChecking}
+                >
+                  {isChecking ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      Checking for updates...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Check for Updates
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

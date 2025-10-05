@@ -1,21 +1,21 @@
 use crate::config::GuideAIConfig;
-use crate::database::{get_unsynced_sessions, mark_session_synced, mark_session_sync_failed};
+use crate::database::{get_unsynced_sessions, mark_session_sync_failed, mark_session_synced};
 use crate::logging::{log_debug, log_error, log_info, log_warn};
 use crate::project_metadata::ProjectMetadata;
-use crate::providers::{SessionInfo, OpenCodeParser};
+use crate::providers::{OpenCodeParser, SessionInfo};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::VecDeque;
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use tauri::Emitter;
 use tokio::time::sleep;
 use uuid::Uuid;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use serde_json::Value;
-use tauri::Emitter;
 
 // Database polling interval (10 seconds by default, configurable later)
 const DB_POLL_INTERVAL_SECS: u64 = 10;
@@ -132,10 +132,16 @@ impl UploadQueue {
 
     /// Validate that JSONL content contains at least one entry with a timestamp field
     fn validate_jsonl_timestamps(content: &str) -> (bool, Option<String>) {
-        let lines: Vec<&str> = content.lines().filter(|line| !line.trim().is_empty()).collect();
+        let lines: Vec<&str> = content
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .collect();
 
         if lines.is_empty() {
-            return (false, Some("File is empty or contains only whitespace".to_string()));
+            return (
+                false,
+                Some("File is empty or contains only whitespace".to_string()),
+            );
         }
 
         let mut has_valid_json = false;
@@ -153,21 +159,46 @@ impl UploadQueue {
                 parse_errors += 1;
                 if index < 3 {
                     // Log first few parse errors for debugging
-                    log_warn("upload-queue", &format!("  Line {} failed to parse as JSON: {}", index + 1, &line[..line.len().min(100)]))
-                        .unwrap_or_default();
+                    log_warn(
+                        "upload-queue",
+                        &format!(
+                            "  Line {} failed to parse as JSON: {}",
+                            index + 1,
+                            &line[..line.len().min(100)]
+                        ),
+                    )
+                    .unwrap_or_default();
                 }
             }
         }
 
         if !has_valid_json {
-            return (false, Some(format!("No valid JSON lines found ({} parse errors)", parse_errors)));
+            return (
+                false,
+                Some(format!(
+                    "No valid JSON lines found ({} parse errors)",
+                    parse_errors
+                )),
+            );
         }
 
-        (false, Some(format!("No timestamp field found in any of {} lines ({} valid JSON entries)", lines.len(), lines.len() - parse_errors)))
+        (
+            false,
+            Some(format!(
+                "No timestamp field found in any of {} lines ({} valid JSON entries)",
+                lines.len(),
+                lines.len() - parse_errors
+            )),
+        )
     }
 
     #[cfg(test)]
-    pub fn add_item(&self, provider: &str, project_name: &str, file_path: PathBuf) -> Result<(), String> {
+    pub fn add_item(
+        &self,
+        provider: &str,
+        project_name: &str,
+        file_path: PathBuf,
+    ) -> Result<(), String> {
         let file_name = file_path
             .file_name()
             .and_then(|name| name.to_str())
@@ -180,9 +211,13 @@ impl UploadQueue {
 
         let (is_valid, validation_error) = Self::validate_jsonl_timestamps(&file_content);
         if !is_valid {
-            let reason = validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
-            log_warn("upload-queue", &format!("⚠ Skipping upload: {} ({})", file_name, reason))
-                .unwrap_or_default();
+            let reason =
+                validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
+            log_warn(
+                "upload-queue",
+                &format!("⚠ Skipping upload: {} ({})", file_name, reason),
+            )
+            .unwrap_or_default();
             return Ok(());
         }
 
@@ -191,8 +226,14 @@ impl UploadQueue {
 
         // Check if this file has already been uploaded
         if self.is_file_already_uploaded(file_hash) {
-            log_info("upload-queue", &format!("⚡ Skipping duplicate upload: {} (already uploaded)", file_name))
-                .unwrap_or_default();
+            log_info(
+                "upload-queue",
+                &format!(
+                    "⚡ Skipping duplicate upload: {} (already uploaded)",
+                    file_name
+                ),
+            )
+            .unwrap_or_default();
             return Ok(());
         }
 
@@ -226,9 +267,16 @@ impl UploadQueue {
             // For sessions with in-memory content (like OpenCode), validate and hash the content directly
             let (is_valid, validation_error) = Self::validate_jsonl_timestamps(content);
             if !is_valid {
-                let reason = validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
-                log_warn("upload-queue", &format!("⚠ Skipping historical upload: {} ({})", session.file_name, reason))
-                    .unwrap_or_default();
+                let reason =
+                    validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
+                log_warn(
+                    "upload-queue",
+                    &format!(
+                        "⚠ Skipping historical upload: {} ({})",
+                        session.file_name, reason
+                    ),
+                )
+                .unwrap_or_default();
                 return Ok(());
             }
 
@@ -246,9 +294,16 @@ impl UploadQueue {
 
             let (is_valid, validation_error) = Self::validate_jsonl_timestamps(&file_content);
             if !is_valid {
-                let reason = validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
-                log_warn("upload-queue", &format!("⚠ Skipping historical upload: {} ({})", session.file_name, reason))
-                    .unwrap_or_default();
+                let reason =
+                    validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
+                log_warn(
+                    "upload-queue",
+                    &format!(
+                        "⚠ Skipping historical upload: {} ({})",
+                        session.file_name, reason
+                    ),
+                )
+                .unwrap_or_default();
                 return Ok(());
             }
 
@@ -258,8 +313,14 @@ impl UploadQueue {
 
         // Check if this file has already been uploaded
         if self.is_file_already_uploaded(file_hash) {
-            log_info("upload-queue", &format!("⚡ Skipping duplicate historical upload: {} (already uploaded)", session.file_name))
-                .unwrap_or_default();
+            log_info(
+                "upload-queue",
+                &format!(
+                    "⚡ Skipping duplicate historical upload: {} (already uploaded)",
+                    session.file_name
+                ),
+            )
+            .unwrap_or_default();
             return Ok(());
         }
 
@@ -289,15 +350,36 @@ impl UploadQueue {
 
                     // Spawn async task to upload project metadata
                     tokio::spawn(async move {
-                        log_info("upload-queue", &format!("📦 Uploading project metadata for {} (session: {})", metadata_clone.project_name, session_id))
-                            .unwrap_or_default();
+                        log_info(
+                            "upload-queue",
+                            &format!(
+                                "📦 Uploading project metadata for {} (session: {})",
+                                metadata_clone.project_name, session_id
+                            ),
+                        )
+                        .unwrap_or_default();
 
-                        if let Err(e) = Self::upload_project_metadata_static(&metadata_clone, config_clone).await {
-                            log_warn("upload-queue", &format!("⚠ Failed to upload project metadata for {}: {}", metadata_clone.project_name, e))
-                                .unwrap_or_default();
+                        if let Err(e) =
+                            Self::upload_project_metadata_static(&metadata_clone, config_clone)
+                                .await
+                        {
+                            log_warn(
+                                "upload-queue",
+                                &format!(
+                                    "⚠ Failed to upload project metadata for {}: {}",
+                                    metadata_clone.project_name, e
+                                ),
+                            )
+                            .unwrap_or_default();
                         } else {
-                            log_info("upload-queue", &format!("✓ Uploaded project metadata for {}", metadata_clone.project_name))
-                                .unwrap_or_default();
+                            log_info(
+                                "upload-queue",
+                                &format!(
+                                    "✓ Uploaded project metadata for {}",
+                                    metadata_clone.project_name
+                                ),
+                            )
+                            .unwrap_or_default();
                         }
                     });
 
@@ -317,11 +399,17 @@ impl UploadQueue {
         };
 
         // Use the real project name if available, otherwise fall back to Claude folder name
-        let project_name_for_upload = real_project_name.unwrap_or_else(|| session.project_name.clone());
+        let project_name_for_upload =
+            real_project_name.unwrap_or_else(|| session.project_name.clone());
 
-        log_info("upload-queue", &format!("📝 Creating upload item for session {} with project name: {} (Claude folder: {})",
-            session.session_id, project_name_for_upload, session.project_name))
-            .unwrap_or_default();
+        log_info(
+            "upload-queue",
+            &format!(
+                "📝 Creating upload item for session {} with project name: {} (Claude folder: {})",
+                session.session_id, project_name_for_upload, session.project_name
+            ),
+        )
+        .unwrap_or_default();
 
         let item = UploadItem {
             id: Uuid::new_v4().to_string(),
@@ -358,9 +446,13 @@ impl UploadQueue {
         // Validate content before adding to queue
         let (is_valid, validation_error) = Self::validate_jsonl_timestamps(&content);
         if !is_valid {
-            let reason = validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
-            log_warn("upload-queue", &format!("⚠ Skipping session upload: {} ({})", session_id, reason))
-                .unwrap_or_default();
+            let reason =
+                validation_error.unwrap_or_else(|| "no valid timestamps found".to_string());
+            log_warn(
+                "upload-queue",
+                &format!("⚠ Skipping session upload: {} ({})", session_id, reason),
+            )
+            .unwrap_or_default();
             return Ok(());
         }
 
@@ -375,8 +467,14 @@ impl UploadQueue {
 
         // Check if this content has already been uploaded
         if self.is_file_already_uploaded(content_hash) {
-            log_info("upload-queue", &format!("⚡ Skipping duplicate session upload: {} (already uploaded)", session_id))
-                .unwrap_or_default();
+            log_info(
+                "upload-queue",
+                &format!(
+                    "⚡ Skipping duplicate session upload: {} (already uploaded)",
+                    session_id
+                ),
+            )
+            .unwrap_or_default();
             return Ok(());
         }
 
@@ -688,7 +786,7 @@ impl UploadQueue {
     }
 
     pub fn get_status(&self) -> UploadStatus {
-        use crate::database::{get_upload_stats, get_failed_sessions};
+        use crate::database::{get_failed_sessions, get_upload_stats};
 
         // Get real-time stats from database instead of in-memory queue
         let db_stats = get_upload_stats().unwrap_or(crate::database::UploadStats {
@@ -712,7 +810,7 @@ impl UploadQueue {
         let recent_uploads = Vec::new();
 
         UploadStatus {
-            pending: db_stats.pending,  // Real-time from database
+            pending: db_stats.pending, // Real-time from database
             processing,
             failed,
             recent_uploads,
@@ -723,8 +821,8 @@ impl UploadQueue {
         use std::fs::File;
         use std::io::Read;
 
-        let mut file = File::open(file_path)
-            .map_err(|e| format!("Failed to open file for hashing: {}", e))?;
+        let mut file =
+            File::open(file_path).map_err(|e| format!("Failed to open file for hashing: {}", e))?;
 
         let mut hasher = DefaultHasher::new();
         let mut buffer = Vec::new();
@@ -782,45 +880,70 @@ impl UploadQueue {
         }
 
         let api_key = config.api_key.clone().ok_or("No API key configured")?;
-        let server_url = config.server_url.clone().ok_or("No server URL configured")?;
+        let server_url = config
+            .server_url
+            .clone()
+            .ok_or("No server URL configured")?;
         let _tenant_id = config.tenant_id.clone().ok_or("No tenant ID configured")?;
 
         // Extract and upload project metadata if CWD is available
         let final_project_name = if let Some(ref cwd) = item.cwd {
             use crate::project_metadata::extract_project_metadata;
 
-            log_info("upload-queue", &format!("📁 Extracting project metadata from CWD: {}", cwd))
-                .unwrap_or_default();
+            log_info(
+                "upload-queue",
+                &format!("📁 Extracting project metadata from CWD: {}", cwd),
+            )
+            .unwrap_or_default();
 
             match extract_project_metadata(cwd) {
                 Ok(metadata) => {
-                    log_info("upload-queue", &format!("✓ Extracted project: {} (type: {}, git: {})",
-                        metadata.project_name,
-                        metadata.detected_project_type,
-                        metadata.git_remote_url.as_deref().unwrap_or("none")
-                    )).unwrap_or_default();
+                    log_info(
+                        "upload-queue",
+                        &format!(
+                            "✓ Extracted project: {} (type: {}, git: {})",
+                            metadata.project_name,
+                            metadata.detected_project_type,
+                            metadata.git_remote_url.as_deref().unwrap_or("none")
+                        ),
+                    )
+                    .unwrap_or_default();
 
                     // Upload project metadata to server
-                    if let Err(e) = Self::upload_project_metadata_static(&metadata, Some(config)).await {
+                    if let Err(e) =
+                        Self::upload_project_metadata_static(&metadata, Some(config)).await
+                    {
                         log_warn("upload-queue", &format!("⚠ Failed to upload project metadata: {} - continuing with session upload", e))
                             .unwrap_or_default();
                     } else {
-                        log_info("upload-queue", &format!("✓ Project metadata uploaded: {}", metadata.project_name))
-                            .unwrap_or_default();
+                        log_info(
+                            "upload-queue",
+                            &format!("✓ Project metadata uploaded: {}", metadata.project_name),
+                        )
+                        .unwrap_or_default();
                     }
 
                     // Use real project name from metadata instead of folder name
                     metadata.project_name
                 }
                 Err(e) => {
-                    log_warn("upload-queue", &format!("⚠ Could not extract project metadata from {}: {} - using folder name", cwd, e))
-                        .unwrap_or_default();
+                    log_warn(
+                        "upload-queue",
+                        &format!(
+                            "⚠ Could not extract project metadata from {}: {} - using folder name",
+                            cwd, e
+                        ),
+                    )
+                    .unwrap_or_default();
                     item.project_name.clone()
                 }
             }
         } else {
-            log_debug("upload-queue", "No CWD available for project metadata extraction")
-                .unwrap_or_default();
+            log_debug(
+                "upload-queue",
+                "No CWD available for project metadata extraction",
+            )
+            .unwrap_or_default();
             item.project_name.clone()
         };
 
@@ -837,20 +960,25 @@ impl UploadQueue {
             let provider_config = load_provider_config("opencode")
                 .map_err(|e| format!("Failed to load OpenCode config: {}", e))?;
 
-            let storage_path = PathBuf::from(tilde(&provider_config.home_directory).as_ref()).join("storage");
+            let storage_path =
+                PathBuf::from(tilde(&provider_config.home_directory).as_ref()).join("storage");
             let parser = OpenCodeParser::new(storage_path);
 
             // Extract session ID from item
-            let session_id = item.session_id.as_ref()
+            let session_id = item
+                .session_id
+                .as_ref()
                 .ok_or("OpenCode session missing session_id")?;
 
             // Parse session to consolidate files
-            let parsed_session = parser.parse_session(session_id)
+            let parsed_session = parser
+                .parse_session(session_id)
                 .map_err(|e| format!("Failed to parse OpenCode session: {}", e))?;
 
             // Use consolidated JSONL content
             use base64::Engine;
-            base64::engine::general_purpose::STANDARD.encode(parsed_session.jsonl_content.as_bytes())
+            base64::engine::general_purpose::STANDARD
+                .encode(parsed_session.jsonl_content.as_bytes())
         } else {
             // Claude Code, Codex: Read file content directly
             let file_content = std::fs::read(&item.file_path)
@@ -897,8 +1025,14 @@ impl UploadQueue {
             Ok(())
         } else {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            Err(format!("Upload failed with status {}: {}", status, error_text))
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            Err(format!(
+                "Upload failed with status {}: {}",
+                status, error_text
+            ))
         }
     }
 
@@ -929,52 +1063,58 @@ impl UploadQueue {
     }
 
     pub fn get_all_items(&self) -> QueueItems {
-        use crate::database::{get_unsynced_sessions, get_failed_sessions};
+        use crate::database::{get_failed_sessions, get_unsynced_sessions};
 
         // Get pending items from database (unsynced sessions)
         let pending = if let Ok(unsynced_sessions) = get_unsynced_sessions() {
-            unsynced_sessions.into_iter().map(|session| {
-                UploadItem {
-                    id: session.id,
-                    provider: session.provider,
-                    project_name: session.project_name,
-                    file_path: PathBuf::from(&session.file_path),
-                    file_name: session.file_name,
-                    queued_at: Utc::now(), // Use current time as approximation
-                    retry_count: 0,
-                    next_retry_at: None,
-                    last_error: None,
-                    file_hash: None,
-                    file_size: session.file_size as u64,
-                    session_id: Some(session.session_id),
-                    content: None,
-                    cwd: session.cwd,
-                }
-            }).collect()
+            unsynced_sessions
+                .into_iter()
+                .map(|session| {
+                    UploadItem {
+                        id: session.id,
+                        provider: session.provider,
+                        project_name: session.project_name,
+                        file_path: PathBuf::from(&session.file_path),
+                        file_name: session.file_name,
+                        queued_at: Utc::now(), // Use current time as approximation
+                        retry_count: 0,
+                        next_retry_at: None,
+                        last_error: None,
+                        file_hash: None,
+                        file_size: session.file_size as u64,
+                        session_id: Some(session.session_id),
+                        content: None,
+                        cwd: session.cwd,
+                    }
+                })
+                .collect()
         } else {
             Vec::new()
         };
 
         // Get failed items from database (sessions with sync_failed_reason)
         let failed = if let Ok(failed_sessions) = get_failed_sessions() {
-            failed_sessions.into_iter().map(|session| {
-                UploadItem {
-                    id: session.id,
-                    provider: session.provider,
-                    project_name: session.project_name,
-                    file_path: PathBuf::from(&session.file_path),
-                    file_name: session.file_name,
-                    queued_at: Utc::now(), // Use current time as approximation
-                    retry_count: 3, // Max retries exceeded
-                    next_retry_at: None,
-                    last_error: Some(session.sync_failed_reason),
-                    file_hash: None,
-                    file_size: session.file_size as u64,
-                    session_id: Some(session.session_id),
-                    content: None,
-                    cwd: session.cwd,
-                }
-            }).collect()
+            failed_sessions
+                .into_iter()
+                .map(|session| {
+                    UploadItem {
+                        id: session.id,
+                        provider: session.provider,
+                        project_name: session.project_name,
+                        file_path: PathBuf::from(&session.file_path),
+                        file_name: session.file_name,
+                        queued_at: Utc::now(), // Use current time as approximation
+                        retry_count: 3,        // Max retries exceeded
+                        next_retry_at: None,
+                        last_error: Some(session.sync_failed_reason),
+                        file_hash: None,
+                        file_size: session.file_size as u64,
+                        session_id: Some(session.session_id),
+                        content: None,
+                        cwd: session.cwd,
+                    }
+                })
+                .collect()
         } else {
             Vec::new()
         };
@@ -1034,10 +1174,7 @@ impl UploadQueue {
 
     /// Check if a project exists on the server (GET request)
     #[allow(dead_code)]
-    pub async fn check_project_exists(
-        &self,
-        project_name: &str,
-    ) -> Result<bool, String> {
+    pub async fn check_project_exists(&self, project_name: &str) -> Result<bool, String> {
         let config = if let Ok(config_guard) = self.config.lock() {
             config_guard.clone()
         } else {
@@ -1101,17 +1238,20 @@ impl UploadQueue {
             Ok(())
         } else {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            Err(format!("Project upload failed with status {}: {}", status, error_text))
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            Err(format!(
+                "Project upload failed with status {}: {}",
+                status, error_text
+            ))
         }
     }
 
     /// Upload project metadata to the server
     #[allow(dead_code)]
-    pub async fn upload_project_metadata(
-        &self,
-        metadata: &ProjectMetadata,
-    ) -> Result<(), String> {
+    pub async fn upload_project_metadata(&self, metadata: &ProjectMetadata) -> Result<(), String> {
         let config = if let Ok(config_guard) = self.config.lock() {
             config_guard.clone()
         } else {
@@ -1145,11 +1285,16 @@ mod tests {
         let mut temp_file = NamedTempFile::new().unwrap();
 
         // Write valid JSONL with timestamp
-        let jsonl_content = r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":"test"}"#;
+        let jsonl_content =
+            r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":"test"}"#;
         temp_file.write_all(jsonl_content.as_bytes()).unwrap();
         temp_file.flush().unwrap();
 
-        let result = queue.add_item("claude-code", "test-project", temp_file.path().to_path_buf());
+        let result = queue.add_item(
+            "claude-code",
+            "test-project",
+            temp_file.path().to_path_buf(),
+        );
         assert!(result.is_ok());
 
         let status = queue.get_status();
@@ -1176,7 +1321,8 @@ mod tests {
     #[test]
     fn test_validate_jsonl_timestamps() {
         // Valid JSONL with timestamp
-        let valid_content = r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":"test"}"#;
+        let valid_content =
+            r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":"test"}"#;
         let (is_valid, error) = UploadQueue::validate_jsonl_timestamps(valid_content);
         assert!(is_valid);
         assert!(error.is_none());
@@ -1212,7 +1358,11 @@ mod tests {
         temp_file.write_all(jsonl_content.as_bytes()).unwrap();
         temp_file.flush().unwrap();
 
-        let result = queue.add_item("claude-code", "test-project", temp_file.path().to_path_buf());
+        let result = queue.add_item(
+            "claude-code",
+            "test-project",
+            temp_file.path().to_path_buf(),
+        );
         assert!(result.is_ok());
 
         // Should not be added to queue due to missing timestamps

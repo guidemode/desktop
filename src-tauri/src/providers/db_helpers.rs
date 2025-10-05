@@ -22,7 +22,8 @@ pub fn insert_session_immediately(
     // Check if already exists
     if session_exists(session_id, file_name)? {
         // Update existing session with new file size and timestamp
-        let (start_time, end_time, _duration) = match extract_session_timing(provider_id, file_path) {
+        let (start_time, end_time, _duration) = match extract_session_timing(provider_id, file_path)
+        {
             Ok(timing) => timing,
             Err(e) => {
                 let _ = log_warn(
@@ -33,7 +34,14 @@ pub fn insert_session_immediately(
             }
         };
 
-        update_session(session_id, file_name, file_size, start_time, end_time, cwd.as_deref())?;
+        update_session(
+            session_id,
+            file_name,
+            file_size,
+            start_time,
+            end_time,
+            cwd.as_deref(),
+        )?;
 
         // Also link project for existing sessions if CWD is available
         if let Some(ref cwd_path) = cwd {
@@ -46,17 +54,22 @@ pub fn insert_session_immediately(
                         &metadata.detected_project_type,
                     ) {
                         Ok(project_id) => {
-                            if let Err(e) = crate::database::attach_session_to_project(session_id, &project_id) {
+                            if let Err(e) =
+                                crate::database::attach_session_to_project(session_id, &project_id)
+                            {
                                 let _ = log_debug(
                                     provider_id,
-                                    &format!("⚠ Failed to attach session to project during update: {}", e)
+                                    &format!(
+                                        "⚠ Failed to attach session to project during update: {}",
+                                        e
+                                    ),
                                 );
                             }
                         }
                         Err(e) => {
                             let _ = log_debug(
                                 provider_id,
-                                &format!("⚠ Failed to insert/get project during update: {}", e)
+                                &format!("⚠ Failed to insert/get project during update: {}", e),
                             );
                         }
                     }
@@ -69,7 +82,7 @@ pub fn insert_session_immediately(
 
         let _ = log_debug(
             provider_id,
-            &format!("↻ Session {} updated in database", session_id)
+            &format!("↻ Session {} updated in database", session_id),
         );
         return Ok(());
     }
@@ -113,22 +126,29 @@ pub fn insert_session_immediately(
                 ) {
                     Ok(project_id) => {
                         // Attach session to project
-                        if let Err(e) = crate::database::attach_session_to_project(session_id, &project_id) {
+                        if let Err(e) =
+                            crate::database::attach_session_to_project(session_id, &project_id)
+                        {
                             let _ = log_warn(
                                 provider_id,
-                                &format!("⚠ Failed to attach session to project: {}", e)
+                                &format!("⚠ Failed to attach session to project: {}", e),
                             );
                         } else {
                             let _ = log_debug(
                                 provider_id,
-                                &format!("📁 Session {} linked to project {} ({})", session_id, metadata.project_name, metadata.detected_project_type)
+                                &format!(
+                                    "📁 Session {} linked to project {} ({})",
+                                    session_id,
+                                    metadata.project_name,
+                                    metadata.detected_project_type
+                                ),
                             );
                         }
                     }
                     Err(e) => {
                         let _ = log_warn(
                             provider_id,
-                            &format!("⚠ Failed to insert/get project: {}", e)
+                            &format!("⚠ Failed to insert/get project: {}", e),
                         );
                     }
                 }
@@ -136,7 +156,10 @@ pub fn insert_session_immediately(
             Err(e) => {
                 let _ = log_debug(
                     provider_id,
-                    &format!("⚠ Could not extract project metadata from {}: {}", cwd_path, e)
+                    &format!(
+                        "⚠ Could not extract project metadata from {}: {}",
+                        cwd_path, e
+                    ),
                 );
             }
         }
@@ -156,7 +179,10 @@ pub fn insert_session_immediately(
 
     let _ = log_info(
         provider_id,
-        &format!("💾 Session {} saved to local database{}", session_id, timing_info)
+        &format!(
+            "💾 Session {} saved to local database{}",
+            session_id, timing_info
+        ),
     );
 
     Ok(())
@@ -168,48 +194,59 @@ pub fn insert_session_immediately(
 fn extract_session_timing(
     _provider_id: &str,
     file_path: &PathBuf,
-) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<
+    (Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>),
+    Box<dyn std::error::Error + Send + Sync>,
+> {
     use std::fs;
 
     // Read JSONL and extract timestamps
     let content = fs::read_to_string(file_path).map_err(|e| {
-        let _ = log_warn("db_helpers", &format!("⚠ Failed to read file for timing extraction: {}", e));
+        let _ = log_warn(
+            "db_helpers",
+            &format!("⚠ Failed to read file for timing extraction: {}", e),
+        );
         e
     })?;
 
-    let lines: Vec<&str> = content.lines().filter(|line| !line.trim().is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
 
     if lines.is_empty() {
-        let _ = log_warn("db_helpers", "⚠ No lines found in file for timing extraction");
+        let _ = log_warn(
+            "db_helpers",
+            "⚠ No lines found in file for timing extraction",
+        );
         return Ok((None, None, None));
     }
 
     // Find first line with a valid timestamp (scan from start)
-    let session_start_time = lines.iter()
-        .find_map(|line| {
-            serde_json::from_str::<serde_json::Value>(line)
-                .ok()
-                .and_then(|entry| {
-                    entry.get("timestamp")
-                        .and_then(|ts| ts.as_str())
-                        .and_then(|ts| DateTime::parse_from_rfc3339(ts).ok())
-                        .map(|dt| dt.with_timezone(&Utc))
-                })
-        });
+    let session_start_time = lines.iter().find_map(|line| {
+        serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .and_then(|entry| {
+                entry
+                    .get("timestamp")
+                    .and_then(|ts| ts.as_str())
+                    .and_then(|ts| DateTime::parse_from_rfc3339(ts).ok())
+                    .map(|dt| dt.with_timezone(&Utc))
+            })
+    });
 
     // Find last line with a valid timestamp (scan from end)
-    let session_end_time = lines.iter()
-        .rev()
-        .find_map(|line| {
-            serde_json::from_str::<serde_json::Value>(line)
-                .ok()
-                .and_then(|entry| {
-                    entry.get("timestamp")
-                        .and_then(|ts| ts.as_str())
-                        .and_then(|ts| DateTime::parse_from_rfc3339(ts).ok())
-                        .map(|dt| dt.with_timezone(&Utc))
-                })
-        });
+    let session_end_time = lines.iter().rev().find_map(|line| {
+        serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .and_then(|entry| {
+                entry
+                    .get("timestamp")
+                    .and_then(|ts| ts.as_str())
+                    .and_then(|ts| DateTime::parse_from_rfc3339(ts).ok())
+                    .map(|dt| dt.with_timezone(&Utc))
+            })
+    });
 
     // Calculate duration
     let duration_ms = match (session_start_time, session_end_time) {
@@ -225,7 +262,10 @@ fn extract_cwd_from_file(provider_id: &str, file_path: &PathBuf) -> Option<Strin
     use std::fs;
 
     let content = fs::read_to_string(file_path).ok()?;
-    let lines: Vec<&str> = content.lines().filter(|line| !line.trim().is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
 
     if lines.is_empty() {
         return None;
@@ -242,9 +282,11 @@ fn extract_cwd_from_file(provider_id: &str, file_path: &PathBuf) -> Option<Strin
                         return Some(cwd.to_string());
                     }
                     // Check for payload.cwd field
-                    if let Some(cwd) = entry.get("payload")
+                    if let Some(cwd) = entry
+                        .get("payload")
                         .and_then(|p| p.get("cwd"))
-                        .and_then(|v| v.as_str()) {
+                        .and_then(|v| v.as_str())
+                    {
                         return Some(cwd.to_string());
                     }
                 }
@@ -275,6 +317,12 @@ fn extract_cwd_from_file(provider_id: &str, file_path: &PathBuf) -> Option<Strin
         _ => {}
     }
 
-    let _ = log_debug("db_helpers", &format!("⚠ No CWD found in session file for provider {}", provider_id));
+    let _ = log_debug(
+        "db_helpers",
+        &format!(
+            "⚠ No CWD found in session file for provider {}",
+            provider_id
+        ),
+    );
     None
 }

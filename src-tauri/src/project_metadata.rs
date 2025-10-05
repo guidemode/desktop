@@ -92,8 +92,8 @@ fn extract_nodejs_project_name(package_json: &Path) -> Result<String, String> {
 
 /// Extract project name from Cargo.toml
 fn extract_rust_project_name(cargo_toml: &Path) -> Result<String, String> {
-    let content = fs::read_to_string(cargo_toml)
-        .map_err(|e| format!("Failed to read Cargo.toml: {}", e))?;
+    let content =
+        fs::read_to_string(cargo_toml).map_err(|e| format!("Failed to read Cargo.toml: {}", e))?;
 
     // Simple parser for TOML [package] name field
     for line in content.lines() {
@@ -139,7 +139,10 @@ fn extract_python_project_name(pyproject_toml: &Path) -> Result<String, String> 
         }
 
         // Look for name field in relevant sections
-        if (in_project_section || in_poetry_section) && trimmed.starts_with("name") && trimmed.contains('=') {
+        if (in_project_section || in_poetry_section)
+            && trimmed.starts_with("name")
+            && trimmed.contains('=')
+        {
             if let Some(value_part) = trimmed.split('=').nth(1) {
                 let name = value_part.trim().trim_matches('"').trim_matches('\'');
                 if !name.is_empty() {
@@ -154,8 +157,8 @@ fn extract_python_project_name(pyproject_toml: &Path) -> Result<String, String> 
 
 /// Extract project name from go.mod
 fn extract_go_project_name(go_mod: &Path) -> Result<String, String> {
-    let content = fs::read_to_string(go_mod)
-        .map_err(|e| format!("Failed to read go.mod: {}", e))?;
+    let content =
+        fs::read_to_string(go_mod).map_err(|e| format!("Failed to read go.mod: {}", e))?;
 
     // Look for "module" directive
     for line in content.lines() {
@@ -247,7 +250,11 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let package_json = temp_dir.path().join("package.json");
 
-        fs::write(&package_json, r#"{"name": "test-project", "version": "1.0.0"}"#).unwrap();
+        fs::write(
+            &package_json,
+            r#"{"name": "test-project", "version": "1.0.0"}"#,
+        )
+        .unwrap();
 
         let metadata = extract_project_metadata(temp_dir.path().to_str().unwrap()).unwrap();
 
@@ -260,7 +267,11 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let cargo_toml = temp_dir.path().join("Cargo.toml");
 
-        fs::write(&cargo_toml, "[package]\nname = \"my-rust-app\"\nversion = \"0.1.0\"").unwrap();
+        fs::write(
+            &cargo_toml,
+            "[package]\nname = \"my-rust-app\"\nversion = \"0.1.0\"",
+        )
+        .unwrap();
 
         let metadata = extract_project_metadata(temp_dir.path().to_str().unwrap()).unwrap();
 
@@ -273,7 +284,11 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let pyproject_toml = temp_dir.path().join("pyproject.toml");
 
-        fs::write(&pyproject_toml, "[project]\nname = \"my-python-app\"\nversion = \"0.1.0\"").unwrap();
+        fs::write(
+            &pyproject_toml,
+            "[project]\nname = \"my-python-app\"\nversion = \"0.1.0\"",
+        )
+        .unwrap();
 
         let metadata = extract_project_metadata(temp_dir.path().to_str().unwrap()).unwrap();
 
@@ -308,7 +323,10 @@ mod tests {
 
         let metadata = extract_project_metadata(temp_dir.path().to_str().unwrap()).unwrap();
 
-        assert_eq!(metadata.git_remote_url, Some("https://github.com/user/repo.git".to_string()));
+        assert_eq!(
+            metadata.git_remote_url,
+            Some("https://github.com/user/repo.git".to_string())
+        );
     }
 
     #[test]
@@ -364,6 +382,9 @@ mod tests {
         let metadata = extract_project_metadata(temp_dir.path().to_str().unwrap()).unwrap();
 
         // Should be converted to HTTPS
-        assert_eq!(metadata.git_remote_url, Some("https://github.com/guideai-dev/guideai.git".to_string()));
+        assert_eq!(
+            metadata.git_remote_url,
+            Some("https://github.com/guideai-dev/guideai.git".to_string())
+        );
     }
 }
