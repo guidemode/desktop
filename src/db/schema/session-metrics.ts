@@ -49,7 +49,14 @@ export const sessionMetrics = sqliteTable(
     todoWriteCount: integer('todo_write_count'),
     overTopAffirmationsPhrases: text('over_top_affirmations_phrases', { mode: 'json' }), // Array of strings
 
-    // Improvement tips (from various metric categories)
+    // Improvement tips (category-specific)
+    usageImprovementTips: text('usage_improvement_tips', { mode: 'json' }), // Array of strings
+    errorImprovementTips: text('error_improvement_tips', { mode: 'json' }), // Array of strings
+    engagementImprovementTips: text('engagement_improvement_tips', { mode: 'json' }), // Array of strings
+    qualityImprovementTips: text('quality_improvement_tips', { mode: 'json' }), // Array of strings
+    performanceImprovementTips: text('performance_improvement_tips', { mode: 'json' }), // Array of strings
+
+    // Deprecated: kept for backward compatibility, use category-specific columns above
     improvementTips: text('improvement_tips', { mode: 'json' }), // Array of strings
 
     // Custom/rare metrics only (for extensibility)

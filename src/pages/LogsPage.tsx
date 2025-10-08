@@ -52,7 +52,6 @@ function LogsPage() {
               <option value="system">System</option>
               <option value="database">Database</option>
               <option value="upload-queue">Upload Queue</option>
-              <option value="db_helpers">Database Helpers</option>
             </optgroup>
             <optgroup label="Provider Logs">
               <option value="claude-code">Claude Code</option>

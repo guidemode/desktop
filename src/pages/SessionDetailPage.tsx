@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { open } from '@tauri-apps/plugin-shell'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import { useLocalSessionContent } from '../hooks/useLocalSessionContent'
@@ -12,12 +11,13 @@ import { useAiProcessing } from '../hooks/useAiProcessing'
 import { useSessionProcessing } from '../hooks/useSessionProcessing'
 import { useSessionActivity } from '../hooks/useSessionActivity'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'
+import { useAiProcessingProgress } from '../hooks/useAiProcessingProgress'
+import { AiProcessingProgress } from '../components/AiProcessingProgress'
 import {
   TimelineMessage,
   TimelineGroup,
   isTimelineGroup,
   MetricsOverview,
-  RatingBadge,
   PhaseTimeline,
   SessionDetailHeader,
   type SessionPhaseAnalysis,
@@ -31,7 +31,6 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   Cog6ToothIcon,
-  FolderIcon,
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 
@@ -112,6 +111,7 @@ export default function SessionDetailPage() {
   const [processingAi, setProcessingAi] = useState(false)
   const { processSessionWithAi, hasApiKey } = useAiProcessing()
   const { processSession: processMetrics } = useSessionProcessing()
+  const { progress, updateProgress, reset: resetProgress } = useAiProcessingProgress()
   const toast = useToast()
   const quickRatingMutation = useQuickRating()
 
@@ -196,21 +196,18 @@ export default function SessionDetailPage() {
 
     const unlistenSynced = listen('session-synced', (event) => {
       if (event.payload === sessionId) {
-        console.log('[SessionDetailPage] Session synced event received, invalidating queries...')
         invalidateSessionData()
       }
     })
 
     const unlistenFailed = listen('session-sync-failed', (event) => {
       if (event.payload === sessionId) {
-        console.log('[SessionDetailPage] Session sync failed event received, invalidating queries...')
         invalidateSessionData()
       }
     })
 
     const unlistenUpdated = listen('session-updated', (event) => {
       if (event.payload === sessionId) {
-        console.log('[SessionDetailPage] Session updated event received, invalidating queries...')
         invalidateSessionData()
       }
     })
@@ -244,6 +241,8 @@ export default function SessionDetailPage() {
     if (!session || !timeline) return
 
     setProcessingAi(true)
+    resetProgress()
+
     try {
       // Parse session content
       const { ProcessorRegistry } = await import('@guideai-dev/session-processing/processors')
@@ -262,15 +261,16 @@ export default function SessionDetailPage() {
       const parsedSession = processor.parseSession(content)
 
       // Step 1: Calculate metrics (always)
-      console.log('[Processing] Calculating metrics...')
+      updateProgress({
+        name: 'Calculating Metrics',
+        description: 'Analyzing session performance and quality metrics',
+        percentage: 0,
+      })
       await processMetrics(session.session_id, session.provider, content, 'local')
 
       // Step 2: Process with AI if API key available
       if (hasApiKey()) {
-        console.log('[Processing] Running AI processing...')
-        await processSessionWithAi(session.session_id, parsedSession)
-      } else {
-        console.log('[Processing] Skipping AI processing - no API key configured')
+        await processSessionWithAi(session.session_id, parsedSession, updateProgress)
       }
 
       // Reload session to show AI results
@@ -295,34 +295,7 @@ export default function SessionDetailPage() {
       toast.error('Failed to process: ' + (err as Error).message)
     } finally {
       setProcessingAi(false)
-    }
-  }
-
-  const formatDate = (timestamp: number | null) => {
-    if (!timestamp) return 'N/A'
-    return new Date(timestamp).toLocaleString()
-  }
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
-  }
-
-  const formatDuration = (durationMs: number | null) => {
-    if (!durationMs) return 'N/A'
-    const seconds = Math.floor(durationMs / 1000)
-    const minutes = Math.floor(seconds / 60)
-    const hours = Math.floor(minutes / 60)
-
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m ${seconds % 60}s`
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`
-    } else {
-      return `${seconds}s`
+      resetProgress()
     }
   }
 
@@ -431,126 +404,148 @@ export default function SessionDetailPage() {
 
       {/* Session Detail Header - Shared across all tabs */}
       {session && (
-        <SessionDetailHeader
-          session={{
-            provider: session.provider,
-            projectName: session.project_name,
-            sessionStartTime: session.session_start_time ? new Date(session.session_start_time).toISOString() : null,
-            durationMs: session.duration_ms,
-            fileSize: session.file_size,
-            cwd: session.cwd || undefined,
-            project: project ? {
-              name: project.name,
-              gitRemoteUrl: project.github_repo || undefined,
-              cwd: undefined,
-            } : undefined,
-          }}
-          messageCount={messageCount}
-          rating={((session as any).assessment_rating as SessionRating) || null}
-          onRate={handleQuickRate}
-          onProcessSession={handleProcessWithAi}
-          processingStatus={(session as any).ai_model_summary ? 'completed' : 'pending'}
-          isProcessing={processingAi}
-          onCwdClick={session.cwd ? handleCwdClick : undefined}
-          syncStatus={{
-            synced: session.synced_to_server === 1,
-            failed: !!session.sync_failed_reason,
-            reason: session.sync_failed_reason || undefined,
-            onSync: handleSyncSession,
-            onShowError: (error) => toast.error(error, 10000),
-          }}
-          ProviderIcon={ProviderIcon}
-        />
+        <>
+          <SessionDetailHeader
+            session={{
+              provider: session.provider,
+              projectName: session.project_name,
+              sessionStartTime: session.session_start_time ? new Date(session.session_start_time).toISOString() : null,
+              durationMs: session.duration_ms,
+              fileSize: session.file_size,
+              cwd: session.cwd || undefined,
+              project: project ? {
+                name: project.name,
+                gitRemoteUrl: project.github_repo || undefined,
+                cwd: undefined,
+              } : undefined,
+            }}
+            messageCount={messageCount}
+            rating={((session as any).assessment_rating as SessionRating) || null}
+            onRate={handleQuickRate}
+            onProcessSession={handleProcessWithAi}
+            processingStatus={(session as any).ai_model_summary ? 'completed' : 'pending'}
+            isProcessing={processingAi}
+            processingProgress={progress.currentStep ? {
+              stepName: progress.currentStep.name,
+              percentage: progress.currentStep.percentage,
+            } : null}
+            onCwdClick={session.cwd ? handleCwdClick : undefined}
+            syncStatus={{
+              synced: session.synced_to_server === 1,
+              failed: !!session.sync_failed_reason,
+              reason: session.sync_failed_reason || undefined,
+              onSync: handleSyncSession,
+              onShowError: (error) => toast.error(error, 10000),
+            }}
+            ProviderIcon={ProviderIcon}
+          />
+
+          {/* AI Processing Progress */}
+          {progress.currentStep && (
+            <div className="card bg-base-100 border border-primary">
+              <div className="card-body p-4">
+                <AiProcessingProgress step={progress.currentStep} />
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Tabs Navigation */}
-      <div className="tabs tabs-bordered">
-        <button
-          className={`tab tab-lg gap-2 ${
-            activeTab === 'transcript'
-              ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-              : 'bg-base-200 hover:bg-base-300'
-          }`}
-          onClick={() => setActiveTab('transcript')}
-          title="Transcript"
-        >
-          <ChatBubbleLeftRightIcon className="w-5 h-5" />
-          <span className="hidden md:inline">Transcript</span>
-        </button>
-        {phaseAnalysis && (
-          <button
-            className={`tab tab-lg gap-2 ${
-              activeTab === 'phase-timeline'
-                ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                : 'bg-base-200 hover:bg-base-300'
-            }`}
-            onClick={() => setActiveTab('phase-timeline')}
-            title="Timeline"
-          >
-            <ClockIcon className="w-5 h-5" />
-            <span className="hidden md:inline">Timeline</span>
-          </button>
-        )}
-        <button
-          className={`tab tab-lg gap-2 ${
-            activeTab === 'metrics'
-              ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-              : 'bg-base-200 hover:bg-base-300'
-          }`}
-          onClick={() => setActiveTab('metrics')}
-          title="Metrics"
-        >
-          <ChartBarIcon className="w-5 h-5" />
-          <span className="hidden md:inline">Metrics</span>
-        </button>
+      {/* Tabs Navigation with Controls */}
+      <div className="card bg-base-200 border border-base-300 border-b-2 rounded-lg overflow-hidden">
+        <div className="flex items-stretch">
+          {/* Left: Tab Buttons */}
+          <div className="tabs tabs-bordered flex-1">
+            <button
+              className={`tab tab-lg gap-2 rounded-tl-lg ${
+                activeTab === 'transcript'
+                  ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                  : 'hover:bg-base-300'
+              }`}
+              onClick={() => setActiveTab('transcript')}
+              title="Transcript"
+            >
+              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+              <span className="hidden md:inline">Transcript</span>
+            </button>
+            {phaseAnalysis && (
+              <button
+                className={`tab tab-lg gap-2 ${
+                  activeTab === 'phase-timeline'
+                    ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                    : 'hover:bg-base-300'
+                }`}
+                onClick={() => setActiveTab('phase-timeline')}
+                title="Timeline"
+              >
+                <ClockIcon className="w-5 h-5" />
+                <span className="hidden md:inline">Timeline</span>
+              </button>
+            )}
+            <button
+              className={`tab tab-lg gap-2 ${
+                activeTab === 'metrics'
+                  ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                  : 'hover:bg-base-300'
+              }`}
+              onClick={() => setActiveTab('metrics')}
+              title="Metrics"
+            >
+              <ChartBarIcon className="w-5 h-5" />
+              <span className="hidden md:inline">Metrics</span>
+            </button>
+          </div>
+
+          {/* Right: Tab-specific Controls */}
+          {activeTab === 'transcript' && (
+            <div className="flex items-center gap-2 px-3 bg-base-100 border-l border-base-300 rounded-tr-lg">
+              <button
+                onClick={() => setReverseOrder(!reverseOrder)}
+                className={`btn btn-xs gap-1.5 ${reverseOrder ? 'btn-primary' : 'btn-ghost'}`}
+              >
+                {reverseOrder ? <ArrowUpIcon className="w-3.5 h-3.5" /> : <ArrowDownIcon className="w-3.5 h-3.5" />}
+                <span className="text-xs hidden lg:inline">{reverseOrder ? 'Newest First' : 'Oldest First'}</span>
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`btn btn-xs gap-1.5 ${showSettings ? 'btn-primary' : 'btn-ghost'}`}
+                >
+                  <Cog6ToothIcon className="w-3.5 h-3.5" />
+                  <span className="text-xs hidden lg:inline">Settings</span>
+                </button>
+
+                {/* Settings Dropdown */}
+                {showSettings && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSettings(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-base-100 border border-base-300 rounded-lg shadow-lg z-20 p-4">
+                      <h3 className="text-sm font-semibold mb-3">Timeline Settings</h3>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showMetaMessages}
+                          onChange={(e) => setShowMetaMessages(e.target.checked)}
+                          className="checkbox checkbox-sm checkbox-primary"
+                        />
+                        <span className="text-sm">Show meta messages</span>
+                      </label>
+                      <p className="text-xs text-base-content/60 mt-2">
+                        Meta messages are internal system messages that provide context but are not part of the main conversation.
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tab Content */}
       <div>
         {activeTab === 'transcript' && (
-          <div className="space-y-4">
-            {/* Transcript Controls */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setReverseOrder(!reverseOrder)}
-                  className={`btn btn-sm gap-1.5 ${reverseOrder ? 'btn-primary' : 'btn-ghost'}`}
-                >
-                  {reverseOrder ? <ArrowUpIcon className="w-3.5 h-3.5" /> : <ArrowDownIcon className="w-3.5 h-3.5" />}
-                  <span className="text-xs">{reverseOrder ? 'Newest First' : 'Oldest First'}</span>
-                </button>
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className={`btn btn-sm gap-1.5 ${showSettings ? 'btn-primary' : 'btn-ghost'}`}
-                >
-                  <Cog6ToothIcon className="w-3.5 h-3.5" />
-                  <span className="text-xs">Settings</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Settings Dropdown */}
-            {showSettings && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowSettings(false)} />
-                <div className="absolute right-0 md:right-4 top-auto mt-2 w-full md:w-80 bg-base-100 border border-base-300 rounded-lg shadow-lg z-20 p-4">
-                  <h3 className="text-sm font-semibold mb-3">Timeline Settings</h3>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showMetaMessages}
-                      onChange={(e) => setShowMetaMessages(e.target.checked)}
-                      className="checkbox checkbox-sm checkbox-primary"
-                    />
-                    <span className="text-sm">Show meta messages</span>
-                  </label>
-                  <p className="text-xs text-base-content/60 mt-2">
-                    Meta messages are internal system messages that provide context but are not part of the main conversation.
-                  </p>
-                </div>
-              </>
-            )}
-
+          <>
             {/* Timeline Messages */}
             {contentLoading ? (
               <div className="flex items-center justify-center h-64">
@@ -568,7 +563,7 @@ export default function SessionDetailPage() {
                 {renderTimeline()}
               </div>
             )}
-          </div>
+          </>
         )}
         {activeTab === 'phase-timeline' && phaseAnalysis && (
           <PhaseTimeline phaseAnalysis={phaseAnalysis} />

@@ -360,7 +360,7 @@ mod tests {
 
         let snapshot_id = Uuid::new_v4();
         let path = manager
-            .create_snapshot_file(snapshot_id, &timeline)
+            .create_snapshot_file(snapshot_id, &timeline, Some("/test/project"))
             .unwrap();
 
         assert!(path.exists());
@@ -370,19 +370,20 @@ mod tests {
 
     #[test]
     fn test_truncation_detection() {
+        let snapshot_id = Uuid::new_v4();
         let session = SessionEntry {
             source_file: "test.json".to_string(),
             source_session_id: "abc123".to_string(),
             source_start_time: "2025-01-01T10:00:00Z".to_string(),
             snapshots: vec![SnapshotEntry {
-                snapshot_id: Uuid::new_v4(),
+                snapshot_id,
                 created_at: "2025-01-01T10:00:00Z".to_string(),
                 last_updated: "2025-01-01T10:00:00Z".to_string(),
                 last_timeline_count: 100,
                 last_source_file_size: 50000,
                 status: SnapshotStatus::Active,
             }],
-            active_snapshot_id: Uuid::new_v4(),
+            active_snapshot_id: snapshot_id,
         };
 
         // Signal 1 + 2: Timeline dropped from 100 to 10, size dropped from 50000 to 5000

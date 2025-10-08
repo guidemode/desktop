@@ -101,18 +101,18 @@ describe('UploadQueuePage integration', () => {
     const pendingCardLabel = screen
       .getAllByText('Pending')
       .find(element => element.closest('.card')?.querySelector('.text-2xl'))!
-    const pendingCard = pendingCardLabel.closest('.card')!
+    const pendingCard = pendingCardLabel.closest('.card') as HTMLElement
     expect(within(pendingCard).getByText('1')).toBeInTheDocument()
 
     const failedCardLabel = screen
       .getAllByText('Failed')
       .find(element => element.closest('.card')?.querySelector('.text-2xl'))!
-    const failedCard = failedCardLabel.closest('.card')!
+    const failedCard = failedCardLabel.closest('.card') as HTMLElement
     expect(within(failedCard).getByText('1')).toBeInTheDocument()
 
     expect(screen.getByText('Project A')).toBeInTheDocument()
 
-    const failedItemRow = screen.getByText('Project B').closest('.card')!
+    const failedItemRow = screen.getByText('Project B').closest('.card') as HTMLElement
     expect(within(failedItemRow).getByText('Network error')).toBeInTheDocument()
   })
 

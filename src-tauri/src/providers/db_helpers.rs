@@ -203,7 +203,7 @@ fn extract_session_timing(
     // Read JSONL and extract timestamps
     let content = fs::read_to_string(file_path).map_err(|e| {
         let _ = log_warn(
-            "db_helpers",
+            "database",
             &format!("⚠ Failed to read file for timing extraction: {}", e),
         );
         e
@@ -216,7 +216,7 @@ fn extract_session_timing(
 
     if lines.is_empty() {
         let _ = log_warn(
-            "db_helpers",
+            "database",
             "⚠ No lines found in file for timing extraction",
         );
         return Ok((None, None, None));
@@ -257,7 +257,7 @@ fn extract_session_timing(
         (None, Some(_)) => {
             // Unusual: has end but no start
             let _ = log_warn(
-                "db_helpers",
+                "database",
                 "⚠️  Session has end time but no start time",
             );
             None
@@ -329,7 +329,7 @@ fn extract_cwd_from_file(provider_id: &str, file_path: &PathBuf) -> Option<Strin
     }
 
     let _ = log_debug(
-        "db_helpers",
+        "database",
         &format!(
             "⚠ No CWD found in session file for provider {}",
             provider_id

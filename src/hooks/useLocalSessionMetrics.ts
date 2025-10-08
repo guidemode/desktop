@@ -33,7 +33,7 @@ async function fetchSessionMetrics(sessionId: string): Promise<SessionMetricsUI 
     usage: row.read_write_ratio !== null || row.input_clarity_score !== null ? {
       readWriteRatio: row.read_write_ratio?.toString(),
       inputClarityScore: row.input_clarity_score?.toString(),
-      improvementTips: row.improvement_tips ? row.improvement_tips.split('\n').filter(Boolean) : [],
+      improvementTips: row.usage_improvement_tips ? row.usage_improvement_tips.split('\n').filter(Boolean) : [],
     } : undefined,
     error: row.error_count !== null ? {
       errorCount: row.error_count,
@@ -41,12 +41,12 @@ async function fetchSessionMetrics(sessionId: string): Promise<SessionMetricsUI 
       recoveryAttempts: row.recovery_attempts || 0,
       errorTypes: row.error_types ? row.error_types.split(',') : [],
       lastErrorMessage: row.last_error_message || undefined,
-      improvementTips: [],
+      improvementTips: row.error_improvement_tips ? row.error_improvement_tips.split('\n').filter(Boolean) : [],
     } : undefined,
     engagement: row.interruption_rate !== null || row.session_length_minutes !== null ? {
       interruptionRate: row.interruption_rate?.toString(),
       sessionLengthMinutes: row.session_length_minutes?.toString(),
-      improvementTips: [],
+      improvementTips: row.engagement_improvement_tips ? row.engagement_improvement_tips.split('\n').filter(Boolean) : [],
     } : undefined,
     quality: row.task_success_rate !== null ? {
       taskSuccessRate: row.task_success_rate?.toString(),
@@ -58,12 +58,12 @@ async function fetchSessionMetrics(sessionId: string): Promise<SessionMetricsUI 
       todoWriteCount: row.todo_write_count || 0,
       overTopAffirmations: row.over_top_affirmations || 0,
       overTopAffirmationsPhrases: row.over_top_affirmations_phrases ? row.over_top_affirmations_phrases.split(',') : [],
-      improvementTips: row.improvement_tips ? row.improvement_tips.split('\n').filter(Boolean) : [],
+      improvementTips: row.quality_improvement_tips ? row.quality_improvement_tips.split('\n').filter(Boolean) : [],
     } : undefined,
     performance: row.response_latency_ms !== null || row.task_completion_time_ms !== null ? {
       responseLatencyMs: row.response_latency_ms?.toString(),
       taskCompletionTimeMs: row.task_completion_time_ms?.toString(),
-      improvementTips: [],
+      improvementTips: row.performance_improvement_tips ? row.performance_improvement_tips.split('\n').filter(Boolean) : [],
     } : undefined,
   }
 

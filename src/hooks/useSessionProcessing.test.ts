@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionProcessing } from './useSessionProcessing'
 
 const mockInvoke = vi.fn()
@@ -29,12 +29,12 @@ describe('useSessionProcessing', () => {
     vi.setSystemTime(FIXED_TIME)
 
     if (globalThis.crypto && 'randomUUID' in globalThis.crypto) {
-      randomUUIDSpy = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('uuid-123')
+      randomUUIDSpy = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-0000-0000-000000000123')
     } else {
       // Provide minimal crypto shim if unavailable (e.g., older Node versions)
       randomUUIDSpy = vi
-        .spyOn(Object.assign(globalThis, { crypto: { randomUUID: () => 'uuid-123' } }).crypto, 'randomUUID')
-        .mockReturnValue('uuid-123')
+        .spyOn(Object.assign(globalThis, { crypto: { randomUUID: () => '00000000-0000-0000-0000-000000000123' } }).crypto, 'randomUUID')
+        .mockReturnValue('00000000-0000-0000-0000-000000000123')
     }
   })
 

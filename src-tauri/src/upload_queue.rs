@@ -3,6 +3,7 @@ use crate::database::{get_unsynced_sessions, mark_session_sync_failed, mark_sess
 use crate::logging::{log_debug, log_error, log_info, log_warn};
 use crate::project_metadata::ProjectMetadata;
 use crate::providers::SessionInfo;
+use crate::validation::{validate_session_file, MAX_SESSION_FILE_SIZE};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -11,7 +12,6 @@ use std::collections::VecDeque;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::Duration;
 use tauri::Emitter;
 use tokio::time::sleep;
@@ -53,21 +53,6 @@ pub struct UploadStatus {
 pub struct QueueItems {
     pub pending: Vec<UploadItem>,
     pub failed: Vec<UploadItem>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct UploadRequest {
-    pub provider: String,
-    #[serde(rename = "projectName")]
-    pub project_name: String,
-    #[serde(rename = "sessionId")]
-    pub session_id: String,
-    #[serde(rename = "fileName")]
-    pub file_name: String,
-    #[serde(rename = "filePath")]
-    pub file_path: String,
-    pub content: String, // base64 encoded
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,14 +185,18 @@ impl UploadQueue {
         project_name: &str,
         file_path: PathBuf,
     ) -> Result<(), String> {
-        let file_name = file_path
+        // Validate path and check file size
+        let (validated_path, file_size) =
+            validate_session_file(&file_path).map_err(|e| e.to_string())?;
+
+        let file_name = validated_path
             .file_name()
             .and_then(|name| name.to_str())
             .ok_or("Invalid file name")?
             .to_string();
 
         // Read and validate file content
-        let file_content = std::fs::read_to_string(&file_path)
+        let file_content = std::fs::read_to_string(&validated_path)
             .map_err(|e| format!("Failed to read file: {}", e))?;
 
         let (is_valid, validation_error) = Self::validate_jsonl_timestamps(&file_content);
@@ -222,8 +211,8 @@ impl UploadQueue {
             return Ok(());
         }
 
-        // Calculate file hash and size for deduplication
-        let (file_hash, file_size) = Self::calculate_file_hash(&file_path)?;
+        // Calculate file hash for deduplication
+        let (file_hash, _) = Self::calculate_file_hash(&validated_path)?;
 
         // Check if this file has already been uploaded
         if self.is_file_already_uploaded(file_hash) {
@@ -242,7 +231,7 @@ impl UploadQueue {
             id: Uuid::new_v4().to_string(),
             provider: provider.to_string(),
             project_name: project_name.to_string(),
-            file_path: file_path.clone(),
+            file_path: validated_path,
             file_name,
             queued_at: Utc::now(),
             retry_count: 0,
@@ -265,7 +254,26 @@ impl UploadQueue {
     pub fn add_historical_session(&self, session: &SessionInfo) -> Result<(), String> {
         // Handle sessions with in-memory content vs file-based sessions differently
         let (file_hash, file_size, content) = if let Some(ref content) = session.content {
-            // For sessions with in-memory content (like OpenCode), validate and hash the content directly
+            // For sessions with in-memory content (like OpenCode), validate size and timestamps
+            let content_size = content.len() as u64;
+
+            // Check size limit
+            if content_size > MAX_SESSION_FILE_SIZE {
+                let reason = format!(
+                    "content size ({} bytes) exceeds maximum ({} bytes)",
+                    content_size, MAX_SESSION_FILE_SIZE
+                );
+                log_warn(
+                    "upload-queue",
+                    &format!(
+                        "⚠ Skipping historical upload: {} ({})",
+                        session.file_name, reason
+                    ),
+                )
+                .unwrap_or_default();
+                return Ok(());
+            }
+
             let (is_valid, validation_error) = Self::validate_jsonl_timestamps(content);
             if !is_valid {
                 let reason =
@@ -286,11 +294,14 @@ impl UploadQueue {
                 content.hash(&mut hasher);
                 hasher.finish()
             };
-            let content_size = content.len() as u64;
             (content_hash, content_size, Some(content.clone()))
         } else {
-            // For file-based sessions, read and validate content
-            let file_content = std::fs::read_to_string(&session.file_path)
+            // For file-based sessions, validate path and check file size
+            let (validated_path, file_size) =
+                validate_session_file(&session.file_path).map_err(|e| e.to_string())?;
+
+            // Read and validate content
+            let file_content = std::fs::read_to_string(&validated_path)
                 .map_err(|e| format!("Failed to read file: {}", e))?;
 
             let (is_valid, validation_error) = Self::validate_jsonl_timestamps(&file_content);
@@ -308,7 +319,7 @@ impl UploadQueue {
                 return Ok(());
             }
 
-            let (file_hash, file_size) = Self::calculate_file_hash(&session.file_path)?;
+            let (file_hash, _) = Self::calculate_file_hash(&validated_path)?;
             (file_hash, file_size, None)
         };
 
@@ -521,15 +532,14 @@ impl UploadQueue {
         let config_clone = Arc::clone(&self.config);
         let app_handle_clone = Arc::clone(&self.app_handle);
 
-        // Spawn background thread for processing
-        thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                log_info("upload-queue", "📤 Upload processor started").unwrap_or_default();
+        // Use Tauri's async runtime instead of spawning a new thread + runtime
+        // This is more efficient and avoids creating multiple Tokio runtimes
+        tauri::async_runtime::spawn(async move {
+            log_info("upload-queue", "📤 Upload processor started").unwrap_or_default();
 
-                let mut last_db_poll = Utc::now();
+            let mut last_db_poll = Utc::now();
 
-                loop {
+            loop {
                     // Check if we should continue running
                     {
                         if let Ok(is_running) = is_running_clone.lock() {
@@ -706,7 +716,7 @@ impl UploadQueue {
 
                                     log_error(
                                         "upload-queue",
-                                        &format!("✗ Upload failed (invalid input): {}", item.file_name),
+                                        &format!("✗ Upload failed (invalid input, will not retry): {} - Error: {}", item.file_name, e),
                                     ).unwrap_or_default();
                                 } else {
                                     // Network or server errors - retry with backoff
@@ -770,20 +780,12 @@ impl UploadQueue {
                         // No items to process, sleep for a bit
                         sleep(Duration::from_secs(5)).await;
                     }
-                }
+            }
 
-                log_info("upload-queue", "📤 Upload processor stopped").unwrap_or_default();
-            });
+            log_info("upload-queue", "📤 Upload processor stopped").unwrap_or_default();
         });
 
         Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub fn stop_processing(&self) {
-        if let Ok(mut is_running) = self.is_running.lock() {
-            *is_running = false;
-        }
     }
 
     pub fn get_status(&self) -> UploadStatus {
@@ -1008,7 +1010,7 @@ impl UploadQueue {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(format!("Session upload failed with status {}: {}", status, error_text));
+            return Err(format!("Session metadata upload failed (metrics-only mode) with status {}: {}", status, error_text));
         }
 
         log_info(
@@ -1189,7 +1191,7 @@ impl UploadQueue {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(format!(
-                "Upload failed with status {}: {}",
+                "Session transcript upload failed (full sync mode) with status {}: {}",
                 status, error_text
             ));
         }
@@ -1292,7 +1294,7 @@ impl UploadQueue {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(format!("Metrics upload failed with status {}: {}", status, error_text));
+            return Err(format!("Session metrics upload failed with status {}: {}", status, error_text));
         }
 
         log_info(
@@ -1517,26 +1519,34 @@ mod tests {
 
     #[test]
     fn test_add_item() {
-        use std::io::Write;
+        use std::fs;
 
         let queue = UploadQueue::new();
-        let mut temp_file = NamedTempFile::new().unwrap();
 
-        // Write valid JSONL with timestamp
+        // Create temp file in allowed directory (~/.guideai/test)
+        let home = dirs::home_dir().unwrap();
+        let test_dir = home.join(".guideai").join("test");
+        fs::create_dir_all(&test_dir).unwrap();
+
+        let test_file = test_dir.join("test_session.jsonl");
         let jsonl_content =
             r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":"test"}"#;
-        temp_file.write_all(jsonl_content.as_bytes()).unwrap();
-        temp_file.flush().unwrap();
+        fs::write(&test_file, jsonl_content).unwrap();
 
         let result = queue.add_item(
             "claude-code",
             "test-project",
-            temp_file.path().to_path_buf(),
+            test_file.clone(),
         );
-        assert!(result.is_ok());
 
-        let status = queue.get_status();
-        assert_eq!(status.pending, 1);
+        // Clean up
+        fs::remove_file(&test_file).ok();
+
+        assert!(result.is_ok(), "add_item failed: {:?}", result.err());
+
+        // Check in-memory queue directly since get_status() reads from database
+        let queue_len = queue.queue.lock().unwrap().len();
+        assert_eq!(queue_len, 1, "Expected 1 item in queue, got {}", queue_len);
     }
 
     #[test]
@@ -1544,16 +1554,21 @@ mod tests {
         let queue = UploadQueue::new();
         let content = r#"{"timestamp":"2025-01-01T10:00:00.000Z","type":"user","message":{"role":"user","content":[{"type":"text","text":"Hello"}]}}"#;
 
+        // Manually test validation
+        let (is_valid, error) = UploadQueue::validate_jsonl_timestamps(content);
+        assert!(is_valid, "Validation failed: {:?}", error);
+
         let result = queue.add_session_content(
             "opencode",
             "test-project",
             "test-session",
             content.to_string(),
         );
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "add_session_content failed: {:?}", result.err());
 
-        let status = queue.get_status();
-        assert_eq!(status.pending, 1);
+        // Check in-memory queue directly since get_status() reads from database
+        let queue_len = queue.queue.lock().unwrap().len();
+        assert_eq!(queue_len, 1, "Expected 1 item in queue, got {}", queue_len);
     }
 
     #[test]
@@ -1586,22 +1601,29 @@ mod tests {
 
     #[test]
     fn test_add_item_without_timestamps() {
-        use std::io::Write;
+        use std::fs;
 
         let queue = UploadQueue::new();
-        let mut temp_file = NamedTempFile::new().unwrap();
 
-        // Write JSONL without timestamp
+        // Create temp file in allowed directory (~/.guideai/test)
+        let home = dirs::home_dir().unwrap();
+        let test_dir = home.join(".guideai").join("test");
+        fs::create_dir_all(&test_dir).unwrap();
+
+        let test_file = test_dir.join("test_session_no_timestamps.jsonl");
         let jsonl_content = r#"{"type":"user","message":"test"}"#;
-        temp_file.write_all(jsonl_content.as_bytes()).unwrap();
-        temp_file.flush().unwrap();
+        fs::write(&test_file, jsonl_content).unwrap();
 
         let result = queue.add_item(
             "claude-code",
             "test-project",
-            temp_file.path().to_path_buf(),
+            test_file.clone(),
         );
-        assert!(result.is_ok());
+
+        // Clean up
+        fs::remove_file(&test_file).ok();
+
+        assert!(result.is_ok(), "add_item failed: {:?}", result.err());
 
         // Should not be added to queue due to missing timestamps
         let status = queue.get_status();

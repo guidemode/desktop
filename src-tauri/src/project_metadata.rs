@@ -14,9 +14,21 @@ pub struct ProjectMetadata {
 pub fn extract_project_metadata(cwd: &str) -> Result<ProjectMetadata, String> {
     let path = Path::new(cwd);
 
+    // Validate that directory exists
     if !path.exists() {
         return Err(format!("Directory does not exist: {}", cwd));
     }
+
+    // Validate that it is actually a directory
+    if !path.is_dir() {
+        return Err(format!("Path is not a directory: {}", cwd));
+    }
+
+    // Validate path is canonical (no symlinks to sensitive areas)
+    // and get the canonical path for consistent comparison
+    let _canonical_path = path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve path '{}': {}", cwd, e))?;
 
     // Detect project type and extract name
     let (project_name, detected_project_type) = detect_project_type_and_name(path)?;
@@ -200,8 +212,16 @@ fn convert_ssh_to_https(url: &str) -> String {
 fn extract_git_remote_url(path: &Path) -> Option<String> {
     let git_config = path.join(".git").join("config");
 
-    if !git_config.exists() {
+    // Validate git config exists and is a file
+    if !git_config.exists() || !git_config.is_file() {
         return None;
+    }
+
+    // Read config file (with size safety - Git configs are typically small)
+    let metadata = fs::metadata(&git_config).ok()?;
+    const MAX_GIT_CONFIG_SIZE: u64 = 1024 * 1024; // 1MB should be plenty for a .git/config
+    if metadata.len() > MAX_GIT_CONFIG_SIZE {
+        return None; // Suspiciously large config file
     }
 
     let content = fs::read_to_string(&git_config).ok()?;

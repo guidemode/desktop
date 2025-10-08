@@ -8,9 +8,15 @@ interface AiApiKeys {
   gemini?: string
 }
 
+interface SystemConfig {
+  aiProcessingDelayMinutes: number
+  coreMetricsDebounceSeconds: number
+}
+
 interface ConfigState {
   providerConfigs: Record<string, ProviderConfig>
   aiApiKeys: AiApiKeys
+  systemConfig: SystemConfig
   isLoading: boolean
   error: string | null
 
@@ -24,6 +30,10 @@ interface ConfigState {
   deleteAiApiKey: (provider: 'claude' | 'gemini') => void
   getAiApiKey: (provider: 'claude' | 'gemini') => string | undefined
 
+  // System config actions
+  updateSystemConfig: (config: Partial<SystemConfig>) => void
+  getSystemConfig: () => SystemConfig
+
   clearError: () => void
 }
 
@@ -32,6 +42,10 @@ export const useConfigStore = create<ConfigState>()(
     (set, get) => ({
       providerConfigs: {},
       aiApiKeys: {},
+      systemConfig: {
+        aiProcessingDelayMinutes: 10,
+        coreMetricsDebounceSeconds: 10,
+      },
       isLoading: false,
       error: null,
 
@@ -93,12 +107,25 @@ export const useConfigStore = create<ConfigState>()(
         return get().aiApiKeys[provider]
       },
 
+      updateSystemConfig: (config: Partial<SystemConfig>) => {
+        set(state => ({
+          systemConfig: { ...state.systemConfig, ...config }
+        }))
+      },
+
+      getSystemConfig: () => {
+        return get().systemConfig
+      },
+
       clearError: () => set({ error: null })
     }),
     {
       name: 'guideai-config-storage',
-      // Only persist AI API keys, not provider configs (those are in Tauri backend)
-      partialize: (state) => ({ aiApiKeys: state.aiApiKeys })
+      // Persist AI API keys and system config, not provider configs (those are in Tauri backend)
+      partialize: (state) => ({
+        aiApiKeys: state.aiApiKeys,
+        systemConfig: state.systemConfig
+      })
     }
   )
 )

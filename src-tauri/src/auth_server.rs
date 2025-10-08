@@ -100,14 +100,15 @@ impl AuthServer {
             .parse()
             .map_err(|e: std::net::AddrParseError| AuthError::ServerStartFailed(e.to_string()))?;
 
-        println!("Starting auth server on {}", addr);
+        use tracing::info;
+        info!(address = %addr, "Starting auth server");
 
         let (_, server) = warp::serve(routes).bind_with_graceful_shutdown(addr, async {
             shutdown_rx.await.ok();
         });
 
         let handle = tokio::spawn(server);
-        println!("Auth server started successfully on {}", addr);
+        info!(address = %addr, "Auth server started successfully");
 
         Ok(handle)
     }
@@ -116,7 +117,8 @@ impl AuthServer {
         params: HashMap<String, String>,
         result_tx: Arc<Mutex<Option<oneshot::Sender<Result<AuthCallbackData, AuthError>>>>>,
     ) -> Result<impl warp::Reply, Infallible> {
-        println!("Received callback with params: {:?}", params);
+        use tracing::info;
+        info!(params_count = params.len(), "Received auth callback");
         let result = if let Some(error) = params.get("error") {
             Err(AuthError::CallbackError(error.clone()))
         } else if let (Some(api_key), Some(tenant_id), Some(tenant_name)) = (

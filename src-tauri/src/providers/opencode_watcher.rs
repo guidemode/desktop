@@ -18,33 +18,17 @@ const PROVIDER_ID: &str = "opencode";
 // Debounce: aggregate session after this much inactivity
 const AGGREGATION_DEBOUNCE: Duration = Duration::from_secs(2);
 
-// Minimum time between re-uploads to prevent spam
-#[cfg(debug_assertions)]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(30); // 30 seconds in dev mode
-
-#[cfg(not(debug_assertions))]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(300); // 5 minutes in production
-
-const MIN_FILE_COUNT_CHANGE: usize = 2; // Minimum file changes to trigger re-upload
-
 #[derive(Debug, Clone)]
 pub struct SessionChangeEvent {
     pub session_id: String,
     pub project_id: String,
-    pub last_modified: Instant,
-    pub is_new_session: bool,
     pub affected_files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SessionState {
     pub last_modified: Instant,
-    pub is_active: bool,
-    pub upload_pending: bool,
     pub affected_files: HashSet<PathBuf>,
-    pub last_uploaded_time: Option<Instant>,
-    #[allow(dead_code)]
-    pub last_uploaded_size: usize,
     pub needs_aggregation: bool, // True when session has changes that haven't been aggregated
     pub project_id: String,      // Needed for aggregation
     pub last_aggregated: Option<Instant>, // When we last created the virtual JSONL
@@ -177,7 +161,7 @@ impl OpenCodeWatcher {
     fn aggregate_session(
         parser: &OpenCodeParser,
         session_id: &str,
-        project_id: &str,
+        _project_id: &str,
     ) -> Result<(PathBuf, String), Box<dyn std::error::Error + Send + Sync>> {
         // Create cache directory if it doesn't exist
         let cache_dir = dirs::home_dir()
@@ -355,7 +339,7 @@ impl OpenCodeWatcher {
         storage_path: &Path,
         parser: &OpenCodeParser,
         projects_to_watch: &[String],
-        session_states: &HashMap<String, SessionState>,
+        _session_states: &HashMap<String, SessionState>,
     ) -> Option<SessionChangeEvent> {
         // Only process create/modify events
         match &event.kind {
@@ -404,12 +388,6 @@ impl OpenCodeWatcher {
                                                         return Some(SessionChangeEvent {
                                                             session_id: session_id.clone(),
                                                             project_id,
-                                                            last_modified: Instant::now(),
-                                                            is_new_session: Self::is_new_session(
-                                                                &session_id,
-                                                                path,
-                                                                session_states,
-                                                            ),
                                                             affected_files: vec![path.clone()],
                                                         });
                                                     }
@@ -432,12 +410,6 @@ impl OpenCodeWatcher {
                                             return Some(SessionChangeEvent {
                                                 session_id: session_id.to_string(),
                                                 project_id,
-                                                last_modified: Instant::now(),
-                                                is_new_session: Self::is_new_session(
-                                                    session_id,
-                                                    path,
-                                                    session_states,
-                                                ),
                                                 affected_files: vec![path.clone()],
                                             });
                                         }
@@ -458,12 +430,6 @@ impl OpenCodeWatcher {
                                             return Some(SessionChangeEvent {
                                                 session_id: session_id.to_string(),
                                                 project_id: project_id.to_string(),
-                                                last_modified: Instant::now(),
-                                                is_new_session: Self::is_new_session(
-                                                    session_id,
-                                                    path,
-                                                    session_states,
-                                                ),
                                                 affected_files: vec![path.clone()],
                                             });
                                         }
@@ -504,22 +470,6 @@ impl OpenCodeWatcher {
         }
     }
 
-    fn should_log_event(
-        session_event: &SessionChangeEvent,
-        session_states: &HashMap<String, SessionState>,
-    ) -> bool {
-        match session_states.get(&session_event.session_id) {
-            Some(_existing_state) => {
-                // Only log if this is a new session
-                session_event.is_new_session
-            }
-            None => {
-                // Only log if this is actually a new session
-                session_event.is_new_session
-            }
-        }
-    }
-
     /// Mark a session as needing aggregation (Phase 1: Watch)
     fn mark_session_for_aggregation(
         session_states: &mut HashMap<String, SessionState>,
@@ -538,79 +488,11 @@ impl OpenCodeWatcher {
             })
             .or_insert_with(|| SessionState {
                 last_modified: now,
-                is_active: true,
-                upload_pending: false,
                 affected_files: event.affected_files.iter().cloned().collect(),
-                last_uploaded_time: None,
-                last_uploaded_size: 0,
                 needs_aggregation: true,
                 project_id: event.project_id.clone(),
                 last_aggregated: None,
             });
-    }
-
-    fn update_session_state(
-        session_states: &mut HashMap<String, SessionState>,
-        session_event: &SessionChangeEvent,
-    ) {
-        match session_states.get_mut(&session_event.session_id) {
-            Some(existing_state) => {
-                // Track old file count for change detection
-                let old_file_count = existing_state.affected_files.len();
-
-                // Update existing session state
-                existing_state.last_modified = session_event.last_modified;
-                existing_state.is_active = true;
-                for file in &session_event.affected_files {
-                    existing_state.affected_files.insert(file.clone());
-                }
-
-                // Smart re-upload logic: clear upload_pending if conditions met
-                if existing_state.upload_pending {
-                    let new_file_count = existing_state.affected_files.len();
-                    let file_count_changed =
-                        new_file_count.saturating_sub(old_file_count) >= MIN_FILE_COUNT_CHANGE;
-
-                    let should_allow_reupload =
-                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                            // Check if cooldown has elapsed OR file count changed significantly
-                            let cooldown_elapsed = session_event
-                                .last_modified
-                                .duration_since(last_uploaded_time)
-                                >= RE_UPLOAD_COOLDOWN;
-
-                            cooldown_elapsed || file_count_changed
-                        } else {
-                            // No last upload time recorded, allow re-upload
-                            true
-                        };
-
-                    if should_allow_reupload {
-                        existing_state.upload_pending = false;
-                    }
-                }
-            }
-            None => {
-                // Create new session state
-                let mut affected_files = HashSet::new();
-                for file in &session_event.affected_files {
-                    affected_files.insert(file.clone());
-                }
-
-                let session_state = SessionState {
-                    last_modified: session_event.last_modified,
-                    is_active: true,
-                    upload_pending: false,
-                    affected_files,
-                    last_uploaded_time: None,
-                    last_uploaded_size: 0,
-                    needs_aggregation: false,
-                    project_id: session_event.project_id.clone(),
-                    last_aggregated: None,
-                };
-                session_states.insert(session_event.session_id.clone(), session_state);
-            }
-        }
     }
 
     pub fn stop(&self) {
@@ -692,11 +574,10 @@ mod tests {
             session_id.to_string(),
             SessionState {
                 last_modified: Instant::now(),
-                is_active: true,
-                upload_pending: false,
                 affected_files: HashSet::new(),
-                last_uploaded_time: None,
-                last_uploaded_size: 0,
+                needs_aggregation: false,
+                project_id: "test-project".to_string(),
+                last_aggregated: None,
             },
         );
         fs::write(&file_path, "{}").unwrap();

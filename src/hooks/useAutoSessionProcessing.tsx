@@ -21,11 +21,9 @@ export function useAutoSessionProcessing() {
 
         // Skip if already processing this session
         if (processingQueue.has(sessionId)) {
-          console.log(`Session ${sessionId} already being processed, skipping`)
           return
         }
 
-        console.log('Session completed, auto-processing metrics:', sessionId)
         processingQueue.add(sessionId)
 
         try {
@@ -59,8 +57,6 @@ export function useAutoSessionProcessing() {
             content,
             'local'
           )
-
-          console.log(`✓ Auto-processed metrics for session ${sessionId}`)
         } catch (error) {
           console.error(`Failed to auto-process session ${sessionId}:`, error)
         } finally {

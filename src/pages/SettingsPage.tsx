@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 function SettingsPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const { aiApiKeys, setAiApiKey, deleteAiApiKey } = useConfigStore()
+  const { aiApiKeys, setAiApiKey, deleteAiApiKey, systemConfig, updateSystemConfig } = useConfigStore()
   const {
     hasUpdate,
     currentVersion,
@@ -261,6 +261,78 @@ function SettingsPage() {
                     <li>• Claude: <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="link">console.anthropic.com</a></li>
                     <li>• Gemini: <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="link">makersuite.google.com</a></li>
                   </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Metrics Processing Timing */}
+        <div className="card bg-base-100 shadow-sm border border-base-300">
+          <div className="card-body">
+            <h2 className="card-title">Metrics Processing</h2>
+            <p className="text-sm text-base-content/70 mb-4">
+              Configure when metrics are processed for your sessions.
+            </p>
+
+            <div className="space-y-6">
+              {/* Core Metrics Debounce */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium">Core Metrics Debounce</span>
+                  <span className="label-text-alt text-xs">{systemConfig.coreMetricsDebounceSeconds}s</span>
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="60"
+                  value={systemConfig.coreMetricsDebounceSeconds}
+                  onChange={(e) => updateSystemConfig({ coreMetricsDebounceSeconds: parseInt(e.target.value) })}
+                  className="range range-primary"
+                  step="5"
+                />
+                <div className="w-full flex justify-between text-xs px-2 text-base-content/50">
+                  <span>5s</span>
+                  <span>30s</span>
+                  <span>60s</span>
+                </div>
+                <label className="label">
+                  <span className="label-text-alt">Wait time after file activity stops before processing core metrics</span>
+                </label>
+              </div>
+
+              {/* AI Processing Delay */}
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium">AI Processing Delay</span>
+                  <span className="label-text-alt text-xs">{systemConfig.aiProcessingDelayMinutes}m</span>
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="60"
+                  value={systemConfig.aiProcessingDelayMinutes}
+                  onChange={(e) => updateSystemConfig({ aiProcessingDelayMinutes: parseInt(e.target.value) })}
+                  className="range range-primary"
+                  step="1"
+                />
+                <div className="w-full flex justify-between text-xs px-2 text-base-content/50">
+                  <span>1m</span>
+                  <span>30m</span>
+                  <span>60m</span>
+                </div>
+                <label className="label">
+                  <span className="label-text-alt">Wait time after session ends before processing AI summaries (requires API key)</span>
+                </label>
+              </div>
+
+              <div className="alert alert-info">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm">
+                  <p><strong>Core Metrics:</strong> Basic statistics (performance, usage, errors) processed locally without AI.</p>
+                  <p className="mt-1"><strong>AI Processing:</strong> Advanced summaries and quality scores generated using your configured AI API.</p>
                 </div>
               </div>
             </div>

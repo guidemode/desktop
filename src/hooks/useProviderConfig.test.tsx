@@ -35,7 +35,7 @@ describe('provider config hooks', () => {
   })
 
   it('loads provider config data', async () => {
-    const config = { providerId: 'claude', enabled: true }
+    const config = { enabled: true, homeDirectory: '~/.claude', projectSelection: 'ALL' as const, selectedProjects: [], lastScanned: null, syncMode: 'Metrics Only' as const }
     invoke.mockResolvedValue(config)
 
     const client = createQueryClient()
@@ -62,14 +62,15 @@ describe('provider config hooks', () => {
         wrapper: withProvider(client),
       })
 
+      const testConfig = { enabled: true, homeDirectory: '~/.claude', projectSelection: 'ALL' as const, selectedProjects: [], lastScanned: null, syncMode: 'Metrics Only' as const }
       await result.current.mutateAsync({
         providerId: 'claude',
-        config: { providerId: 'claude', enabled: true },
+        config: testConfig,
       })
 
       expect(invoke).toHaveBeenCalledWith('save_provider_config_command', {
         providerId: 'claude',
-        config: { providerId: 'claude', enabled: true },
+        config: testConfig,
       })
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['providerConfig', 'claude'] })
     } finally {

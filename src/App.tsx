@@ -2,7 +2,8 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import { useAuth } from './hooks/useAuth'
 import { useDatabase } from './hooks/useDatabase'
 import { useSessionIngest } from './hooks/useSessionIngest'
-import { useAutoSessionProcessing } from './hooks/useAutoSessionProcessing'
+import { useDebouncedCoreMetrics } from './hooks/useDebouncedCoreMetrics'
+import { useDelayedAiProcessing } from './hooks/useDelayedAiProcessing'
 import AppLayout from './components/Layout/AppLayout'
 import DashboardPage from './pages/DashboardPage'
 import OverviewPage from './pages/OverviewPage'
@@ -23,11 +24,11 @@ function AppContent() {
   // Start listening for session detection events
   useSessionIngest()
 
-  // Automatically process metrics when sessions complete (for "Metrics Only" mode)
-  useAutoSessionProcessing()
+  // Process core metrics with debouncing (waits for file activity to settle)
+  useDebouncedCoreMetrics()
 
-  // NOTE: Background metric processing is available via useBackgroundProcessing()
-  // but not enabled by default. Can be triggered manually from UI if needed.
+  // Process AI metrics with configurable delay (default 10min after session ends)
+  useDelayedAiProcessing()
 
   useEffect(() => {
     // Listen for navigation events from the menubar window

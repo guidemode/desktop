@@ -18,7 +18,6 @@ mod session_scanner;
 pub use claude_watcher::{ClaudeWatcher, ClaudeWatcherStatus};
 pub use codex_watcher::{CodexWatcher, CodexWatcherStatus};
 pub use copilot_watcher::{CopilotWatcher, CopilotWatcherStatus};
-pub use opencode_parser::OpenCodeParser;
 pub use opencode_watcher::{OpenCodeWatcher, OpenCodeWatcherStatus};
 pub use session_scanner::{scan_all_sessions, SessionInfo};
 

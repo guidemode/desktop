@@ -1576,6 +1576,7 @@ dependencies = [
  "tauri-plugin-sql",
  "tauri-plugin-updater",
  "tempfile",
+ "thiserror 2.0.17",
  "tokio",
  "tokio-util",
  "toml 0.8.2",

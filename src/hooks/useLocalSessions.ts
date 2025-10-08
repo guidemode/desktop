@@ -186,10 +186,15 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
 
   // Transform results to include metrics as nested object
   const sessionsWithMetrics: SessionWithMetrics[] = result.map((row) => {
-    const metrics =
-      row.response_latency_ms !== null ||
+    const hasMetrics = row.response_latency_ms !== null ||
       row.task_completion_time_ms !== null ||
       row.read_write_ratio !== null
+
+    if (!hasMetrics && row.core_metrics_status === 'completed') {
+      console.warn(`[useLocalSessions] ⚠️  Session ${row.session_id} has core_metrics_status='completed' but NO metrics in LEFT JOIN result!`)
+    }
+
+    const metrics = hasMetrics
         ? {
             response_latency_ms: row.response_latency_ms,
             task_completion_time_ms: row.task_completion_time_ms,
@@ -230,6 +235,7 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
       aiModelSummary: row.ai_model_summary || null,
       aiModelQualityScore: row.ai_model_quality_score || null,
       aiModelMetadata: row.ai_model_metadata ? JSON.parse(row.ai_model_metadata) : null,
+      aiModelPhaseAnalysis: row.ai_model_phase_analysis ? JSON.parse(row.ai_model_phase_analysis) : null,
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       uploadedAt: row.uploaded_at ? new Date(row.uploaded_at).toISOString() : new Date().toISOString(),
       syncedToServer: row.synced_to_server === 1,
@@ -356,6 +362,7 @@ export function useLocalSession(sessionId: string) {
         aiModelSummary: row.ai_model_summary || null,
         aiModelQualityScore: row.ai_model_quality_score || null,
         aiModelMetadata: row.ai_model_metadata ? JSON.parse(row.ai_model_metadata) : null,
+        aiModelPhaseAnalysis: row.ai_model_phase_analysis ? JSON.parse(row.ai_model_phase_analysis) : null,
         createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
         uploadedAt: row.uploaded_at ? new Date(row.uploaded_at).toISOString() : new Date().toISOString(),
         filePath: row.file_path,

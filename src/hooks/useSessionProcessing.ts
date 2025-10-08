@@ -50,7 +50,13 @@ interface SessionMetricsRow {
   exit_plan_mode_count?: number
   todo_write_count?: number
   over_top_affirmations_phrases?: string
-  improvement_tips?: string
+  // Improvement tips (category-specific)
+  usage_improvement_tips?: string
+  error_improvement_tips?: string
+  engagement_improvement_tips?: string
+  quality_improvement_tips?: string
+  performance_improvement_tips?: string
+  improvement_tips?: string // Deprecated - backward compatibility
   // Custom metrics
   custom_metrics?: string
   created_at: number
@@ -93,6 +99,7 @@ export function useSessionProcessing() {
         return results
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+        console.error(`Failed to process session ${sessionId}:`, errorMessage)
         setError(errorMessage)
         throw err
       } finally {
@@ -134,6 +141,7 @@ function mapResultsToRow(
         row.response_latency_ms = perf.response_latency_ms
         row.task_completion_time_ms = perf.task_completion_time_ms
         row.performance_total_responses = perf.metadata?.total_responses
+        row.performance_improvement_tips = perf.metadata?.improvement_tips?.join('\n')
         break
       }
 
@@ -144,6 +152,7 @@ function mapResultsToRow(
         row.read_operations = usage.metadata?.read_operations
         row.write_operations = usage.metadata?.write_operations
         row.total_user_messages = usage.metadata?.total_user_messages
+        row.usage_improvement_tips = usage.metadata?.improvement_tips?.join('\n')
         break
       }
 
@@ -154,6 +163,7 @@ function mapResultsToRow(
         row.last_error_message = errors.last_error_message
         row.recovery_attempts = errors.recovery_attempts
         row.fatal_errors = errors.fatal_errors
+        row.error_improvement_tips = errors.metadata?.improvement_tips?.join('\n')
         break
       }
 
@@ -163,6 +173,7 @@ function mapResultsToRow(
         row.session_length_minutes = engagement.session_length_minutes
         row.total_interruptions = engagement.metadata?.total_interruptions
         row.engagement_total_responses = engagement.metadata?.total_responses
+        row.engagement_improvement_tips = engagement.metadata?.improvement_tips?.join('\n')
         break
       }
 
@@ -181,6 +192,8 @@ function mapResultsToRow(
         row.over_top_affirmations_phrases = quality.metadata?.over_top_affirmations_phrases?.join(
           ','
         )
+        row.quality_improvement_tips = quality.metadata?.improvement_tips?.join('\n')
+        // Keep backward compatibility
         row.improvement_tips = quality.metadata?.improvement_tips?.join('\n')
         break
       }
@@ -212,7 +225,9 @@ async function storeMetrics(
         task_success_rate, iteration_count, process_quality_score,
         used_plan_mode, used_todo_tracking, over_top_affirmations,
         successful_operations, total_operations, exit_plan_mode_count, todo_write_count,
-        over_top_affirmations_phrases, improvement_tips,
+        over_top_affirmations_phrases,
+        usage_improvement_tips, error_improvement_tips, engagement_improvement_tips,
+        quality_improvement_tips, performance_improvement_tips, improvement_tips,
         created_at
       ) VALUES (
         ?, ?, ?, ?,
@@ -223,7 +238,9 @@ async function storeMetrics(
         ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?, ?,
-        ?, ?,
+        ?,
+        ?, ?, ?,
+        ?, ?, ?,
         ?
       )
     `,
@@ -260,22 +277,25 @@ async function storeMetrics(
       row.exit_plan_mode_count ?? null,
       row.todo_write_count ?? null,
       row.over_top_affirmations_phrases ?? null,
+      row.usage_improvement_tips ?? null,
+      row.error_improvement_tips ?? null,
+      row.engagement_improvement_tips ?? null,
+      row.quality_improvement_tips ?? null,
+      row.performance_improvement_tips ?? null,
       row.improvement_tips ?? null,
       row.created_at,
     ],
   })
 
-  console.log(`Stored metrics for session ${sessionId} (${provider})`)
-
-  // Update the processing_status in agent_sessions table
+  // Update the core_metrics_status in agent_sessions table and reset sync flag to trigger upload
   await invoke('execute_sql', {
     sql: `
       UPDATE agent_sessions
-      SET processing_status = 'completed'
+      SET core_metrics_status = 'completed',
+          core_metrics_processed_at = ?,
+          synced_to_server = 0
       WHERE session_id = ?
     `,
-    params: [sessionId],
+    params: [Date.now(), sessionId],
   })
-
-  console.log(`Updated processing status to 'completed' for session ${sessionId}`)
 }

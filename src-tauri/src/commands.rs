@@ -64,12 +64,13 @@ pub async fn login_command(
     );
 
     // Log server details for debugging
-    println!(
-        "Authentication server started on port: {}",
-        auth_server.port
+    use tracing::info;
+    info!(
+        port = auth_server.port,
+        callback_url = %callback_url,
+        auth_url = %auth_url,
+        "Authentication server started"
     );
-    println!("Callback URL: {}", callback_url);
-    println!("Opening browser to: {}", auth_url);
 
     // Authentication flow with guaranteed cleanup
     let result = async {
@@ -89,14 +90,11 @@ pub async fn login_command(
                 })?;
 
         // Verify the credentials by calling the session endpoint
-        println!("Verifying session with server: {}", server_url);
+        info!(server_url = %server_url, "Verifying session with server");
         let user_info = verify_session(&server_url, &auth_data.api_key)
             .await
             .map_err(|e| format!("Failed to verify credentials: {}", e))?;
-        println!(
-            "Session verified successfully for user: {}",
-            user_info.username
-        );
+        info!(username = %user_info.username, "Session verified successfully");
 
         // Save the complete configuration
         let config = GuideAIConfig {
@@ -109,13 +107,13 @@ pub async fn login_command(
             tenant_name: Some(auth_data.tenant_name.clone()),
         };
 
-        println!("Saving config: {:?}", config);
+        info!("Saving authentication configuration");
         save_config(&config).map_err(|e| format!("Failed to save configuration: {}", e))?;
-        println!("Config saved successfully");
+        info!("Configuration saved successfully");
 
         // Update upload queue with new config
         state.upload_queue.set_config(config);
-        println!("Upload queue config updated");
+        info!("Upload queue configuration updated");
 
         Ok::<(), String>(())
     }
@@ -160,7 +158,8 @@ async fn verify_session(
     }
 
     let response_text = response.text().await?;
-    println!("Response body: {}", response_text);
+    use tracing::debug;
+    debug!(response_body = %response_text, "Session verification response");
 
     let session: SessionResponse = serde_json::from_str(&response_text)?;
     Ok(session.user)
@@ -181,7 +180,8 @@ pub async fn logout_command(state: State<'_, AppState>) -> Result<(), String> {
         tenant_name: None,
     };
     state.upload_queue.set_config(empty_config);
-    println!("Upload queue config cleared");
+    use tracing::info;
+    info!("Upload queue configuration cleared");
 
     Ok(())
 }
@@ -1084,12 +1084,14 @@ pub async fn get_session_content(
 
 // Autostart function for watchers
 pub fn start_enabled_watchers(app_state: &AppState) {
+    use tracing::{error, info};
+
     // Load and set the configuration on upload queue first
     if let Ok(config) = load_config() {
         app_state.upload_queue.set_config(config);
-        println!("Configuration loaded and set for upload queue");
+        info!("Configuration loaded and set for upload queue");
     } else {
-        eprintln!("Warning: Failed to load configuration for upload queue");
+        error!("Failed to load configuration for upload queue");
     }
 
     // Try to start Claude Code watcher if enabled
@@ -1115,17 +1117,17 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                                         "claude-code".to_string(),
                                         Watcher::Claude(watcher),
                                     );
-                                    println!("Claude Code watcher started automatically");
+                                    info!("Claude Code watcher started automatically");
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Failed to start Claude Code watcher: {}", e);
+                                error!(error = %e, "Failed to start Claude Code watcher");
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to scan Claude Code projects: {}", e);
+                    error!(error = %e, "Failed to scan Claude Code projects");
                 }
             }
         }
@@ -1152,17 +1154,17 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
                                     watchers
                                         .insert("opencode".to_string(), Watcher::OpenCode(watcher));
-                                    println!("OpenCode watcher started automatically");
+                                    info!("OpenCode watcher started automatically");
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Failed to start OpenCode watcher: {}", e);
+                                error!(error = %e, "Failed to start OpenCode watcher");
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to scan OpenCode projects: {}", e);
+                    error!(error = %e, "Failed to scan OpenCode projects");
                 }
             }
         }
@@ -1188,17 +1190,17 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
                                     watchers.insert("codex".to_string(), Watcher::Codex(watcher));
-                                    println!("Codex watcher started automatically");
+                                    info!("Codex watcher started automatically");
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Failed to start Codex watcher: {}", e);
+                                error!(error = %e, "Failed to start Codex watcher");
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to scan Codex projects: {}", e);
+                    error!(error = %e, "Failed to scan Codex projects");
                 }
             }
         }
@@ -1228,17 +1230,17 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                                         "github-copilot".to_string(),
                                         Watcher::Copilot(watcher),
                                     );
-                                    println!("GitHub Copilot watcher started automatically");
+                                    info!("GitHub Copilot watcher started automatically");
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Failed to start GitHub Copilot watcher: {}", e);
+                                error!(error = %e, "Failed to start GitHub Copilot watcher");
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to scan GitHub Copilot projects: {}", e);
+                    error!(error = %e, "Failed to scan GitHub Copilot projects");
                 }
             }
         }

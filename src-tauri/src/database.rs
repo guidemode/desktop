@@ -13,6 +13,28 @@ lazy_static! {
     static ref APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
 }
 
+/// Helper function to get database connection with proper error handling
+/// Replaces repeated `.lock().unwrap()` pattern throughout the code
+fn get_db_connection(
+) -> Result<std::sync::MutexGuard<'static, Option<Connection>>, rusqlite::Error> {
+    DB_CONNECTION
+        .lock()
+        .map_err(|_| rusqlite::Error::InvalidQuery)
+}
+
+/// Helper function to get the active database connection with mutable access
+/// Returns an error if the connection is not initialized
+fn with_connection_mut<F, T>(f: F) -> Result<T, rusqlite::Error>
+where
+    F: FnOnce(&mut Connection) -> Result<T, rusqlite::Error>,
+{
+    let mut db_conn = get_db_connection()?;
+    let conn = db_conn
+        .as_mut()
+        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
+    f(conn)
+}
+
 /// Set the app handle for event emission
 pub fn set_app_handle(app_handle: tauri::AppHandle) {
     if let Ok(mut handle_guard) = APP_HANDLE.lock() {
@@ -183,6 +205,7 @@ pub fn update_session(
     let session_completed = existing_end_time_ms.is_none() && session_end_time.is_some();
 
     // Update by session_id only since providers like OpenCode have multiple files per session
+    // Reset core_metrics_status and processing_status to 'pending' since file content has changed
     conn.execute(
         "UPDATE agent_sessions
          SET file_size = ?,
@@ -191,7 +214,9 @@ pub fn update_session(
              duration_ms = ?,
              cwd = ?,
              uploaded_at = ?,
-             synced_to_server = 0
+             synced_to_server = 0,
+             core_metrics_status = 'pending',
+             processing_status = 'pending'
          WHERE session_id = ?",
         params![
             file_size as i64,
@@ -254,7 +279,7 @@ pub fn session_exists(session_id: &str, _file_name: &str) -> Result<bool> {  // 
 /// Get all unsynced sessions (for upload queue)
 /// Only returns sessions that have both start and end times, no sync failure,
 /// and where the provider's sync mode is set to "Transcript and Metrics" or "Metrics Only"
-/// For "Metrics Only" mode, also requires processing_status = 'completed' (metrics exist)
+/// For "Metrics Only" mode, requires core_metrics_status = 'completed' (uploads twice: first with core metrics, then with AI)
 pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
     use crate::config::load_provider_config;
 
@@ -265,7 +290,9 @@ pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
 
     let mut stmt = conn.prepare(
         "SELECT id, provider, project_name, session_id, file_name, file_path, file_size, cwd,
-                session_start_time, session_end_time, processing_status
+                session_start_time, session_end_time,
+                COALESCE(core_metrics_status, 'pending') as core_metrics_status,
+                COALESCE(processing_status, 'pending') as processing_status
          FROM agent_sessions
          WHERE synced_to_server = 0
            AND session_start_time IS NOT NULL
@@ -289,24 +316,26 @@ pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
                     session_start_time: row.get(8)?,
                     session_end_time: row.get(9)?,
                 },
-                row.get::<_, String>(10)?, // processing_status
+                row.get::<_, String>(10)?, // core_metrics_status
+                row.get::<_, String>(11)?, // processing_status
             ))
         })?
         .collect::<Result<Vec<_>>>()?;
 
     // Filter to include sessions with sync mode "Transcript and Metrics" or "Metrics Only"
-    // For "Metrics Only", also require processing_status = 'completed'
+    // For "Metrics Only", require core_metrics_status = 'completed' (will upload twice: first with core, then with AI)
     let sessions = all_sessions
         .into_iter()
-        .filter_map(|(session, processing_status)| {
+        .filter_map(|(session, core_metrics_status, _processing_status)| {
             match load_provider_config(&session.provider) {
                 Ok(config) => {
                     if config.sync_mode == "Transcript and Metrics" {
                         // Transcript mode: upload anytime after session ends
                         Some(session)
                     } else if config.sync_mode == "Metrics Only" {
-                        // Metrics Only: wait for processing to complete
-                        if processing_status == "completed" {
+                        // Metrics Only: wait for core metrics to complete (uploads immediately after core metrics)
+                        // Will upload again later when AI processing completes (server upserts)
+                        if core_metrics_status == "completed" {
                             Some(session)
                         } else {
                             None
@@ -476,62 +505,69 @@ pub struct UnsyncedSession {
 }
 
 /// Insert or get a project by CWD (upsert)
+/// Uses a transaction to ensure atomicity
 pub fn insert_or_get_project(
     name: &str,
     github_repo: Option<&str>,
     cwd: &str,
     project_type: &str,
 ) -> Result<String> {
-    let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn
-        .as_ref()
-        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
+    with_connection_mut(|conn| {
+        // Use a transaction for atomic upsert
+        let tx = conn.transaction()?;
 
-    let now = Utc::now().timestamp_millis();
+        let now = Utc::now().timestamp_millis();
 
-    // Try to get existing project by CWD
-    let existing: Option<String> = conn
-        .query_row(
-            "SELECT id FROM projects WHERE cwd = ?",
-            params![cwd],
-            |row| row.get(0),
-        )
-        .ok();
+        // Try to get existing project by CWD
+        let existing: Option<String> = tx
+            .query_row(
+                "SELECT id FROM projects WHERE cwd = ?",
+                params![cwd],
+                |row| row.get(0),
+            )
+            .ok();
 
-    if let Some(project_id) = existing {
-        // Update existing project
-        conn.execute(
-            "UPDATE projects SET name = ?, github_repo = ?, type = ?, updated_at = ? WHERE id = ?",
-            params![name, github_repo, project_type, now, project_id],
-        )?;
+        let project_id = if let Some(project_id) = existing {
+            // Update existing project
+            tx.execute(
+                "UPDATE projects SET name = ?, github_repo = ?, type = ?, updated_at = ? WHERE id = ?",
+                params![name, github_repo, project_type, now, project_id],
+            )?;
 
-        log_debug(
-            "database",
-            &format!("↻ Updated project {} ({})", name, project_id),
-        )
-        .unwrap_or_default();
+            log_debug(
+                "database",
+                &format!("↻ Updated project {} ({})", name, project_id),
+            )
+            .unwrap_or_default();
+
+            project_id
+        } else {
+            // Insert new project
+            let id = Uuid::new_v4().to_string();
+            tx.execute(
+                "INSERT INTO projects (id, name, github_repo, cwd, type, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                params![id, name, github_repo, cwd, project_type, now, now],
+            )?;
+
+            log_info("database", &format!("✓ Inserted project {} ({})", name, &id))
+                .unwrap_or_default();
+
+            // Emit event to frontend
+            if let Ok(app_handle_guard) = APP_HANDLE.lock() {
+                if let Some(ref app_handle) = *app_handle_guard {
+                    let _ = app_handle.emit("project-updated", &id);
+                }
+            }
+
+            id
+        };
+
+        // Commit transaction
+        tx.commit()?;
 
         Ok(project_id)
-    } else {
-        // Insert new project
-        let id = Uuid::new_v4().to_string();
-        conn.execute(
-            "INSERT INTO projects (id, name, github_repo, cwd, type, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
-            params![id, name, github_repo, cwd, project_type, now, now],
-        )?;
-
-        log_info("database", &format!("✓ Inserted project {} ({})", name, id)).unwrap_or_default();
-
-        // Emit event to frontend
-        if let Ok(app_handle_guard) = APP_HANDLE.lock() {
-            if let Some(ref app_handle) = *app_handle_guard {
-                let _ = app_handle.emit("project-updated", &id);
-            }
-        }
-
-        Ok(id)
-    }
+    })
 }
 
 /// Get all projects with session counts

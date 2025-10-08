@@ -5,11 +5,13 @@ mod auth_server;
 mod commands;
 mod config;
 mod database;
+mod error;
 mod file_watcher;
 mod logging;
 mod project_metadata;
 mod providers;
 mod upload_queue;
+mod validation;
 
 use commands::{start_enabled_watchers, AppState};
 use file_watcher::start_config_file_watcher;
@@ -85,20 +87,34 @@ fn main() {
                             sql: include_str!("../migrations/010_add_phase_analysis.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 11,
+                            description: "add_core_metrics_tracking",
+                            sql: include_str!("../migrations/011_add_core_metrics_tracking.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 12,
+                            description: "add_category_improvement_tips",
+                            sql: include_str!("../migrations/012_add_category_improvement_tips.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
         )
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
+            use tracing::{error, warn};
+
             // Initialize logging system
             if let Err(e) = logging::init_logging() {
-                eprintln!("Failed to initialize logging: {}", e);
+                error!("Failed to initialize logging: {}", e);
             }
 
             // Initialize database
             if let Err(e) = database::init_database() {
-                eprintln!("Failed to initialize database: {}", e);
+                error!("Failed to initialize database: {}", e);
             }
 
             // Set app handle on database for event emission
@@ -116,7 +132,9 @@ fn main() {
             app.manage(app_state);
 
             // Get reference to main window for config file watcher
-            let main_window = app.get_webview_window("main").unwrap();
+            let main_window = app
+                .get_webview_window("main")
+                .ok_or_else(|| "Main window not found")?;
 
             // Start config file watcher with main window for event emission
             match start_config_file_watcher(main_window.as_ref().window()) {
@@ -125,7 +143,7 @@ fn main() {
                     app.manage(_watcher);
                 }
                 Err(e) => {
-                    eprintln!("Failed to start config file watcher: {}", e);
+                    warn!("Failed to start config file watcher: {}", e);
                     // Continue without file watcher - not critical for app functionality
                 }
             }

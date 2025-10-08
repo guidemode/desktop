@@ -17,7 +17,6 @@ export function useSessionActivity() {
     const unlistenUpdated = listen<string>('session-updated', (event) => {
       const sessionId = event.payload
       if (sessionId) {
-        console.log('[SessionActivity] Session updated:', sessionId)
         markSessionActive(sessionId)
       }
     })

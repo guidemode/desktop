@@ -107,18 +107,15 @@ export default function SessionsPage() {
 
   // Listen for sync/update events from backend and invalidate cache
   useEffect(() => {
-    const unlistenSynced = listen('session-synced', (event) => {
-      console.log('[SessionsPage] Session synced event received:', event.payload)
+    const unlistenSynced = listen('session-synced', () => {
       invalidateSessions()
     })
 
-    const unlistenFailed = listen('session-sync-failed', (event) => {
-      console.log('[SessionsPage] Session sync failed event received:', event.payload)
+    const unlistenFailed = listen('session-sync-failed', () => {
       invalidateSessions()
     })
 
-    const unlistenUpdated = listen('session-updated', (event) => {
-      console.log('[SessionsPage] Session updated event received:', event.payload)
+    const unlistenUpdated = listen('session-updated', () => {
       invalidateSessions()
     })
 
@@ -155,15 +152,11 @@ export default function SessionsPage() {
       const parsedSession = processor.parseSession(content)
 
       // Step 1: Calculate metrics (always)
-      console.log('[Processing] Calculating metrics...')
       await processMetrics(sessionId, provider, content, 'local')
 
       // Step 2: Process with AI if API key is available
       if (hasApiKey()) {
-        console.log('[Processing] Running AI processing...')
         await processSessionWithAi(sessionId, parsedSession)
-      } else {
-        console.log('[Processing] Skipping AI processing - no API key configured')
       }
 
       // Refresh sessions to show updated results
@@ -333,7 +326,7 @@ export default function SessionsPage() {
 
       // Check if provider's sync mode allows uploads
       const providerConfig = await invoke('load_provider_config_command', { providerId })
-      if ((providerConfig as any).syncMode !== 'Transcript and Metrics') {
+      if ((providerConfig as any).syncMode === 'Nothing') {
         // Navigate to provider config page with hash to highlight sync mode setting
         navigate(`/provider/${providerId}#sync-mode`)
         return
@@ -369,57 +362,39 @@ export default function SessionsPage() {
   }
 
   const handleRescan = async () => {
-    console.log('[SessionsPage] handleRescan CALLED!')
-    console.log('[SessionsPage] Starting rescan operation...')
-
     // Disable activity tracking and clear existing active sessions
     setTrackingEnabled(false)
     clearAllActiveSessions()
-    console.log('[SessionsPage] Disabled activity tracking during rescan')
 
     setRescanning(true)
     try {
       // Rescan all enabled providers
-      console.log('[SessionsPage] Rescanning sessions for all enabled providers...')
       const providers = ['claude-code', 'github-copilot', 'opencode', 'codex']
       let totalFound = 0
 
       for (const provider of providers) {
         try {
-          console.log(`[SessionsPage] Scanning ${provider}...`)
           const sessions = await invoke<any[]>('scan_historical_sessions', {
             providerId: provider,
           })
-          console.log(`[SessionsPage] ✓ Found ${sessions.length} sessions for ${provider}`)
           totalFound += sessions.length
         } catch (err) {
           // Provider might not be enabled, that's ok
-          console.error(`[SessionsPage] Error scanning ${provider}:`, err)
-          console.error(`[SessionsPage] Error details:`, JSON.stringify(err))
+          console.error(`Error scanning ${provider}:`, err)
         }
       }
 
-      console.log('[SessionsPage] Calling refresh() to reload UI...')
       refresh()
-
-      console.log('[SessionsPage] Complete!')
       setRescanning(false)
 
       // Re-enable activity tracking after a 10 second delay
       setTimeout(() => {
         setTrackingEnabled(true)
-        console.log('[SessionsPage] Re-enabled activity tracking')
       }, 10000)
-
-      console.log(`[SessionsPage] Total found across all providers: ${totalFound}`)
 
       toast.success(`Rescanned and found ${totalFound} sessions. Sessions reloaded!`)
     } catch (err) {
-      console.error('[SessionsPage] FATAL ERROR during rescan:', err)
-      console.error('[SessionsPage] Error type:', typeof err)
-      console.error('[SessionsPage] Error message:', (err as any)?.message)
-      console.error('[SessionsPage] Error string:', String(err))
-      console.error('[SessionsPage] Full error object:', JSON.stringify(err, null, 2))
+      console.error('Error during rescan:', err)
       toast.error('Failed to rescan: ' + String(err))
       setRescanning(false)
       setTrackingEnabled(true) // Re-enable on error
@@ -427,63 +402,41 @@ export default function SessionsPage() {
   }
 
   const handleClearAndReload = async () => {
-    console.log('[SessionsPage] handleClearAndReload CALLED!')
-    console.log('[SessionsPage] Starting clear and rescan operation...')
-
     // Disable activity tracking and clear existing active sessions
     setTrackingEnabled(false)
     clearAllActiveSessions()
-    console.log('[SessionsPage] Disabled activity tracking during rescan')
 
     setClearing(true)
     try {
-      console.log('[SessionsPage] Step 1: Clearing database...')
       const result = await invoke<string>('clear_all_sessions')
-      console.log('[SessionsPage] ✓ Clear result:', result)
-      console.log('[SessionsPage] Result type:', typeof result)
-      console.log('[SessionsPage] Result value:', JSON.stringify(result))
 
       // Rescan all enabled providers
-      console.log('[SessionsPage] Step 2: Rescanning sessions for all enabled providers...')
       const providers = ['claude-code', 'github-copilot', 'opencode', 'codex']
       let totalFound = 0
 
       for (const provider of providers) {
         try {
-          console.log(`[SessionsPage] Scanning ${provider}...`)
           const sessions = await invoke<any[]>('scan_historical_sessions', {
             providerId: provider,
           })
-          console.log(`[SessionsPage] ✓ Found ${sessions.length} sessions for ${provider}`)
           totalFound += sessions.length
         } catch (err) {
           // Provider might not be enabled, that's ok
-          console.error(`[SessionsPage] Error scanning ${provider}:`, err)
-          console.error(`[SessionsPage] Error details:`, JSON.stringify(err))
+          console.error(`Error scanning ${provider}:`, err)
         }
       }
 
-      console.log('[SessionsPage] Step 3: Calling refresh() to reload UI...')
       refresh()
-
-      console.log('[SessionsPage] Step 4: Complete!')
       setClearing(false)
 
       // Re-enable activity tracking after a 10 second delay
       setTimeout(() => {
         setTrackingEnabled(true)
-        console.log('[SessionsPage] Re-enabled activity tracking')
       }, 10000)
-
-      console.log(`[SessionsPage] Total found across all providers: ${totalFound}`)
 
       toast.success(`${result}\n\nRescanned and found ${totalFound} sessions.\n\nSessions reloaded!`, 8000)
     } catch (err) {
-      console.error('[SessionsPage] FATAL ERROR during clear and rescan:', err)
-      console.error('[SessionsPage] Error type:', typeof err)
-      console.error('[SessionsPage] Error message:', (err as any)?.message)
-      console.error('[SessionsPage] Error string:', String(err))
-      console.error('[SessionsPage] Full error object:', JSON.stringify(err, null, 2))
+      console.error('Error during clear and rescan:', err)
       toast.error('Failed to clear and rescan: ' + String(err))
       setClearing(false)
       setTrackingEnabled(true) // Re-enable on error

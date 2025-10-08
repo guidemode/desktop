@@ -25,12 +25,9 @@ export function useSessionIngest() {
       unlisten = await listen<SessionDetectedPayload>('session-detected', async (event) => {
         const payload = event.payload
 
-        console.log('Session detected:', payload.session_id)
-
         // Check if session already exists to avoid duplicates
         const exists = await sessionExists(payload.session_id, payload.file_name)
         if (exists) {
-          console.log(`Session ${payload.session_id} already exists in database, skipping`)
           return
         }
 
@@ -49,7 +46,6 @@ export function useSessionIngest() {
 
         try {
           await insertSession(sessionData)
-          console.log(`✓ Session ${payload.session_id} ingested into local database`)
         } catch (error) {
           console.error(`Failed to insert session ${payload.session_id}:`, error)
         }

@@ -1,8 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { agentSessions } from './agent-sessions'
 
-export const assessmentStatusEnum = ['not_started', 'in_progress', 'completed'] as const
-
 export const sessionAssessments = sqliteTable(
   'session_assessments',
   {

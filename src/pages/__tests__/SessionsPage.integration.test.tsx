@@ -43,19 +43,19 @@ vi.mock('@tauri-apps/api/event', () => ({
 }))
 
 vi.mock('react-router-dom', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = await importOriginal<typeof import('react-router-dom')>()
   return {
     ...actual,
     useNavigate: () => navigateMock,
   }
 })
 
-vi.mock('../hooks/useToast', () => ({
+vi.mock('../../hooks/useToast', () => ({
   __esModule: true,
   useToast: () => toast,
 }))
 
-vi.mock('../hooks/useLocalSessions', () => ({
+vi.mock('../../hooks/useLocalSessions', () => ({
   __esModule: true,
   useLocalSessions: () => ({
     sessions,

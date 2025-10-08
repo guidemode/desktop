@@ -89,15 +89,6 @@ pub fn load_copilot_config() -> Result<CopilotConfig, String> {
     Ok(config)
 }
 
-/// Detect project name from timeline entries by matching against trusted folders
-#[allow(dead_code)]
-pub fn detect_project_from_timeline(
-    timeline: &[TimelineEntry],
-    trusted_folders: &[String],
-) -> Option<String> {
-    detect_project_and_cwd_from_timeline(timeline, trusted_folders).map(|(name, _cwd)| name)
-}
-
 /// Detect project name AND cwd path from timeline entries by matching against trusted folders
 /// Returns (project_name, cwd_path)
 /// Scans ALL timeline entries and returns on first match with a trusted folder
@@ -335,6 +326,18 @@ mod tests {
                     "role": "assistant",
                     "content": "I can help you with coding tasks.",
                     "tool_calls": []
+                }
+            ],
+            "timeline": [
+                {
+                    "timestamp": "2025-01-01T10:00:00.000Z",
+                    "type": "user_message",
+                    "content": "Hello"
+                },
+                {
+                    "timestamp": "2025-01-01T10:00:05.000Z",
+                    "type": "assistant_message",
+                    "content": "I can help you with coding tasks."
                 }
             ]
         }"#;

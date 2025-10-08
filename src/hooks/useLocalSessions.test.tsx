@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useInvalidateSessions, useLocalSession, useLocalSessions } from './useLocalSessions'
 
 const invoke = vi.fn()
