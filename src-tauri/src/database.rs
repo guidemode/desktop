@@ -849,6 +849,8 @@ pub struct FullSessionData {
     pub processing_status: String,
     pub queued_at: Option<i64>,
     pub processed_at: Option<i64>,
+    pub core_metrics_status: String,
+    pub core_metrics_processed_at: Option<i64>,
     pub assessment_status: String,
     pub assessment_completed_at: Option<i64>,
     pub ai_model_summary: Option<String>,
@@ -869,6 +871,8 @@ pub fn get_full_session_by_id(session_id: &str) -> Result<Option<FullSessionData
             "SELECT session_id, provider, project_name, file_name, file_path, file_size,
                     session_start_time, session_end_time, duration_ms,
                     processing_status, queued_at, processed_at,
+                    COALESCE(core_metrics_status, 'pending') as core_metrics_status,
+                    core_metrics_processed_at,
                     assessment_status, assessment_completed_at,
                     ai_model_summary, ai_model_quality_score, ai_model_metadata, ai_model_phase_analysis
              FROM agent_sessions
@@ -888,12 +892,14 @@ pub fn get_full_session_by_id(session_id: &str) -> Result<Option<FullSessionData
                     processing_status: row.get(9)?,
                     queued_at: row.get(10)?,
                     processed_at: row.get(11)?,
-                    assessment_status: row.get(12)?,
-                    assessment_completed_at: row.get(13)?,
-                    ai_model_summary: row.get(14)?,
-                    ai_model_quality_score: row.get(15)?,
-                    ai_model_metadata: row.get(16)?,
-                    ai_model_phase_analysis: row.get(17)?,
+                    core_metrics_status: row.get(12)?,
+                    core_metrics_processed_at: row.get(13)?,
+                    assessment_status: row.get(14)?,
+                    assessment_completed_at: row.get(15)?,
+                    ai_model_summary: row.get(16)?,
+                    ai_model_quality_score: row.get(17)?,
+                    ai_model_metadata: row.get(18)?,
+                    ai_model_phase_analysis: row.get(19)?,
                 })
             },
         )

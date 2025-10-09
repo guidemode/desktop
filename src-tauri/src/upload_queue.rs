@@ -985,6 +985,8 @@ impl UploadQueue {
             "processingStatus": session_data.processing_status,
             "queuedAt": timestamp_to_iso(session_data.queued_at),
             "processedAt": timestamp_to_iso(session_data.processed_at),
+            "coreMetricsStatus": session_data.core_metrics_status,
+            "coreMetricsProcessedAt": timestamp_to_iso(session_data.core_metrics_processed_at),
             "assessmentStatus": session_data.assessment_status,
             "assessmentCompletedAt": timestamp_to_iso(session_data.assessment_completed_at),
             "assessmentRating": rating,
@@ -1162,6 +1164,8 @@ impl UploadQueue {
             "processingStatus": session_data.processing_status,
             "queuedAt": timestamp_to_iso(session_data.queued_at),
             "processedAt": timestamp_to_iso(session_data.processed_at),
+            "coreMetricsStatus": session_data.core_metrics_status,
+            "coreMetricsProcessedAt": timestamp_to_iso(session_data.core_metrics_processed_at),
             "assessmentStatus": session_data.assessment_status,
             "assessmentCompletedAt": timestamp_to_iso(session_data.assessment_completed_at),
             "assessmentRating": rating,
@@ -1205,13 +1209,8 @@ impl UploadQueue {
         // Also upload metrics if available
         use crate::database::get_session_metrics;
         if let Ok(Some(metrics)) = get_session_metrics(&session_id) {
-            if let Err(e) = Self::upload_session_metrics(&metrics, &server_url, &api_key).await {
-                log_warn(
-                    "upload-queue",
-                    &format!("⚠ Failed to upload metrics for {}: {} - session uploaded successfully", session_id, e),
-                )
-                .unwrap_or_default();
-            }
+            // Propagate metrics upload error to prevent marking session as synced
+            Self::upload_session_metrics(&metrics, &server_url, &api_key).await?;
         }
 
         Ok(())
