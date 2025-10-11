@@ -785,6 +785,7 @@ pub async fn scan_historical_sessions(provider_id: String) -> Result<Vec<Session
             &session.session_id,
             &session.file_path,
             session.file_size,
+            None, // Hash will be calculated during upload
         ) {
             Ok(_) => {
                 inserted_count += 1;

@@ -229,6 +229,8 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
       durationMs: row.duration_ms || null,
       processingStatus: row.processing_status || 'pending',
       processedAt: row.processed_at ? new Date(row.processed_at).toISOString() : null,
+      coreMetricsStatus: row.core_metrics_status || 'pending',
+      coreMetricsProcessedAt: row.core_metrics_processed_at ? new Date(row.core_metrics_processed_at).toISOString() : null,
       assessmentStatus: row.assessment_status || 'not_started',
       assessmentCompletedAt: row.assessment_completed_at ? new Date(row.assessment_completed_at).toISOString() : null,
       assessmentRating: row.assessment_rating || null,
@@ -350,6 +352,7 @@ export function useLocalSession(sessionId: string) {
         userId: '', // Local database doesn't have user info
         username: '', // Local database doesn't have user info
         projectName: row.project_name || 'Unknown Project',
+        projectId: row.project_id || null,
         // Timestamps are stored as milliseconds in SQLite
         sessionStartTime: row.session_start_time ? new Date(row.session_start_time).toISOString() : null,
         sessionEndTime: row.session_end_time ? new Date(row.session_end_time).toISOString() : null,
@@ -357,14 +360,19 @@ export function useLocalSession(sessionId: string) {
         durationMs: row.duration_ms || null,
         processingStatus: row.processing_status || 'pending',
         processedAt: row.processed_at ? new Date(row.processed_at).toISOString() : null,
+        coreMetricsStatus: row.core_metrics_status || 'pending',
+        coreMetricsProcessedAt: row.core_metrics_processed_at ? new Date(row.core_metrics_processed_at).toISOString() : null,
         assessmentStatus: row.assessment_status || 'not_started',
         assessmentCompletedAt: row.assessment_completed_at ? new Date(row.assessment_completed_at).toISOString() : null,
+        assessmentRating: row.assessment_rating || null,
         aiModelSummary: row.ai_model_summary || null,
         aiModelQualityScore: row.ai_model_quality_score || null,
         aiModelMetadata: row.ai_model_metadata ? JSON.parse(row.ai_model_metadata) : null,
         aiModelPhaseAnalysis: row.ai_model_phase_analysis ? JSON.parse(row.ai_model_phase_analysis) : null,
         createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
         uploadedAt: row.uploaded_at ? new Date(row.uploaded_at).toISOString() : new Date().toISOString(),
+        syncedToServer: row.synced_to_server === 1,
+        syncFailedReason: row.sync_failed_reason || null,
         filePath: row.file_path,
         metrics,
       }

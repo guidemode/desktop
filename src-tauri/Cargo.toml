@@ -23,6 +23,7 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-shell = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
 dirs = "5.0"
 tokio = { version = "1", features = ["full"] }
 urlencoding = "2.1"
@@ -49,6 +50,10 @@ tracing-appender = "0.2"
 base64 = "0.22"
 # UUID generation
 uuid = { version = "1.0", features = ["v4", "serde"] }
+# SHA256 hashing for file deduplication
+sha2 = "0.10"
+# Gzip compression for upload optimization
+flate2 = "1.0"
 # File locking for metadata
 fs2 = "0.4"
 # Error handling

@@ -4,6 +4,7 @@ import { useProviderConfig, useSaveProviderConfig, useScanProjects } from '../..
 import { useAuth } from '../../hooks/useAuth'
 import { useLocation } from 'react-router-dom'
 import ConfirmDialog from '../ConfirmDialog'
+import { open } from '@tauri-apps/plugin-dialog'
 import {
   useClaudeWatcherStatus,
   useStartClaudeWatcher,
@@ -238,6 +239,22 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
     stopWatcher()
   }
 
+  const handleBrowseFolder = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: localConfig.homeDirectory || agent.defaultHomeDirectory,
+      })
+
+      if (selected && typeof selected === 'string') {
+        handleConfigChange({ homeDirectory: selected })
+      }
+    } catch (error) {
+      console.error('Error opening folder picker:', error)
+    }
+  }
+
   const isConfigLoading = configLoading || saving
   const isWatcherBusy = startingWatcher || stoppingWatcher
   const canStartWatcher = localConfig.enabled && startWatcher !== undefined &&
@@ -249,26 +266,26 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
   return (
     <div className="card bg-base-100 shadow-sm border border-base-300">
-      <div className="card-body">
+      <div className="card-body p-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-3">
             <div className={`avatar placeholder`}>
-              <div className={`bg-base-200 rounded-lg w-8 h-8 flex items-center justify-center p-1`}>
+              <div className={`bg-base-200 rounded-lg w-10 h-10 flex items-center justify-center p-1.5`}>
                 <ProviderIcon providerId={agent.id} size={24} />
               </div>
             </div>
             <div>
-              <h3 className="text-base font-semibold">{agent.name}</h3>
-              <p className="text-sm text-base-content/70">{agent.description}</p>
+              <h3 className="text-lg font-semibold">{agent.name}</h3>
+              <p className="text-sm text-base-content/70 mt-0.5">{agent.description}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {headerActions}
             <div className="form-control">
-              <label className="label cursor-pointer gap-2">
-                <span className="label-text">Enabled</span>
+              <label className="label cursor-pointer gap-2.5">
+                <span className="label-text font-medium">Enabled</span>
                 <input
                   type="checkbox"
                   className="toggle toggle-primary"
@@ -283,166 +300,46 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
         {/* Configuration */}
         {localConfig.enabled && (
-          <div className="space-y-3 mt-3">
+          <>
+            <div className="divider my-4"></div>
+            <div className="space-y-6">
             {/* Home Directory */}
-            <div className="form-control">
-              <label className="label">
+            <div className="form-control w-full">
+              <label className="label pb-3">
                 <span className="label-text text-base font-semibold">Home Directory</span>
               </label>
-              <input
-                type="text"
-                className="input input-bordered"
-                value={localConfig.homeDirectory}
-                onChange={(e) => handleConfigChange({ homeDirectory: e.target.value })}
-                placeholder={agent.defaultHomeDirectory}
-                disabled={isConfigLoading}
-              />
-            </div>
-
-            {/* Synchronization Mode - only show if logged in */}
-            {user && (
-              <div
-                className={`form-control transition-all duration-1000 ${shouldFlash ? 'bg-warning/20 -mx-3 px-3 py-2 rounded-lg' : ''}`}
-                id="sync-mode"
-              >
-                <label className="label">
-                  <span className="label-text text-base font-semibold">Synchronization</span>
-                </label>
-                <div className="flex gap-4">
-                  <label className="cursor-pointer flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`sync-mode-${agent.id}`}
-                      className="radio radio-primary radio-sm"
-                      checked={localConfig.syncMode === 'Nothing'}
-                      onChange={() => handleConfigChange({ syncMode: 'Nothing' })}
-                      disabled={isConfigLoading}
-                    />
-                    <span className="label-text">Nothing</span>
-                  </label>
-                  <label className="cursor-pointer flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`sync-mode-${agent.id}`}
-                      className="radio radio-primary radio-sm"
-                      checked={localConfig.syncMode === 'Metrics Only'}
-                      onChange={() => handleConfigChange({ syncMode: 'Metrics Only' })}
-                      disabled={isConfigLoading}
-                    />
-                    <span className="label-text">Metrics Only</span>
-                  </label>
-                  <label className="cursor-pointer flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`sync-mode-${agent.id}`}
-                      className="radio radio-primary radio-sm"
-                      checked={localConfig.syncMode === 'Transcript and Metrics'}
-                      onChange={() => handleConfigChange({ syncMode: 'Transcript and Metrics' })}
-                      disabled={isConfigLoading}
-                    />
-                    <span className="label-text">Transcript & Metrics</span>
-                  </label>
-                </div>
-                {localConfig.syncMode === 'Nothing' && (
-                  <label className="label">
-                    <span className="label-text-alt text-warning">⚠ Sessions will only be stored locally</span>
-                  </label>
-                )}
-                {localConfig.syncMode === 'Metrics Only' && (
-                  <label className="label">
-                    <span className="label-text-alt text-info">🔒 Privacy mode: Transcripts stay local, only metrics synced</span>
-                  </label>
-                )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="input input-bordered flex-1"
+                  value={localConfig.homeDirectory}
+                  onChange={(e) => handleConfigChange({ homeDirectory: e.target.value })}
+                  placeholder={agent.defaultHomeDirectory}
+                  disabled={isConfigLoading}
+                />
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleBrowseFolder}
+                  disabled={isConfigLoading}
+                >
+                  Browse...
+                </button>
               </div>
-            )}
-
-            {/* Project Selection */}
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text text-base font-semibold">Projects</span>
+              <label className="label pt-1">
+                <span className="label-text-alt text-base-content/60">
+                  Tip: Press Cmd+Shift+. in the folder picker to show hidden folders like .claude
+                </span>
               </label>
-              <div className="flex gap-4">
-                <label className="cursor-pointer flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`projects-${agent.id}`}
-                    className="radio radio-primary radio-sm"
-                    checked={localConfig.projectSelection === 'ALL'}
-                    onChange={() => handleConfigChange({ projectSelection: 'ALL' })}
-                    disabled={isConfigLoading}
-                  />
-                  <span className="label-text">All projects</span>
-                </label>
-                <label className="cursor-pointer flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`projects-${agent.id}`}
-                    className="radio radio-primary radio-sm"
-                    checked={localConfig.projectSelection === 'SELECTED'}
-                    onChange={() => handleConfigChange({ projectSelection: 'SELECTED' })}
-                    disabled={isConfigLoading}
-                  />
-                  <span className="label-text">Selected only</span>
-                </label>
-              </div>
             </div>
 
-            {/* Project List */}
-            {localConfig.projectSelection === 'SELECTED' && (
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Available Projects</span>
-                  {projectsLoading && <span className="loading loading-spinner loading-xs"></span>}
-                </label>
-                <div className="max-h-48 overflow-y-auto border border-base-300 rounded-lg p-2">
-                  {projects.length === 0 ? (
-                    <div className="text-sm text-base-content/70 text-center py-4">
-                      {projectsLoading ? 'Scanning projects...' : 'No projects found'}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
-                      {projects.map((project) => {
-                        const modifiedDate = new Date(project.lastModified)
-                        const modifiedLabel = Number.isNaN(modifiedDate.getTime())
-                          ? 'Unknown'
-                          : formatDistanceToNow(modifiedDate, { addSuffix: true })
-
-                        const isSelected = localConfig.selectedProjects.includes(project.name)
-
-                        return (
-                          <label
-                            key={project.name}
-                            className={`cursor-pointer flex items-center gap-2 px-2 py-1 rounded hover:bg-base-200 ${
-                              isSelected ? 'bg-base-200' : ''
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="checkbox checkbox-primary checkbox-xs"
-                              checked={isSelected}
-                              onChange={() => handleProjectToggle(project.name)}
-                              disabled={isConfigLoading}
-                            />
-                            <span className="truncate flex-1">{project.name}</span>
-                            <span className="text-[11px] text-base-content/60 shrink-0">
-                              {modifiedLabel}
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* File Watching Controls (for all providers) */}
+            {/* File Watching Controls */}
             {startWatcher !== undefined && (
               <div className="form-control">
-                <label className="label">
+                <label className="label pb-2">
                   <span className="label-text text-base font-semibold">File Watching</span>
                 </label>
-                <div className="bg-base-200 rounded-lg p-3 space-y-2">
+                <div className="bg-base-200 rounded-lg p-4 space-y-3">
                   {/* Watcher Status */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -487,7 +384,6 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                     )}
                   </div>
 
-
                   {/* Help text */}
                   {!canStartWatcher && !watcherStatus?.is_running && (
                     <div className="text-xs text-base-content/60">
@@ -502,6 +398,143 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
               </div>
             )}
 
+            {/* Synchronization Mode - only show if logged in */}
+            {user && (
+              <div
+                className={`form-control transition-all duration-1000 ${shouldFlash ? 'bg-warning/20 -mx-6 px-6 py-3 rounded-lg' : ''}`}
+                id="sync-mode"
+              >
+                <label className="label pb-2">
+                  <span className="label-text text-base font-semibold">Synchronization</span>
+                </label>
+                <div className="flex gap-4">
+                  <label className="cursor-pointer flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name={`sync-mode-${agent.id}`}
+                      className="radio radio-primary"
+                      checked={localConfig.syncMode === 'Nothing'}
+                      onChange={() => handleConfigChange({ syncMode: 'Nothing' })}
+                      disabled={isConfigLoading}
+                    />
+                    <span className="label-text">Nothing</span>
+                  </label>
+                  <label className="cursor-pointer flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name={`sync-mode-${agent.id}`}
+                      className="radio radio-primary"
+                      checked={localConfig.syncMode === 'Metrics Only'}
+                      onChange={() => handleConfigChange({ syncMode: 'Metrics Only' })}
+                      disabled={isConfigLoading}
+                    />
+                    <span className="label-text">Metrics Only</span>
+                  </label>
+                  <label className="cursor-pointer flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name={`sync-mode-${agent.id}`}
+                      className="radio radio-primary"
+                      checked={localConfig.syncMode === 'Transcript and Metrics'}
+                      onChange={() => handleConfigChange({ syncMode: 'Transcript and Metrics' })}
+                      disabled={isConfigLoading}
+                    />
+                    <span className="label-text">Transcript & Metrics</span>
+                  </label>
+                </div>
+                {localConfig.syncMode === 'Nothing' && (
+                  <div className="label pt-2">
+                    <span className="label-text-alt text-warning">⚠ Sessions will only be stored locally</span>
+                  </div>
+                )}
+                {localConfig.syncMode === 'Metrics Only' && (
+                  <div className="label pt-2">
+                    <span className="label-text-alt text-info">🔒 Privacy mode: Transcripts stay local, only metrics synced</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Project Selection */}
+            <div className="form-control">
+              <label className="label pb-2">
+                <span className="label-text text-base font-semibold">Projects</span>
+              </label>
+              <div className="flex gap-4">
+                <label className="cursor-pointer flex items-center gap-2.5">
+                  <input
+                    type="radio"
+                    name={`projects-${agent.id}`}
+                    className="radio radio-primary"
+                    checked={localConfig.projectSelection === 'ALL'}
+                    onChange={() => handleConfigChange({ projectSelection: 'ALL' })}
+                    disabled={isConfigLoading}
+                  />
+                  <span className="label-text">All projects</span>
+                </label>
+                <label className="cursor-pointer flex items-center gap-2.5">
+                  <input
+                    type="radio"
+                    name={`projects-${agent.id}`}
+                    className="radio radio-primary"
+                    checked={localConfig.projectSelection === 'SELECTED'}
+                    onChange={() => handleConfigChange({ projectSelection: 'SELECTED' })}
+                    disabled={isConfigLoading}
+                  />
+                  <span className="label-text">Selected only</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Project List */}
+            {localConfig.projectSelection === 'SELECTED' && (
+              <div className="form-control">
+                <label className="label pb-2">
+                  <span className="label-text">Available Projects</span>
+                  {projectsLoading && <span className="loading loading-spinner loading-xs"></span>}
+                </label>
+                <div className="max-h-48 overflow-y-auto border border-base-300 rounded-lg p-3">
+                  {projects.length === 0 ? (
+                    <div className="text-sm text-base-content/70 text-center py-4">
+                      {projectsLoading ? 'Scanning projects...' : 'No projects found'}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
+                      {projects.map((project) => {
+                        const modifiedDate = new Date(project.lastModified)
+                        const modifiedLabel = Number.isNaN(modifiedDate.getTime())
+                          ? 'Unknown'
+                          : formatDistanceToNow(modifiedDate, { addSuffix: true })
+
+                        const isSelected = localConfig.selectedProjects.includes(project.name)
+
+                        return (
+                          <label
+                            key={project.name}
+                            className={`cursor-pointer flex items-center gap-2 px-2 py-1 rounded hover:bg-base-200 ${
+                              isSelected ? 'bg-base-200' : ''
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="checkbox checkbox-primary checkbox-xs"
+                              checked={isSelected}
+                              onChange={() => handleProjectToggle(project.name)}
+                              disabled={isConfigLoading}
+                            />
+                            <span className="truncate flex-1">{project.name}</span>
+                            <span className="text-[11px] text-base-content/60 shrink-0">
+                              {modifiedLabel}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Status */}
             {localConfig.lastScanned && (
               <div className="text-xs text-base-content/70">
@@ -509,6 +542,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
               </div>
             )}
           </div>
+          </>
         )}
 
         {/* Loading indicator */}

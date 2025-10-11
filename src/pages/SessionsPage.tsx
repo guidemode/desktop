@@ -15,6 +15,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useSessionActivity } from '../hooks/useSessionActivity'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'
 import ConfirmDialog from '../components/ConfirmDialog'
+import ProcessingModeDialog from '../components/ProcessingModeDialog'
 import { useLocalProjects } from '../hooks/useLocalProjects'
 import { useQuickRating } from '../hooks/useQuickRating'
 
@@ -38,6 +39,8 @@ export default function SessionsPage() {
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; count: number } | null>(null)
   const [confirmClearDialog, setConfirmClearDialog] = useState(false)
   const [displayCount, setDisplayCount] = useState(SESSIONS_PER_PAGE)
+  const [processingMode, setProcessingMode] = useState<'core' | 'full'>('full')
+  const [modeSelectionDialog, setModeSelectionDialog] = useState<{ isOpen: boolean; count: number } | null>(null)
   const { processSessionWithAi, hasApiKey } = useAiProcessing()
   const { processSession: processMetrics } = useSessionProcessing()
   const toast = useToast()
@@ -130,7 +133,7 @@ export default function SessionsPage() {
     navigate(`/sessions/${sessionId}`)
   }
 
-  const handleProcessSession = async (sessionId: string, provider: string, filePath: string, silent = false) => {
+  const handleProcessSession = async (sessionId: string, provider: string, filePath: string, silent = false, mode: 'core' | 'full' = 'full') => {
     setProcessingSessionId(sessionId)
     try {
       // Load session content
@@ -154,8 +157,8 @@ export default function SessionsPage() {
       // Step 1: Calculate metrics (always)
       await processMetrics(sessionId, provider, content, 'local')
 
-      // Step 2: Process with AI if API key is available
-      if (hasApiKey()) {
+      // Step 2: Process with AI if mode is 'full' and API key is available
+      if (mode === 'full' && hasApiKey()) {
         await processSessionWithAi(sessionId, parsedSession)
       }
 
@@ -163,7 +166,9 @@ export default function SessionsPage() {
       await refresh()
 
       if (!silent) {
-        if (hasApiKey()) {
+        if (mode === 'core') {
+          toast.success('Core metrics calculated successfully!')
+        } else if (hasApiKey()) {
           toast.success('Processing complete! Metrics calculated and AI summary generated.')
         } else {
           toast.success('Metrics calculated! AI processing skipped (no API key configured).')
@@ -179,29 +184,45 @@ export default function SessionsPage() {
     }
   }
 
-  const handleBulkProcess = async () => {
+  const handleBulkProcess = async (skipConfirmation = false, mode?: 'core' | 'full') => {
+    // Use the passed mode or fall back to state
+    const effectiveMode = mode ?? processingMode
+
     // Use ALL sessions from database, not just visible ones
-    const sessionsToProcess = sessions.filter(
-      (s) => selectedSessionIds.includes(s.sessionId as string) && s.assessmentStatus !== 'completed'
-    )
+    // Filter based on processing mode
+    const sessionsToProcess = effectiveMode === 'core'
+      ? sessions.filter((s) => selectedSessionIds.includes(s.sessionId as string))
+      : sessions.filter((s) => selectedSessionIds.includes(s.sessionId as string) && s.assessmentStatus !== 'completed')
 
     if (sessionsToProcess.length === 0) {
-      toast.info('No sessions selected or all selected sessions already have AI processing.')
+      if (effectiveMode === 'core') {
+        toast.info('No sessions selected.')
+      } else {
+        toast.info('No sessions selected or all selected sessions already have AI processing.')
+      }
       return
     }
 
-    // Show confirmation dialog
-    setConfirmDialog({ isOpen: true, count: sessionsToProcess.length })
+    // Show confirmation dialog unless skipping
+    if (skipConfirmation) {
+      handleConfirmBulkProcess(effectiveMode)
+    } else {
+      setConfirmDialog({ isOpen: true, count: sessionsToProcess.length })
+    }
   }
 
-  const handleConfirmBulkProcess = async () => {
+  const handleConfirmBulkProcess = async (mode?: 'core' | 'full') => {
     setConfirmDialog(null)
     cancelBulkProcessingRef.current = false
 
+    // Use the passed mode or fall back to state
+    const effectiveMode = mode ?? processingMode
+
     // Use ALL sessions from database, not just visible ones
-    const sessionsToProcess = sessions.filter(
-      (s) => selectedSessionIds.includes(s.sessionId as string) && s.assessmentStatus !== 'completed'
-    )
+    // Filter based on processing mode
+    const sessionsToProcess = effectiveMode === 'core'
+      ? sessions.filter((s) => selectedSessionIds.includes(s.sessionId as string))
+      : sessions.filter((s) => selectedSessionIds.includes(s.sessionId as string) && s.assessmentStatus !== 'completed')
 
     setBulkProcessing(true)
     setBulkProgress({ current: 0, total: sessionsToProcess.length })
@@ -219,11 +240,11 @@ export default function SessionsPage() {
       setBulkProgress({ current: i + 1, total: sessionsToProcess.length })
 
       try {
-        await handleProcessSession(session.sessionId as string, session.provider, session.filePath as string, true)
+        await handleProcessSession(session.sessionId as string, session.provider, session.filePath as string, true, effectiveMode)
         successCount++
 
-        // Add 2-second delay between requests to avoid rate limiting (only if using AI)
-        if (hasApiKey() && i < sessionsToProcess.length - 1) {
+        // Add 2-second delay between requests to avoid rate limiting (only if using AI in full mode)
+        if (effectiveMode === 'full' && hasApiKey() && i < sessionsToProcess.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 2000))
         }
       } catch (err) {
@@ -237,10 +258,11 @@ export default function SessionsPage() {
     setSelectedSessionIds([])
     refresh()
 
+    const modeLabel = effectiveMode === 'core' ? 'core metrics' : 'full processing'
     if (errorCount > 0) {
-      toast.warning(`Bulk processing complete!\n✓ ${successCount} successful\n✗ ${errorCount} failed`)
+      toast.warning(`Bulk ${modeLabel} complete!\n✓ ${successCount} successful\n✗ ${errorCount} failed`)
     } else {
-      toast.success(`Bulk processing complete! ${successCount} sessions processed successfully.`)
+      toast.success(`Bulk ${modeLabel} complete! ${successCount} sessions processed successfully.`)
     }
   }
 
@@ -251,24 +273,83 @@ export default function SessionsPage() {
       processAllTimeoutRef.current = null
     }
 
-    // Use ALL sessions from database, not just visible ones
-    const sessionsToProcess = sessions.filter((s) => s.assessmentStatus !== 'completed')
+    // Count all sessions (for mode selection dialog)
+    const allSessionsCount = sessions.length
+
+    if (allSessionsCount === 0) {
+      toast.info('No sessions found.')
+      return
+    }
+
+    // Show mode selection dialog
+    setModeSelectionDialog({ isOpen: true, count: allSessionsCount })
+  }
+
+  const handleModeSelected = async (mode: 'core' | 'full') => {
+    setModeSelectionDialog(null)
+
+    // Filter sessions based on mode
+    const sessionsToProcess = mode === 'core'
+      ? sessions // Process ALL sessions in core mode
+      : sessions.filter((s) => s.assessmentStatus !== 'completed') // Only unprocessed in full mode
 
     if (sessionsToProcess.length === 0) {
       toast.info('All sessions already processed.')
       return
     }
 
-    // Auto-select all sessions not yet processed (including those not yet loaded in view)
     const sessionIds = sessionsToProcess.map((s) => s.sessionId as string)
-    setSelectedSessionIds(sessionIds)
-    setSelectionMode(true)
 
-    // Trigger bulk process
-    processAllTimeoutRef.current = setTimeout(() => {
-      processAllTimeoutRef.current = null
-      handleBulkProcess()
-    }, 100)
+    // Set mode and selection using flushSync to ensure immediate state updates
+    flushSync(() => {
+      setProcessingMode(mode)
+      setSelectedSessionIds(sessionIds)
+      setSelectionMode(true)
+    })
+
+    // Start processing immediately - call directly instead of through setTimeout
+    // to avoid any closure or timing issues
+    cancelBulkProcessingRef.current = false
+    setBulkProcessing(true)
+    setBulkProgress({ current: 0, total: sessionsToProcess.length })
+
+    let successCount = 0
+    let errorCount = 0
+
+    for (let i = 0; i < sessionsToProcess.length; i++) {
+      // Check if cancelled
+      if (cancelBulkProcessingRef.current) {
+        break
+      }
+
+      const session = sessionsToProcess[i]
+      setBulkProgress({ current: i + 1, total: sessionsToProcess.length })
+
+      try {
+        await handleProcessSession(session.sessionId as string, session.provider, session.filePath as string, true, mode)
+        successCount++
+
+        // Add 2-second delay between requests to avoid rate limiting (only if using AI in full mode)
+        if (mode === 'full' && hasApiKey() && i < sessionsToProcess.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+        }
+      } catch (err) {
+        console.error(`Failed to process session ${session.sessionId}:`, err)
+        errorCount++
+      }
+    }
+
+    setBulkProcessing(false)
+    setSelectionMode(false)
+    setSelectedSessionIds([])
+    refresh()
+
+    const modeLabel = mode === 'core' ? 'core metrics' : 'full processing'
+    if (errorCount > 0) {
+      toast.warning(`Bulk ${modeLabel} complete!\n✓ ${successCount} successful\n✗ ${errorCount} failed`)
+    } else {
+      toast.success(`Bulk ${modeLabel} complete! ${successCount} sessions processed successfully.`)
+    }
   }
 
   const handleToggleSelection = (sessionId: string, checked: boolean) => {
@@ -384,7 +465,33 @@ export default function SessionsPage() {
         }
       }
 
-      refresh()
+      // Refresh to get updated session list
+      await refresh()
+
+      // Now process core metrics for all sessions
+      toast.info(`Found ${totalFound} sessions. Calculating core metrics...`)
+
+      let processedCount = 0
+      let errorCount = 0
+
+      for (const session of sessions) {
+        try {
+          await handleProcessSession(
+            session.sessionId as string,
+            session.provider,
+            session.filePath as string,
+            true, // silent
+            'core' // core metrics only
+          )
+          processedCount++
+        } catch (err) {
+          console.error(`Error processing session ${session.sessionId}:`, err)
+          errorCount++
+        }
+      }
+
+      // Final refresh after processing
+      await refresh()
       setRescanning(false)
 
       // Re-enable activity tracking after a 10 second delay
@@ -392,7 +499,11 @@ export default function SessionsPage() {
         setTrackingEnabled(true)
       }, 10000)
 
-      toast.success(`Rescanned and found ${totalFound} sessions. Sessions reloaded!`)
+      if (errorCount > 0) {
+        toast.warning(`Rescan complete!\n✓ ${processedCount} sessions processed\n✗ ${errorCount} errors`)
+      } else {
+        toast.success(`Rescan complete! Found and processed ${processedCount} sessions with core metrics.`)
+      }
     } catch (err) {
       console.error('Error during rescan:', err)
       toast.error('Failed to rescan: ' + String(err))
@@ -426,7 +537,33 @@ export default function SessionsPage() {
         }
       }
 
-      refresh()
+      // Refresh to get updated session list
+      await refresh()
+
+      // Now process core metrics for all sessions
+      toast.info(`${result}\n\nFound ${totalFound} sessions. Calculating core metrics...`, 5000)
+
+      let processedCount = 0
+      let errorCount = 0
+
+      for (const session of sessions) {
+        try {
+          await handleProcessSession(
+            session.sessionId as string,
+            session.provider,
+            session.filePath as string,
+            true, // silent
+            'core' // core metrics only
+          )
+          processedCount++
+        } catch (err) {
+          console.error(`Error processing session ${session.sessionId}:`, err)
+          errorCount++
+        }
+      }
+
+      // Final refresh after processing
+      await refresh()
       setClearing(false)
 
       // Re-enable activity tracking after a 10 second delay
@@ -434,7 +571,11 @@ export default function SessionsPage() {
         setTrackingEnabled(true)
       }, 10000)
 
-      toast.success(`${result}\n\nRescanned and found ${totalFound} sessions.\n\nSessions reloaded!`, 8000)
+      if (errorCount > 0) {
+        toast.warning(`Clear and rescan complete!\n✓ ${processedCount} sessions processed\n✗ ${errorCount} errors`, 8000)
+      } else {
+        toast.success(`Clear and rescan complete! Found and processed ${processedCount} sessions with core metrics.`, 8000)
+      }
     } catch (err) {
       console.error('Error during clear and rescan:', err)
       toast.error('Failed to clear and rescan: ' + String(err))
@@ -635,7 +776,7 @@ export default function SessionsPage() {
           {selectionMode && (
             <>
               <button
-                onClick={handleBulkProcess}
+                onClick={() => handleBulkProcess(false)}
                 className="btn btn-sm btn-primary"
                 disabled={selectedSessionIds.length === 0 || bulkProcessing}
               >
@@ -738,11 +879,21 @@ export default function SessionsPage() {
         </>
       )}
 
+      {/* Processing Mode Selection Dialog */}
+      <ProcessingModeDialog
+        isOpen={modeSelectionDialog?.isOpen ?? false}
+        sessionCount={modeSelectionDialog?.count ?? 0}
+        onSelectMode={handleModeSelected}
+        onCancel={() => {
+          setModeSelectionDialog(null)
+        }}
+      />
+
       {/* Confirm Bulk Process Dialog */}
       <ConfirmDialog
         isOpen={confirmDialog?.isOpen ?? false}
-        title="Process Sessions"
-        message={`Process ${confirmDialog?.count ?? 0} session(s)${hasApiKey() ? ' with AI' : ''}? This may take a few minutes.`}
+        title={`Process Sessions (${processingMode === 'core' ? 'Core Metrics' : 'Full Processing'})`}
+        message={`Process ${confirmDialog?.count ?? 0} session(s) with ${processingMode === 'core' ? 'core metrics only' : `full processing${hasApiKey() ? ' (including AI)' : ''}`}? This may take a few minutes.`}
         confirmText="Process"
         cancelText="Cancel"
         variant="info"

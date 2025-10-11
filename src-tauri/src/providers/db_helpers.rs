@@ -10,6 +10,7 @@ pub fn insert_session_immediately(
     session_id: &str,
     file_path: &PathBuf,
     file_size: u64,
+    file_hash: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let file_name = file_path
         .file_name()
@@ -38,6 +39,7 @@ pub fn insert_session_immediately(
             session_id,
             file_name,
             file_size,
+            file_hash.as_deref(),
             start_time,
             end_time,
             cwd.as_deref(),
@@ -107,6 +109,7 @@ pub fn insert_session_immediately(
         file_name,
         &file_path.to_string_lossy(),
         file_size,
+        file_hash.as_deref(),
         start_time,
         end_time,
         duration,

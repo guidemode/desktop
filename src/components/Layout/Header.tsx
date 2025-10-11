@@ -38,14 +38,14 @@ function Header() {
     <header className="bg-base-100 border-b border-base-300 px-3 py-2">
       <div className="flex items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
           <div className="avatar">
-            <div className="w-6 rounded">
-              <img src="/logo-32-optimized.png" alt="GuideAI" className="w-full h-full object-contain" />
+            <div className="w-8 rounded">
+              <img src="/logo-44-optimized.png" alt="GuideAI" className="w-full h-full object-contain" />
             </div>
           </div>
           <div>
-            <h1 className="text-base font-bold text-primary">GuideAI</h1>
+            <h1 className="text-xl font-bold text-primary">GuideAI</h1>
           </div>
         </div>
 

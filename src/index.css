@@ -1,5 +1,33 @@
 @import "tailwindcss";
 @plugin "daisyui";
+@source "../node_modules/@guideai-dev/session-processing/src/**/*.{js,ts,jsx,tsx}";
+
+/* Force responsive utilities that are missing in Tailwind v4 + DaisyUI */
+@layer utilities {
+  @media (min-width: 768px) {
+    .md\\:inline {
+      display: inline;
+    }
+
+    .md\\:grid-cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .lg\\:block {
+      display: block;
+    }
+
+    .lg\\:hidden {
+      display: none;
+    }
+
+    .lg\\:inline {
+      display: inline;
+    }
+  }
+}
 
 /* GuideAI Light Theme */
 @plugin "daisyui/theme" {

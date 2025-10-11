@@ -227,6 +227,7 @@ impl ClaudeWatcher {
                             &file_event.session_id,
                             &file_event.path,
                             file_event.file_size,
+                            None, // Hash will be calculated during upload
                         ) {
                             if let Err(log_err) = log_error(
                                 PROVIDER_ID,

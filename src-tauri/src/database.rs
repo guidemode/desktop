@@ -90,6 +90,7 @@ pub fn insert_session(
     file_name: &str,
     file_path: &str,
     file_size: u64,
+    file_hash: Option<&str>,
     session_start_time: Option<DateTime<Utc>>,
     session_end_time: Option<DateTime<Utc>>,
     duration_ms: Option<i64>,
@@ -108,11 +109,11 @@ pub fn insert_session(
 
     conn.execute(
         "INSERT INTO agent_sessions (
-            id, provider, project_name, session_id, file_name, file_path, file_size,
+            id, provider, project_name, session_id, file_name, file_path, file_size, file_hash,
             session_start_time, session_end_time, duration_ms, cwd,
             processing_status, synced_to_server,
             created_at, uploaded_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)",
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)",
         params![
             id,
             provider,
@@ -121,6 +122,7 @@ pub fn insert_session(
             file_name,
             file_path,
             file_size as i64,
+            file_hash,
             session_start_time.map(|t| t.timestamp_millis()),
             session_end_time.map(|t| t.timestamp_millis()),
             duration_ms,
@@ -161,6 +163,7 @@ pub fn update_session(
     session_id: &str,
     _file_name: &str,  // Kept for API compatibility but not used in query
     file_size: u64,
+    file_hash: Option<&str>,
     session_start_time: Option<DateTime<Utc>>,
     session_end_time: Option<DateTime<Utc>>,
     cwd: Option<&str>,
@@ -209,6 +212,7 @@ pub fn update_session(
     conn.execute(
         "UPDATE agent_sessions
          SET file_size = ?,
+             file_hash = ?,
              session_start_time = ?,
              session_end_time = ?,
              duration_ms = ?,
@@ -220,6 +224,7 @@ pub fn update_session(
          WHERE session_id = ?",
         params![
             file_size as i64,
+            file_hash,
             final_start_time_ms,
             session_end_time.map(|t| t.timestamp_millis()),
             duration_ms,
@@ -801,8 +806,9 @@ pub fn quick_rate_session(session_id: &str, rating: &str) -> Result<()> {
     }
 
     // Update agent_sessions assessment_status to 'rating_only' and set completed time
+    // ALSO reset synced_to_server to trigger re-upload with the new rating
     conn.execute(
-        "UPDATE agent_sessions SET assessment_status = 'rating_only', assessment_completed_at = ? WHERE session_id = ?",
+        "UPDATE agent_sessions SET assessment_status = 'rating_only', assessment_completed_at = ?, synced_to_server = 0 WHERE session_id = ?",
         params![now, session_id],
     )?;
 

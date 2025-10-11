@@ -499,6 +499,7 @@ impl CopilotWatcher {
             &snapshot_event.session_id, // snapshot UUID
             &snapshot_event.path,       // snapshot .jsonl path
             snapshot_event.file_size,
+            None, // Hash will be calculated during upload
         ) {
             if let Err(log_err) = log_error(
                 PROVIDER_ID,

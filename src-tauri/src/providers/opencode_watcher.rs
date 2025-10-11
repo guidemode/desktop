@@ -302,6 +302,7 @@ impl OpenCodeWatcher {
                             &session_id,
                             &jsonl_path,
                             file_size,
+                            None, // Hash will be calculated during upload
                         ) {
                             if let Err(log_err) = log_error(
                                 PROVIDER_ID,
@@ -449,6 +450,7 @@ impl OpenCodeWatcher {
         None
     }
 
+    #[cfg(test)]
     fn is_new_session(
         session_id: &str,
         path: &Path,

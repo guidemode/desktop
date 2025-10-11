@@ -22,6 +22,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_sql::Builder::new()
                 .add_migrations(
@@ -97,6 +98,12 @@ fn main() {
                             version: 12,
                             description: "add_category_improvement_tips",
                             sql: include_str!("../migrations/012_add_category_improvement_tips.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 13,
+                            description: "add_file_hash",
+                            sql: include_str!("../migrations/013_add_file_hash.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
                     ],
