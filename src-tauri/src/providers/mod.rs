@@ -10,6 +10,9 @@ mod copilot_parser;
 mod copilot_snapshot;
 mod copilot_watcher;
 pub mod db_helpers;
+mod gemini;
+mod gemini_parser;
+mod gemini_watcher;
 mod opencode;
 mod opencode_parser;
 mod opencode_watcher;
@@ -18,6 +21,7 @@ mod session_scanner;
 pub use claude_watcher::{ClaudeWatcher, ClaudeWatcherStatus};
 pub use codex_watcher::{CodexWatcher, CodexWatcherStatus};
 pub use copilot_watcher::{CopilotWatcher, CopilotWatcherStatus};
+pub use gemini_watcher::{GeminiWatcher, GeminiWatcherStatus};
 pub use opencode_watcher::{OpenCodeWatcher, OpenCodeWatcherStatus};
 pub use session_scanner::{scan_all_sessions, SessionInfo};
 
@@ -27,6 +31,7 @@ pub fn scan_projects(provider_id: &str, home_directory: &str) -> Result<Vec<Proj
         "github-copilot" => copilot::scan_projects(home_directory),
         "opencode" => opencode::scan_projects(home_directory),
         "codex" => codex::scan_projects(home_directory),
+        "gemini-code" => gemini::scan_projects(home_directory),
         other => Err(format!("Unsupported provider: {}", other)),
     }
 }

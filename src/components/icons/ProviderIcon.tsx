@@ -2,6 +2,7 @@ import claudeCodeSvg from '../../assets/icons/claude-code.svg'
 import githubCopilotSvg from '../../assets/icons/github-copilot.svg'
 import opencodeSvg from '../../assets/icons/opencode.svg'
 import openaiCodexSvg from '../../assets/icons/openai-codex.svg'
+import geminiCodeSvg from '../../assets/icons/gemini-code.svg'
 
 interface ProviderIconProps {
   providerId: string
@@ -15,6 +16,7 @@ function ProviderIcon({ providerId, className = '', size = 20 }: ProviderIconPro
     'github-copilot': githubCopilotSvg,
     'opencode': opencodeSvg,
     'codex': openaiCodexSvg,
+    'gemini-code': geminiCodeSvg,
   }
 
   const iconPath = iconMap[providerId]

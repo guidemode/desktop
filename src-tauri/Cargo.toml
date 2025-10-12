@@ -52,6 +52,8 @@ base64 = "0.22"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 # SHA256 hashing for file deduplication
 sha2 = "0.10"
+# Hex encoding for SHA256 hashes
+hex = "0.4"
 # Gzip compression for upload optimization
 flate2 = "1.0"
 # File locking for metadata

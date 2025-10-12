@@ -7,7 +7,8 @@ use crate::config::{
 use crate::logging::{read_provider_logs, LogEntry};
 use crate::providers::{
     scan_all_sessions, ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus,
-    CopilotWatcher, CopilotWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo,
+    CopilotWatcher, CopilotWatcherStatus, GeminiWatcher, GeminiWatcherStatus, OpenCodeWatcher,
+    OpenCodeWatcherStatus, SessionInfo,
 };
 use crate::upload_queue::{QueueItems, UploadQueue, UploadStatus};
 use serde::{Deserialize, Serialize};
@@ -299,6 +300,7 @@ pub enum Watcher {
     Copilot(CopilotWatcher),
     OpenCode(OpenCodeWatcher),
     Codex(CodexWatcher),
+    Gemini(GeminiWatcher),
 }
 
 impl Watcher {
@@ -308,6 +310,7 @@ impl Watcher {
             Watcher::Copilot(watcher) => watcher.stop(),
             Watcher::OpenCode(watcher) => watcher.stop(),
             Watcher::Codex(watcher) => watcher.stop(),
+            Watcher::Gemini(watcher) => watcher.stop(),
         }
     }
 }
@@ -534,6 +537,59 @@ pub async fn get_copilot_watcher_status(
             Ok(watcher.get_status())
         } else {
             Ok(CopilotWatcherStatus {
+                is_running: false,
+                pending_uploads: 0,
+                processing_uploads: 0,
+                failed_uploads: 0,
+            })
+        }
+    } else {
+        Err("Failed to access watcher state".to_string())
+    }
+}
+
+// Gemini watcher commands
+#[tauri::command]
+pub async fn start_gemini_watcher(
+    state: State<'_, AppState>,
+    projects: Vec<String>,
+) -> Result<(), String> {
+    // Update upload queue with current config
+    if let Ok(config) = load_config() {
+        state.upload_queue.set_config(config);
+    }
+
+    // Create new watcher - Gemini uses project hashes instead of names
+    let watcher = GeminiWatcher::new(projects, Arc::clone(&state.upload_queue))
+        .map_err(|e| format!("Failed to create Gemini watcher: {}", e))?;
+
+    // Store watcher in state
+    if let Ok(mut watchers) = state.watchers.lock() {
+        watchers.insert("gemini-code".to_string(), Watcher::Gemini(watcher));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_gemini_watcher(state: State<'_, AppState>) -> Result<(), String> {
+    if let Ok(mut watchers) = state.watchers.lock() {
+        if let Some(watcher) = watchers.remove("gemini-code") {
+            watcher.stop();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_gemini_watcher_status(
+    state: State<'_, AppState>,
+) -> Result<GeminiWatcherStatus, String> {
+    if let Ok(watchers) = state.watchers.lock() {
+        if let Some(Watcher::Gemini(watcher)) = watchers.get("gemini-code") {
+            Ok(watcher.get_status())
+        } else {
+            Ok(GeminiWatcherStatus {
                 is_running: false,
                 pending_uploads: 0,
                 processing_uploads: 0,
@@ -1242,6 +1298,57 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                 }
                 Err(e) => {
                     error!(error = %e, "Failed to scan GitHub Copilot projects");
+                }
+            }
+        }
+    }
+
+    // Try to start Gemini Code watcher if enabled
+    if let Ok(gemini_config) = load_provider_config("gemini-code") {
+        if gemini_config.enabled {
+            // Scan for projects - Gemini returns projects with hashes
+            match crate::providers::scan_projects("gemini-code", &gemini_config.home_directory) {
+                Ok(projects) => {
+                    // Gemini watcher needs project hashes (stored in project.path)
+                    let projects_to_watch = if gemini_config.project_selection == "ALL" {
+                        // For Gemini, we need to extract hashes from paths
+                        projects
+                            .iter()
+                            .filter_map(|p| {
+                                // Extract hash from path like ~/.gemini/tmp/{hash}
+                                std::path::Path::new(&p.path)
+                                    .file_name()
+                                    .and_then(|n| n.to_str())
+                                    .map(|s| s.to_string())
+                            })
+                            .collect()
+                    } else {
+                        // Selected projects are already hashes for Gemini
+                        gemini_config.selected_projects
+                    };
+
+                    if !projects_to_watch.is_empty() {
+                        match GeminiWatcher::new(
+                            projects_to_watch,
+                            Arc::clone(&app_state.upload_queue),
+                        ) {
+                            Ok(watcher) => {
+                                if let Ok(mut watchers) = app_state.watchers.lock() {
+                                    watchers.insert(
+                                        "gemini-code".to_string(),
+                                        Watcher::Gemini(watcher),
+                                    );
+                                    info!("Gemini Code watcher started automatically");
+                                }
+                            }
+                            Err(e) => {
+                                error!(error = %e, "Failed to start Gemini Code watcher");
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(error = %e, "Failed to scan Gemini Code projects");
                 }
             }
         }

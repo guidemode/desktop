@@ -328,6 +328,16 @@ fn extract_cwd_from_file(provider_id: &str, file_path: &PathBuf) -> Option<Strin
                 }
             }
         }
+        "gemini-code" => {
+            // Gemini Code: Look for cwd field in JSONL (added during conversion)
+            for line in lines.iter().take(50) {
+                if let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) {
+                    if let Some(cwd) = entry.get("cwd").and_then(|v| v.as_str()) {
+                        return Some(cwd.to_string());
+                    }
+                }
+            }
+        }
         _ => {}
     }
 

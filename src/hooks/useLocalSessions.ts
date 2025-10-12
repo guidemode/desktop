@@ -156,6 +156,7 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
     SELECT
       s.*,
       s.project_id,
+      COALESCE(p.name, s.project_name) as project_name,
       m.response_latency_ms,
       m.task_completion_time_ms,
       m.read_write_ratio,
@@ -173,6 +174,7 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
     FROM agent_sessions s
     LEFT JOIN session_metrics m ON s.session_id = m.session_id
     LEFT JOIN session_assessments a ON s.session_id = a.session_id
+    LEFT JOIN projects p ON s.project_id = p.id
     ${whereClause}
     ORDER BY s.session_end_time DESC NULLS LAST
   `
@@ -295,6 +297,7 @@ export function useLocalSession(sessionId: string) {
         sql: `
           SELECT
             s.*,
+            COALESCE(p.name, s.project_name) as project_name,
             m.response_latency_ms,
             m.task_completion_time_ms,
             m.read_write_ratio,
@@ -311,6 +314,7 @@ export function useLocalSession(sessionId: string) {
             m.improvement_tips
           FROM agent_sessions s
           LEFT JOIN session_metrics m ON s.session_id = m.session_id
+          LEFT JOIN projects p ON s.project_id = p.id
           WHERE s.session_id = ?
         `,
         params: [sessionId],

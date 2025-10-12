@@ -449,8 +449,10 @@ export default function SessionsPage() {
 
     setRescanning(true)
     try {
-      // Rescan all enabled providers
-      const providers = ['claude-code', 'github-copilot', 'opencode', 'codex']
+      // Rescan based on provider filter selection
+      const providers = providerFilter === 'all'
+        ? ['claude-code', 'github-copilot', 'opencode', 'codex', 'gemini-code']
+        : [providerFilter]
       let totalFound = 0
 
       for (const provider of providers) {
@@ -521,8 +523,10 @@ export default function SessionsPage() {
     try {
       const result = await invoke<string>('clear_all_sessions')
 
-      // Rescan all enabled providers
-      const providers = ['claude-code', 'github-copilot', 'opencode', 'codex']
+      // Rescan based on provider filter selection
+      const providers = providerFilter === 'all'
+        ? ['claude-code', 'github-copilot', 'opencode', 'codex', 'gemini-code']
+        : [providerFilter]
       let totalFound = 0
 
       for (const provider of providers) {
@@ -704,6 +708,7 @@ export default function SessionsPage() {
           <option value="github-copilot">GitHub Copilot</option>
           <option value="opencode">OpenCode</option>
           <option value="codex">Codex</option>
+          <option value="gemini-code">Gemini Code</option>
         </select>
         <select
           className="select select-bordered select-sm"

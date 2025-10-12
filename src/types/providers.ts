@@ -47,6 +47,11 @@ const PLATFORM_DEFAULTS: Record<string, Record<string, string>> = {
     win32: '~/.codex', // Works with WSL/Git Bash on Windows
     darwin: '~/.codex',
     linux: '~/.codex'
+  },
+  'gemini-code': {
+    win32: '~/.gemini', // Works with WSL/Git Bash on Windows
+    darwin: '~/.gemini',
+    linux: '~/.gemini'
   }
 }
 
@@ -97,5 +102,13 @@ export const CODING_AGENTS: CodingAgent[] = [
     defaultHomeDirectory: getPlatformDefault('codex'),
     icon: 'M12 2l3.09 6.26L22 9l-5.91 3.74L18 22l-6-4.74L6 22l1.91-9.26L2 9l6.91-.74L12 2z',
     color: 'from-emerald-500 to-teal-600'
+  },
+  {
+    id: 'gemini-code',
+    name: 'Gemini Code',
+    description: 'Google Gemini AI coding assistant',
+    defaultHomeDirectory: getPlatformDefault('gemini-code'),
+    icon: 'M12 2 L13.5 8.5 L20 10 L13.5 11.5 L12 18 L10.5 11.5 L4 10 L10.5 8.5 Z',
+    color: 'from-blue-500 to-purple-600'
   }
 ]

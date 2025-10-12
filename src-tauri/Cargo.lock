@@ -1674,7 +1674,7 @@ dependencies = [
 
 [[package]]
 name = "guideai-desktop"
-version = "0.1.20"
+version = "0.1.21"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1682,6 +1682,7 @@ dependencies = [
  "dirs 5.0.1",
  "flate2",
  "fs2",
+ "hex",
  "lazy_static",
  "notify",
  "objc",

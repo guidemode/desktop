@@ -113,6 +113,28 @@ pnpm tauri:build:macos       # macOS ARM64
 pnpm tauri:build:linux       # Linux x64
 ```
 
+### Local macOS Release Build
+To run a full local build, sign, notarize, and upload for macOS, use the `build-macos-local.sh` script. This script is designed to replicate the GitHub Actions release workflow on your local machine.
+
+**Prerequisites:**
+- Ensure you have all the required environment variables set in `apps/server/.dev.vars`. The script will validate them for you.
+- You need to have `wrangler` and `openssl` installed and available in your `PATH`.
+
+**Usage:**
+```bash
+# Run the script from the project root
+./scripts/build-macos-local.sh [version]
+```
+- If `[version]` is not provided, it will be automatically detected from `apps/desktop/package.json`.
+
+**What it does:**
+1.  **Builds** the universal macOS binary.
+2.  **Signs** the application using your Apple Developer certificate.
+3.  **Notarizes** the `.dmg` with Apple.
+4.  **Uploads** the final artifacts to R2.
+5.  **Generates** and uploads the updater manifest.
+
+
 ### Cross-Platform Build Requirements
 
 #### Windows
