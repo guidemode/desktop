@@ -19,11 +19,12 @@ pub struct DiffStats {
     pub deletions: u32,
 }
 
-/// Get diff between two commits in a repository, or uncommitted changes if commits are the same
+/// Get diff between two commits in a repository, or uncommitted changes if commits are the same AND session is active
 pub fn get_commit_diff(
     cwd: &str,
     first_commit_hash: &str,
     latest_commit_hash: &str,
+    is_active: bool,
 ) -> Result<Vec<FileDiff>, String> {
     // Open repository
     let repo = Repository::open(cwd)
@@ -32,9 +33,17 @@ pub fn get_commit_diff(
     // Create diff options
     let mut diff_opts = DiffOptions::new();
     diff_opts.context_lines(3); // Standard 3 lines of context
+    diff_opts.include_untracked(true); // Include untracked files
+    diff_opts.recurse_untracked_dirs(true); // Recurse into untracked directories
 
-    // Check if commits are the same - if so, show uncommitted changes
+    // Check if commits are the same - if so, show uncommitted changes ONLY if session is active
     if first_commit_hash == latest_commit_hash {
+        // Only show uncommitted changes for active sessions
+        // For inactive sessions with identical commits, return empty diff to avoid huge diffs
+        if !is_active {
+            return Ok(Vec::new());
+        }
+
         // Get the commit and its tree
         let commit_oid = repo
             .revparse_single(first_commit_hash)
@@ -46,7 +55,7 @@ pub fn get_commit_diff(
             .tree()
             .map_err(|e| format!("Failed to get commit tree: {}", e))?;
 
-        // Diff between commit tree and working directory (including index)
+        // Diff between commit tree and working directory (includes staged, unstaged, and untracked files)
         let diff = repo
             .diff_tree_to_workdir_with_index(Some(&tree), Some(&mut diff_opts))
             .map_err(|e| format!("Failed to create diff to working directory: {}", e))?;

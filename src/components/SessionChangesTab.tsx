@@ -31,18 +31,21 @@ interface SessionChangesTabProps {
     first_commit_hash: string
     latest_commit_hash: string
   }
+  isActive?: boolean
 }
 
 async function fetchGitDiff(
   cwd: string,
   firstCommitHash: string,
-  latestCommitHash: string
+  latestCommitHash: string,
+  isActive: boolean
 ): Promise<FileDiff[]> {
   // Tauri returns snake_case from Rust, so we need to handle it
   const result = await invoke<any[]>('get_session_git_diff', {
     cwd,
     firstCommitHash,
     latestCommitHash,
+    isActive,
   })
 
   // Convert snake_case to camelCase for TypeScript
@@ -60,7 +63,7 @@ async function fetchGitDiff(
   }))
 }
 
-export function SessionChangesTab({ session }: SessionChangesTabProps) {
+export function SessionChangesTab({ session, isActive = false }: SessionChangesTabProps) {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('split')
 
@@ -70,9 +73,9 @@ export function SessionChangesTab({ session }: SessionChangesTabProps) {
     isLoading: loading,
     error,
   } = useQuery({
-    queryKey: ['session-git-diff', session.sessionId],
+    queryKey: ['session-git-diff', session.sessionId, isActive],
     queryFn: () =>
-      fetchGitDiff(session.cwd, session.first_commit_hash, session.latest_commit_hash),
+      fetchGitDiff(session.cwd, session.first_commit_hash, session.latest_commit_hash, isActive),
     // Auto-expand first 5 files on initial load
     onSuccess: (data) => {
       if (expandedFiles.size === 0) {
@@ -142,8 +145,12 @@ export function SessionChangesTab({ session }: SessionChangesTabProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-base-content/60">
         <DocumentTextIcon className="w-16 h-16 mb-4" />
-        <p className="text-lg font-medium">No changes between commits</p>
-        <p className="text-sm">The first and latest commits have identical content</p>
+        <p className="text-lg font-medium">No changes to display</p>
+        <p className="text-sm">
+          {session.first_commit_hash === session.latest_commit_hash && !isActive
+            ? 'Session is inactive with no commits during the session'
+            : 'The first and latest commits have identical content'}
+        </p>
       </div>
     )
   }

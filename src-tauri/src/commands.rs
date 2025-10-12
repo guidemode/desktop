@@ -1458,6 +1458,7 @@ pub async fn get_session_git_diff(
     cwd: String,
     first_commit_hash: String,
     latest_commit_hash: String,
+    is_active: bool,
 ) -> Result<Vec<crate::git_diff::FileDiff>, String> {
-    crate::git_diff::get_commit_diff(&cwd, &first_commit_hash, &latest_commit_hash)
+    crate::git_diff::get_commit_diff(&cwd, &first_commit_hash, &latest_commit_hash, is_active)
 }

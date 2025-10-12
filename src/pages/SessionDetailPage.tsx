@@ -123,6 +123,9 @@ export default function SessionDetailPage() {
   useSessionActivity()
   const isSessionActive = useSessionActivityStore(state => state.isSessionActive)
 
+  // Tab state - default to transcript
+  const [activeTab, setActiveTab] = useState<'phase-timeline' | 'transcript' | 'metrics' | 'changes'>('transcript')
+
   // Fetch session metadata with TanStack Query
   const { data: session, isLoading: loading, error } = useQuery({
     queryKey: ['session-metadata', sessionId],
@@ -142,8 +145,30 @@ export default function SessionDetailPage() {
     ? JSON.parse(session.ai_model_phase_analysis)
     : null
 
-  // Tab state - default to transcript
-  const [activeTab, setActiveTab] = useState<'phase-timeline' | 'transcript' | 'metrics' | 'changes'>('transcript')
+  // Fetch git diff stats for tab badge (only when Changes tab is NOT active)
+  const { data: gitDiffStats } = useQuery({
+    queryKey: ['session-git-diff-stats', sessionId, isSessionActive(sessionId || '')],
+    queryFn: async () => {
+      if (!session?.cwd || !session?.first_commit_hash || !session?.latest_commit_hash) {
+        return null
+      }
+      const diffs = await invoke<any[]>('get_session_git_diff', {
+        cwd: session.cwd,
+        firstCommitHash: session.first_commit_hash,
+        latestCommitHash: session.latest_commit_hash,
+        isActive: isSessionActive(sessionId || ''),
+      })
+      const stats = diffs.reduce(
+        (acc: { additions: number; deletions: number }, file: any) => ({
+          additions: acc.additions + (file.stats?.additions || 0),
+          deletions: acc.deletions + (file.stats?.deletions || 0),
+        }),
+        { additions: 0, deletions: 0 }
+      )
+      return stats
+    },
+    enabled: !!session?.cwd && !!session?.first_commit_hash && !!session?.latest_commit_hash && activeTab !== 'changes',
+  })
 
   // Handle sync session click
   const handleSyncSession = async () => {
@@ -193,10 +218,11 @@ export default function SessionDetailPage() {
     if (!sessionId) return
 
     const invalidateSessionData = () => {
-      // Invalidate metadata, content, and git diff
+      // Invalidate metadata, content, git diff, and git diff stats
       queryClient.invalidateQueries({ queryKey: ['session-metadata', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['session-content', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['session-git-diff', sessionId] })
+      queryClient.invalidateQueries({ queryKey: ['session-git-diff-stats', sessionId] })
     }
 
     const unlistenSynced = listen('session-synced', (event) => {
@@ -516,6 +542,20 @@ export default function SessionDetailPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                 </svg>
                 <span className="hidden md:inline">Changes</span>
+                {activeTab !== 'changes' && gitDiffStats && (gitDiffStats.additions > 0 || gitDiffStats.deletions > 0) && (
+                  <span className="flex items-center gap-1">
+                    {gitDiffStats.additions > 0 && (
+                      <span className="badge badge-success badge-sm">
+                        {gitDiffStats.additions}
+                      </span>
+                    )}
+                    {gitDiffStats.deletions > 0 && (
+                      <span className="badge badge-error badge-sm">
+                        {gitDiffStats.deletions}
+                      </span>
+                    )}
+                  </span>
+                )}
               </button>
             )}
           </div>
@@ -621,6 +661,7 @@ export default function SessionDetailPage() {
               first_commit_hash: session.first_commit_hash,
               latest_commit_hash: session.latest_commit_hash,
             }}
+            isActive={isSessionActive(session.session_id)}
           />
         )}
       </div>
