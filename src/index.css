@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import '@git-diff-view/react/styles/diff-view.css';
 @plugin "daisyui";
 @source "../node_modules/@guideai-dev/session-processing/src/**/*.{js,ts,jsx,tsx}";
 

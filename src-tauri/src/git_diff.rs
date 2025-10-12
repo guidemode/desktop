@@ -111,6 +111,52 @@ fn parse_diff(
     let mut current_hunk_header: Option<String> = None;
     let mut file_headers_added = false;
 
+    // First, handle untracked files separately (they won't appear in print output)
+    for delta in diff.deltas() {
+        if delta.status() == git2::Delta::Untracked {
+            let new_path = delta.new_file().path().unwrap_or(Path::new("")).to_string_lossy().to_string();
+
+            // Read the entire file content from working directory
+            let file_content = get_file_content_from_workdir(cwd, &new_path).ok();
+
+            // Create hunks that show the entire file as added
+            let mut hunk_content = String::new();
+            hunk_content.push_str(&format!("Index: {}\n", new_path));
+            hunk_content.push_str("===================================================================\n");
+            hunk_content.push_str("--- /dev/null\t\n");
+            hunk_content.push_str(&format!("+++ {}\t\n", new_path));
+
+            if let Some(content) = &file_content {
+                let lines: Vec<&str> = content.lines().collect();
+                let line_count = lines.len();
+
+                hunk_content.push_str(&format!("@@ -0,0 +1,{} @@", line_count));
+
+                for line in lines {
+                    hunk_content.push('\n');
+                    hunk_content.push('+');
+                    hunk_content.push_str(line);
+                }
+                hunk_content.push('\n');
+            }
+
+            file_diffs.push(FileDiff {
+                old_path: String::new(),
+                new_path: new_path.clone(),
+                change_type: "added".to_string(),
+                language: detect_language(&new_path),
+                hunks: vec![hunk_content],
+                stats: DiffStats {
+                    additions: file_content.as_ref().map(|c| c.lines().count() as u32).unwrap_or(0),
+                    deletions: 0,
+                },
+                is_binary: delta.new_file().is_binary(),
+                old_content: None,
+                new_content: file_content,
+            });
+        }
+    }
+
     // Print diff and collect output
     diff.print(DiffFormat::Patch, |delta, hunk, line| {
         let old_path = delta.old_file().path().unwrap_or(Path::new("")).to_string_lossy().to_string();
@@ -132,6 +178,7 @@ fn parse_diff(
             // Start new file
             let change_type = match delta.status() {
                 git2::Delta::Added => "added",
+                git2::Delta::Untracked => "added", // Treat untracked files as added
                 git2::Delta::Deleted => "deleted",
                 git2::Delta::Modified => "modified",
                 git2::Delta::Renamed => "renamed",
@@ -159,7 +206,9 @@ fn parse_diff(
             current_file_content.push_str(&format!("Index: {}\n", new_path));
             current_file_content.push_str("===================================================================\n");
             // Add file headers with tabs (like the library expects)
-            current_file_content.push_str(&format!("--- {}\t\n", old_path));
+            // Use /dev/null for added files (when old_path is empty)
+            let old_path_display = if old_path.is_empty() { "/dev/null" } else { &old_path };
+            current_file_content.push_str(&format!("--- {}\t\n", old_path_display));
             current_file_content.push_str(&format!("+++ {}\t\n", new_path));
             file_headers_added = true;
         }

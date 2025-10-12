@@ -4,7 +4,9 @@ import { create } from 'zustand'
  * Session Activity Store
  *
  * Tracks active sessions based on file watcher events from Tauri.
- * A session is considered "active" if it has received activity in the past 2 minutes.
+ * A session is considered "active" if:
+ * 1. It has received activity (file watcher event) in the past 2 minutes, OR
+ * 2. Its sessionEndTime is within the past 2 minutes (recently ended)
  */
 
 interface ActiveSession {
@@ -22,7 +24,7 @@ interface SessionActivityState {
 
 interface SessionActivityActions {
   markSessionActive: (sessionId: string) => void
-  isSessionActive: (sessionId: string) => boolean
+  isSessionActive: (sessionId: string, sessionEndTime?: string | null) => boolean
   cleanupInactiveSessions: () => void
   clearAllActiveSessions: () => void
   setTrackingEnabled: (enabled: boolean) => void
@@ -59,13 +61,29 @@ export const useSessionActivityStore = create<SessionActivityStore>()((set, get)
     })
   },
 
-  isSessionActive: (sessionId: string) => {
+  isSessionActive: (sessionId: string, sessionEndTime?: string | null) => {
     const { activeSessions, config } = get()
-    const session = activeSessions.get(sessionId)
-    if (!session) return false
+    const now = Date.now()
 
-    const timeSinceActivity = Date.now() - session.lastActivityTime
-    return timeSinceActivity < config.activeSessionTimeout
+    // Check if session has recent activity from file watcher events
+    const session = activeSessions.get(sessionId)
+    if (session) {
+      const timeSinceActivity = now - session.lastActivityTime
+      if (timeSinceActivity < config.activeSessionTimeout) {
+        return true
+      }
+    }
+
+    // Check if session ended within the last 2 minutes
+    if (sessionEndTime) {
+      const endTime = new Date(sessionEndTime).getTime()
+      const timeSinceEnd = now - endTime
+      if (timeSinceEnd < config.activeSessionTimeout && timeSinceEnd >= 0) {
+        return true
+      }
+    }
+
+    return false
   },
 
   cleanupInactiveSessions: () => {
