@@ -95,6 +95,9 @@ pub fn insert_session(
     session_end_time: Option<DateTime<Utc>>,
     duration_ms: Option<i64>,
     cwd: Option<&str>,
+    git_branch: Option<&str>,
+    first_commit_hash: Option<&str>,
+    latest_commit_hash: Option<&str>,
 ) -> Result<String> {
     let db_conn = DB_CONNECTION.lock().unwrap();
     let conn = db_conn
@@ -111,9 +114,10 @@ pub fn insert_session(
         "INSERT INTO agent_sessions (
             id, provider, project_name, session_id, file_name, file_path, file_size, file_hash,
             session_start_time, session_end_time, duration_ms, cwd,
+            git_branch, first_commit_hash, latest_commit_hash,
             processing_status, synced_to_server,
             created_at, uploaded_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)",
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)",
         params![
             id,
             provider,
@@ -127,6 +131,9 @@ pub fn insert_session(
             session_end_time.map(|t| t.timestamp_millis()),
             duration_ms,
             cwd,
+            git_branch,
+            first_commit_hash,
+            latest_commit_hash,
             now,
             now,
         ],
@@ -167,6 +174,8 @@ pub fn update_session(
     session_start_time: Option<DateTime<Utc>>,
     session_end_time: Option<DateTime<Utc>>,
     cwd: Option<&str>,
+    git_branch: Option<&str>,
+    latest_commit_hash: Option<&str>,
 ) -> Result<()> {
     let db_conn = DB_CONNECTION.lock().unwrap();
     let conn = db_conn
@@ -175,13 +184,13 @@ pub fn update_session(
 
     let now = Utc::now().timestamp_millis();
 
-    // Get the existing start time, end time, and cwd from database
+    // Get the existing start time, end time, cwd, and git fields from database
     // Query by session_id only since providers like OpenCode have multiple files per session
-    let (existing_start_time_ms, existing_end_time_ms, existing_cwd): (Option<i64>, Option<i64>, Option<String>) = conn.query_row(
-        "SELECT session_start_time, session_end_time, cwd FROM agent_sessions WHERE session_id = ?",
+    let (existing_start_time_ms, existing_end_time_ms, existing_cwd, existing_git_branch, existing_first_commit, existing_latest_commit): (Option<i64>, Option<i64>, Option<String>, Option<String>, Option<String>, Option<String>) = conn.query_row(
+        "SELECT session_start_time, session_end_time, cwd, git_branch, first_commit_hash, latest_commit_hash FROM agent_sessions WHERE session_id = ?",
         params![session_id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-    ).ok().unwrap_or((None, None, None));
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+    ).ok().unwrap_or((None, None, None, None, None, None));
 
     // Use new start time if provided and existing is null, otherwise keep existing
     let final_start_time_ms = match (existing_start_time_ms, session_start_time) {
@@ -195,6 +204,26 @@ pub fn update_session(
         (None, Some(new_cwd)) => Some(new_cwd.to_string()), // Database has null, use new value
         (Some(existing), _) => Some(existing),              // Keep existing non-null value
         (None, None) => None,                               // Both null, stay null
+    };
+
+    // Use new git_branch if provided and existing is null, otherwise keep existing
+    let final_git_branch = match (existing_git_branch, git_branch) {
+        (None, Some(new_branch)) => Some(new_branch.to_string()),
+        (Some(existing), _) => Some(existing),
+        (None, None) => None,
+    };
+
+    // Use new commit as first_commit_hash if existing is null and we have a commit, otherwise keep existing
+    let final_first_commit = match (existing_first_commit, latest_commit_hash) {
+        (None, Some(new_commit)) => Some(new_commit.to_string()), // Database has null, use new value
+        (Some(existing), _) => Some(existing),                    // Keep existing non-null value
+        (None, None) => None,                                     // Both null, stay null
+    };
+
+    // Always update latest_commit_hash if provided (this is expected to change)
+    let final_latest_commit = match latest_commit_hash {
+        Some(new_commit) => Some(new_commit.to_string()),
+        None => existing_latest_commit,
     };
 
     // Calculate duration if we have both start and end times
@@ -217,6 +246,9 @@ pub fn update_session(
              session_end_time = ?,
              duration_ms = ?,
              cwd = ?,
+             git_branch = ?,
+             first_commit_hash = ?,
+             latest_commit_hash = ?,
              uploaded_at = ?,
              synced_to_server = 0,
              core_metrics_status = 'pending',
@@ -229,6 +261,9 @@ pub fn update_session(
             session_end_time.map(|t| t.timestamp_millis()),
             duration_ms,
             final_cwd,
+            final_git_branch,
+            final_first_commit,
+            final_latest_commit,
             now,
             session_id,
         ],
@@ -863,6 +898,9 @@ pub struct FullSessionData {
     pub ai_model_quality_score: Option<i64>,
     pub ai_model_metadata: Option<String>,
     pub ai_model_phase_analysis: Option<String>,
+    pub git_branch: Option<String>,
+    pub first_commit_hash: Option<String>,
+    pub latest_commit_hash: Option<String>,
 }
 
 /// Get full session data by session ID (for metrics-only sync)
@@ -880,7 +918,8 @@ pub fn get_full_session_by_id(session_id: &str) -> Result<Option<FullSessionData
                     COALESCE(core_metrics_status, 'pending') as core_metrics_status,
                     core_metrics_processed_at,
                     assessment_status, assessment_completed_at,
-                    ai_model_summary, ai_model_quality_score, ai_model_metadata, ai_model_phase_analysis
+                    ai_model_summary, ai_model_quality_score, ai_model_metadata, ai_model_phase_analysis,
+                    git_branch, first_commit_hash, latest_commit_hash
              FROM agent_sessions
              WHERE session_id = ?",
             params![session_id],
@@ -906,6 +945,9 @@ pub fn get_full_session_by_id(session_id: &str) -> Result<Option<FullSessionData
                     ai_model_quality_score: row.get(17)?,
                     ai_model_metadata: row.get(18)?,
                     ai_model_phase_analysis: row.get(19)?,
+                    git_branch: row.get(20)?,
+                    first_commit_hash: row.get(21)?,
+                    latest_commit_hash: row.get(22)?,
                 })
             },
         )
