@@ -147,7 +147,7 @@ export default function SessionDetailPage() {
 
   // Fetch git diff stats for tab badge (only when Changes tab is NOT active)
   const { data: gitDiffStats } = useQuery({
-    queryKey: ['session-git-diff-stats', sessionId, isSessionActive(sessionId || '')],
+    queryKey: ['session-git-diff-stats', sessionId, isSessionActive(sessionId || '', session?.session_end_time ? new Date(session.session_end_time).toISOString() : null)],
     queryFn: async () => {
       if (!session?.cwd || !session?.first_commit_hash || !session?.latest_commit_hash) {
         return null
@@ -156,7 +156,7 @@ export default function SessionDetailPage() {
         cwd: session.cwd,
         firstCommitHash: session.first_commit_hash,
         latestCommitHash: session.latest_commit_hash,
-        isActive: isSessionActive(sessionId || ''),
+        isActive: isSessionActive(sessionId || '', session?.session_end_time ? new Date(session.session_end_time).toISOString() : null),
       })
       const stats = diffs.reduce(
         (acc: { additions: number; deletions: number }, file: any) => ({
@@ -412,7 +412,7 @@ export default function SessionDetailPage() {
       <div>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Session Detail</h1>
-          {sessionId && isSessionActive(sessionId) && (
+          {sessionId && session?.session_end_time && isSessionActive(sessionId, new Date(session.session_end_time).toISOString()) && (
             <span className="badge badge-success gap-1.5 animate-pulse">
               <span className="relative flex h-2 w-2 items-center justify-center">
                 <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75"></span>
@@ -661,7 +661,7 @@ export default function SessionDetailPage() {
               first_commit_hash: session.first_commit_hash,
               latest_commit_hash: session.latest_commit_hash,
             }}
-            isActive={isSessionActive(session.session_id)}
+            isActive={isSessionActive(session.session_id, session.session_end_time ? new Date(session.session_end_time).toISOString() : null)}
           />
         )}
       </div>

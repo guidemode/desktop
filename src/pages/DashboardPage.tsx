@@ -174,7 +174,7 @@ function DashboardPage() {
                   ...session,
                   aiModelQualityScore: session.aiModelQualityScore,
                 }}
-                isActive={isSessionActive(session.sessionId as string)}
+                isActive={isSessionActive(session.sessionId as string, session.sessionEndTime)}
                 onViewSession={() => handleViewSession(session.sessionId as string)}
                 ProviderIcon={ProviderIcon}
               />

@@ -847,7 +847,7 @@ export default function SessionsPage() {
                     aiModelQualityScore: session.aiModelQualityScore,
                   }}
                   isSelected={isSelected}
-                  isActive={isSessionActive(session.sessionId as string)}
+                  isActive={isSessionActive(session.sessionId as string, session.sessionEndTime)}
                   onSelect={selectionMode ? (checked) => handleToggleSelection(session.sessionId as string, checked) : undefined}
                   onViewSession={() => handleViewSession(session.sessionId as string)}
                   onProcessSession={

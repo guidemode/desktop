@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, Component, type ReactNode, type ErrorInfo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { DiffView, DiffModeEnum } from "@git-diff-view/react";
-// Note: CSS import handled globally in index.css to avoid module loading issues
+import "./git-diff-scoped.css";
 import {
   ChevronRightIcon,
   ChevronDownIcon,
   DocumentTextIcon,
   PlusIcon,
   MinusIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 
 interface FileDiff {
@@ -73,6 +74,9 @@ export function SessionChangesTab({
 }: SessionChangesTabProps) {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"split" | "unified">("split");
+
+  // Check if we're showing unstaged changes (commits are the same)
+  const isShowingUnstagedChanges = session.first_commit_hash === session.latest_commit_hash && isActive;
 
   // Fetch git diff with React Query
   const {
@@ -174,6 +178,19 @@ export function SessionChangesTab({
 
   return (
     <div className="space-y-4">
+      {/* Info Alert for Unstaged Changes */}
+      {isShowingUnstagedChanges && (
+        <div className="alert bg-info/10 border border-info/20">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-info shrink-0 w-6 h-6 opacity-60">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div>
+            <h3 className="font-semibold text-info">Showing Uncommitted Changes</h3>
+            <div className="text-sm opacity-70">No commits were made during this active session. Displaying all uncommitted changes (staged, unstaged, and untracked files) since the session started. This will only be shown while the session is active.</div>
+          </div>
+        </div>
+      )}
+
       {/* Header with stats and controls */}
       <div className="card bg-base-200 border border-base-300">
         <div className="card-body p-4">
@@ -266,6 +283,29 @@ function FileDiffCard({
   const theme = document.documentElement.dataset.theme || "guideai-dark";
   const diffTheme = theme.includes("light") ? "light" : "dark";
 
+  // Validate and clean hunks
+  const validHunks = file.hunks.filter((hunk) => {
+    if (!hunk || !hunk.trim()) {
+      return false;
+    }
+    // Check if hunk has proper unified diff format
+    // Must have: Index, ---, +++, and @@ lines
+    const hasHeader = hunk.includes("---") && hunk.includes("+++");
+    const hasHunkMarker = hunk.includes("@@");
+    const hasContent = /^[\+\- ]/.test(hunk.split('\n').slice(-2).join('\n'));
+
+    if (!hasHeader || !hasHunkMarker) {
+      console.warn(`Invalid hunk format for ${file.newPath}:`, hunk.substring(0, 200));
+      return false;
+    }
+
+    // Ensure hunk ends with a newline
+    return true;
+  }).map(hunk => {
+    // Ensure hunk ends properly
+    return hunk.endsWith('\n') ? hunk : hunk + '\n';
+  });
+
   return (
     <div className="card bg-base-100 border border-base-300">
       {/* File header */}
@@ -305,10 +345,15 @@ function FileDiffCard({
               <DocumentTextIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p>Binary file changed</p>
             </div>
-          ) : file.hunks.length === 0 ? (
+          ) : validHunks.length === 0 ? (
             <div className="p-8 text-center text-base-content/60">
               <DocumentTextIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>No diff content available</p>
+              <p>No valid diff content available</p>
+              {file.hunks.length > 0 && (
+                <p className="text-xs mt-2">
+                  Invalid hunks detected - check console for details
+                </p>
+              )}
             </div>
           ) : (
             <div className="diff-view-wrapper">
@@ -324,7 +369,7 @@ function FileDiffCard({
                     fileLang: file.language || undefined,
                     content: file.newContent || undefined,
                   },
-                  hunks: file.hunks,
+                  hunks: validHunks,
                 }}
                 diffViewMode={
                   viewMode === "split"
