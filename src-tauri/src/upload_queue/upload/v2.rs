@@ -223,6 +223,17 @@ pub async fn upload_v2(
             "todoWriteCount": m.todo_write_count,
             "overTopAffirmationsPhrases": parse_array(&m.over_top_affirmations_phrases),
             "improvementTips": parse_array(&m.improvement_tips),
+            // Git diff metrics (desktop-only)
+            "gitTotalFilesChanged": m.git_total_files_changed,
+            "gitLinesAdded": m.git_lines_added,
+            "gitLinesRemoved": m.git_lines_removed,
+            "gitLinesModified": m.git_lines_modified,
+            "gitNetLinesChanged": m.git_net_lines_changed,
+            "gitLinesReadPerLineChanged": m.git_lines_read_per_line_changed,
+            "gitReadsPerFileChanged": m.git_reads_per_file_changed,
+            "gitLinesChangedPerMinute": m.git_lines_changed_per_minute,
+            "gitLinesChangedPerToolUse": m.git_lines_changed_per_tool_use,
+            "totalLinesRead": m.total_lines_read,
             // Custom metrics
             "customMetrics": m.custom_metrics.as_ref().and_then(|s| serde_json::from_str::<Value>(s).ok()),
         });
