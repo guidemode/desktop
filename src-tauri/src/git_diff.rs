@@ -40,7 +40,7 @@ pub fn get_commit_diff(
     first_commit_hash: &str,
     latest_commit_hash: &str,
     is_active: bool,
-    session_start_time: Option<i64>,
+    _session_start_time: Option<i64>,
     session_end_time: Option<i64>,
 ) -> Result<Vec<FileDiff>, String> {
     // Open repository
@@ -53,10 +53,6 @@ pub fn get_commit_diff(
     diff_opts.include_untracked(true); // Include untracked files
     diff_opts.recurse_untracked_dirs(true); // Recurse into untracked directories
 
-    // Convert timestamps to seconds for git comparison
-    let start_time_sec = session_start_time.map(|ms| ms / 1000);
-    let end_time_sec = session_end_time.map(|ms| ms / 1000);
-
     // Get the first commit object
     let first_oid = repo
         .revparse_single(first_commit_hash)
@@ -66,13 +62,11 @@ pub fn get_commit_diff(
         .map_err(|e| format!("Failed to peel first commit: {}", e))?;
 
     // Determine if we should include uncommitted changes
-    let include_uncommitted = is_active || (first_commit_hash == latest_commit_hash && end_time_sec.is_some());
+    let include_uncommitted = is_active || (first_commit_hash == latest_commit_hash && session_end_time.is_some());
 
     // If commits are the same, we're looking at changes in the repo during the session period
     // Even if no commits were made, we want to show what changed in the branch during that time
     if first_commit_hash == latest_commit_hash {
-        println!("DEBUG: Same hash scenario - first_hash: {}, is_active: {}", first_commit_hash, is_active);
-
         let first_tree = first_commit
             .tree()
             .map_err(|e| format!("Failed to get first commit tree: {}", e))?;
@@ -81,37 +75,25 @@ pub fn get_commit_diff(
         // This could be the working directory (if active) or HEAD (if inactive)
         // Either way, we show the diff from the session's starting point to the current state
         if is_active {
-            println!("DEBUG: Active session - diffing tree to workdir");
             // Active: show working directory changes
             let diff = repo.diff_tree_to_workdir_with_index(Some(&first_tree), Some(&mut diff_opts))
                 .map_err(|e| format!("Failed to create diff to working directory: {}", e))?;
 
-            let delta_count = diff.deltas().len();
-            println!("DEBUG: Created diff with {} deltas", delta_count);
-
             let result = parse_diff(&repo, diff, Some(&first_tree), None, cwd);
-            println!("DEBUG: parse_diff returned {} files", result.as_ref().map(|f| f.len()).unwrap_or(0));
             return result;
         } else {
-            println!("DEBUG: Inactive session - diffing first_tree to workdir (showing uncommitted changes from session period)");
             // Inactive: show diff from first_commit to current working directory
             // Even though the session ended, we want to show what changes exist that were made during that time
             let diff = repo.diff_tree_to_workdir_with_index(Some(&first_tree), Some(&mut diff_opts))
                 .map_err(|e| format!("Failed to create tree to workdir diff: {}", e))?;
 
-            let delta_count = diff.deltas().len();
-            println!("DEBUG: Created diff with {} deltas", delta_count);
-
             let result = parse_diff(&repo, diff, Some(&first_tree), None, cwd);
-            println!("DEBUG: parse_diff returned {} files", result.as_ref().map(|f| f.len()).unwrap_or(0));
             return result;
         }
     }
 
     // Different commits - show all changes between them (no timestamp filtering)
     // The session tracking already captured the correct start and end commits
-    println!("DEBUG: Different commits scenario - first: {}, latest: {}", first_commit_hash, latest_commit_hash);
-
     let latest_oid = repo
         .revparse_single(latest_commit_hash)
         .map_err(|e| format!("Failed to find latest commit {}: {}", latest_commit_hash, e))?;
@@ -122,8 +104,6 @@ pub fn get_commit_diff(
     // Use the provided commits directly - no timestamp filtering needed
     let actual_first_commit = first_commit;
     let actual_latest_commit = latest_commit;
-
-    println!("DEBUG: Comparing commits - first: {}, latest: {}", actual_first_commit.id(), actual_latest_commit.id());
 
     // Get trees for the actual commits we're diffing
     let first_tree = actual_first_commit
@@ -138,88 +118,19 @@ pub fn get_commit_diff(
         .diff_tree_to_tree(Some(&first_tree), Some(&latest_tree), Some(&mut diff_opts))
         .map_err(|e| format!("Failed to create diff: {}", e))?;
 
-    println!("DEBUG: Created tree-to-tree diff with {} deltas", diff.deltas().len());
-
     // If session is active or we're showing uncommitted changes, merge with working directory diff
     if include_uncommitted {
-        println!("DEBUG: Including uncommitted changes (is_active: {})", is_active);
         let workdir_diff = repo
             .diff_tree_to_workdir_with_index(Some(&latest_tree), Some(&mut diff_opts))
             .map_err(|e| format!("Failed to create working directory diff: {}", e))?;
 
-        println!("DEBUG: Workdir diff has {} deltas", workdir_diff.deltas().len());
-
         // Merge the diffs
         diff.merge(&workdir_diff)
             .map_err(|e| format!("Failed to merge diffs: {}", e))?;
-
-        println!("DEBUG: After merge, diff has {} deltas", diff.deltas().len());
     }
 
     // Parse diff into FileDiff structures
-    let result = parse_diff(&repo, diff, Some(&first_tree), if include_uncommitted { None } else { Some(&latest_tree) }, cwd);
-    println!("DEBUG: parse_diff returned {} files", result.as_ref().map(|f| f.len()).unwrap_or(0));
-    result
-}
-
-/// Filter commits to those within a specific time range
-/// Returns the earliest and latest commits within the range
-fn filter_commits_by_time<'repo>(
-    repo: &'repo Repository,
-    start_commit: &git2::Commit<'repo>,
-    end_commit: &git2::Commit<'repo>,
-    start_time: i64,
-    end_time: i64,
-) -> Result<(git2::Commit<'repo>, git2::Commit<'repo>), String> {
-    // Walk from start to end commit, collecting those in time range
-    let mut revwalk = repo.revwalk()
-        .map_err(|e| format!("Failed to create revwalk: {}", e))?;
-
-    // Set up walk from end back to start
-    revwalk.push(end_commit.id())
-        .map_err(|e| format!("Failed to push end commit: {}", e))?;
-    revwalk.hide(start_commit.id())
-        .map_err(|e| format!("Failed to hide start commit: {}", e))?;
-
-    let mut commits_in_range = Vec::new();
-
-    // Check start commit first
-    let start_commit_time = start_commit.time().seconds();
-    if start_commit_time >= start_time && start_commit_time <= end_time {
-        commits_in_range.push(start_commit.clone());
-    }
-
-    // Walk commits between start and end
-    for oid in revwalk {
-        let oid = oid.map_err(|e| format!("Failed to walk commit: {}", e))?;
-        let commit = repo.find_commit(oid)
-            .map_err(|e| format!("Failed to find commit: {}", e))?;
-
-        let commit_time = commit.time().seconds();
-        if commit_time >= start_time && commit_time <= end_time {
-            commits_in_range.push(commit);
-        }
-    }
-
-    // Check end commit
-    let end_commit_time = end_commit.time().seconds();
-    if end_commit_time >= start_time && end_commit_time <= end_time {
-        commits_in_range.push(end_commit.clone());
-    }
-
-    // If no commits in range, fall back to original commits
-    if commits_in_range.is_empty() {
-        return Ok((start_commit.clone(), end_commit.clone()));
-    }
-
-    // Sort by time (oldest first)
-    commits_in_range.sort_by_key(|c| c.time().seconds());
-
-    // Return first and last commits in the time range
-    let first = commits_in_range.first().unwrap().clone();
-    let last = commits_in_range.last().unwrap().clone();
-
-    Ok((first, last))
+    parse_diff(&repo, diff, Some(&first_tree), if include_uncommitted { None } else { Some(&latest_tree) }, cwd)
 }
 
 /// Parse git2 Diff into structured FileDiff objects
@@ -230,8 +141,6 @@ fn parse_diff(
     new_tree: Option<&git2::Tree>,
     cwd: &str,
 ) -> Result<Vec<FileDiff>, String> {
-    println!("DEBUG parse_diff: old_tree: {}, new_tree: {}", old_tree.is_some(), new_tree.is_some());
-
     let mut file_diffs: Vec<FileDiff> = Vec::new();
     let mut current_file: Option<FileDiff> = None;
     let mut current_file_content = String::new();
@@ -395,8 +304,6 @@ fn parse_diff(
         file_diffs.push(file);
     }
 
-    println!("DEBUG parse_diff: After diff.print, collected {} files", file_diffs.len());
-
     // Extract file contents for syntax highlighting
     for file_diff in &mut file_diffs {
         if file_diff.is_binary {
@@ -420,14 +327,7 @@ fn parse_diff(
                 file_diff.new_content = get_file_content_from_workdir(cwd, &file_diff.new_path).ok();
             }
         }
-
-        println!("DEBUG parse_diff: File {} has {} hunks", file_diff.new_path, file_diff.hunks.len());
-        if file_diff.hunks.is_empty() {
-            println!("DEBUG parse_diff: WARNING - File {} has no hunks!", file_diff.new_path);
-        }
     }
-
-    println!("DEBUG parse_diff: Returning {} total files", file_diffs.len());
 
     Ok(file_diffs)
 }
