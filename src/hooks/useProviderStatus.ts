@@ -6,6 +6,8 @@ import { useCopilotWatcherStatus } from './useCopilotWatcher'
 import { useOpenCodeWatcherStatus } from './useOpenCodeWatcher'
 import { useCodexWatcherStatus } from './useCodexWatcher'
 import { useGeminiWatcherStatus } from './useGeminiWatcher'
+import { useDirectoryExists } from './useDirectoryExists'
+import { CODING_AGENTS } from '../types/providers'
 
 interface UseProviderStatusResult {
   status: ProviderStatus
@@ -15,14 +17,19 @@ interface UseProviderStatusResult {
 }
 
 /**
- * Calculate provider operational status from config data
+ * Calculate provider operational status from config data and directory existence
  * Note: Status reflects the provider's CONFIGURED mode, not whether the watcher is currently running.
  * The watcher can be paused/stopped temporarily without changing the provider's operational mode.
  */
 function calculateProviderStatus(
-  isRunning: boolean | undefined,
-  config: ProviderConfig | undefined
+  config: ProviderConfig | undefined,
+  directoryExists: boolean | undefined
 ): ProviderStatus {
+  // Check if directory exists first - this takes priority
+  if (directoryExists === false) {
+    return 'not-installed'
+  }
+
   // No config or explicitly disabled
   if (!config || !config.enabled) {
     return 'disabled'
@@ -74,10 +81,17 @@ export function useProviderStatus(providerId: string): UseProviderStatusResult {
   // Get provider config from React Query (single source of truth)
   const { data: config, isLoading: configLoading, error: configError, refetch: refetchConfig } = useProviderConfig(providerId)
 
+  // Get agent to access default home directory
+  const agent = useMemo(() => CODING_AGENTS.find(a => a.id === providerId), [providerId])
+  const effectiveHomeDirectory = config?.homeDirectory || agent?.defaultHomeDirectory
+
+  // Check if home directory exists
+  const { data: directoryExists } = useDirectoryExists(effectiveHomeDirectory)
+
   // Compute status
   const status = useMemo(() => {
-    return calculateProviderStatus(watcherQuery.data?.is_running, config)
-  }, [watcherQuery.data?.is_running, config])
+    return calculateProviderStatus(config, directoryExists)
+  }, [config, directoryExists])
 
   // isLoading true only during initial fetch of either watcher or config
   const isLoading = (watcherQuery.isLoading && !watcherQuery.data) || (configLoading && !config)

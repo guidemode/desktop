@@ -4,6 +4,7 @@ import { useDatabase } from './hooks/useDatabase'
 import { useSessionIngest } from './hooks/useSessionIngest'
 import { useDebouncedCoreMetrics } from './hooks/useDebouncedCoreMetrics'
 import { useDelayedAiProcessing } from './hooks/useDelayedAiProcessing'
+import { useOnboarding } from './hooks/useOnboarding'
 import AppLayout from './components/Layout/AppLayout'
 import DashboardPage from './pages/DashboardPage'
 import OverviewPage from './pages/OverviewPage'
@@ -15,11 +16,13 @@ import SettingsPage from './pages/SettingsPage'
 import UploadQueuePage from './pages/UploadQueuePage'
 import LogsPage from './pages/LogsPage'
 import { ToastContainer } from './components/ToastContainer'
+import { OnboardingTour } from './components/Onboarding/OnboardingTour'
 import { listen } from '@tauri-apps/api/event'
 import { useEffect } from 'react'
 
 function AppContent() {
   const navigate = useNavigate()
+  const { hasCompletedTour, isTourRunning, startTour } = useOnboarding()
 
   // Start listening for session detection events
   useSessionIngest()
@@ -41,6 +44,18 @@ function AppContent() {
       unlisten.then(fn => fn())
     }
   }, [navigate])
+
+  // Auto-start tour on first launch
+  useEffect(() => {
+    // Delay to ensure app is fully loaded
+    const timer = setTimeout(() => {
+      if (!hasCompletedTour && !isTourRunning) {
+        startTour()
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [hasCompletedTour, isTourRunning, startTour])
 
   return (
     <AppLayout>
@@ -99,6 +114,7 @@ function App() {
     <Router>
       <AppContent />
       <ToastContainer />
+      <OnboardingTour />
     </Router>
   )
 }

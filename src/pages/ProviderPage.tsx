@@ -39,6 +39,7 @@ function ProviderPage() {
           <button
             onClick={() => setShowLogs(true)}
             className="btn btn-sm btn-outline gap-2"
+            data-tour="provider-logs-button"
           >
             <DocumentTextIcon className="w-4 h-4" />
             Logs

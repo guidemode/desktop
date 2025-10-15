@@ -108,7 +108,7 @@ function DashboardPage() {
         </div>
 
         {/* Active Providers Card */}
-        <div className="card bg-base-100 shadow-sm border border-base-300">
+        <div className="card bg-base-100 shadow-sm border border-base-300" data-tour="providers-card">
           <div className="card-body">
             <h2 className="card-title text-base">Active Providers</h2>
             <div className="flex flex-col gap-3 mt-2">
@@ -117,6 +117,7 @@ function DashboardPage() {
                   key={provider.id}
                   to={`/provider/${provider.id}`}
                   className="flex items-center gap-3 hover:bg-base-200 transition-colors"
+                  data-tour={provider.id === 'claude-code' ? 'claude-code-provider' : undefined}
                 >
                   <ProviderIcon providerId={provider.id} size={32} />
                   <span className="text-base font-medium">{provider.name}</span>
@@ -133,14 +134,14 @@ function DashboardPage() {
         </div>
 
         {/* Sync Status Card */}
-        <div className="card bg-base-100 shadow-sm border border-base-300">
+        <div className="card bg-base-100 shadow-sm border border-base-300" data-tour="sync-status-card">
           <div className="card-body">
             <h2 className="card-title text-base">Sync Status</h2>
             <p className="text-lg font-semibold">
               {user ? (
                 <span className="text-success">Connected</span>
               ) : (
-                <span className="text-base-content/50">Offline</span>
+                <span className="text-base-content/50">Not Connected</span>
               )}
             </p>
             {user ? (
@@ -149,9 +150,14 @@ function DashboardPage() {
                 {user.tenantName && <p className="font-medium">{user.tenantName}</p>}
               </div>
             ) : (
-              <Link to="/settings" className="link link-primary text-sm">
-                Login to sync
-              </Link>
+              <div className="mt-2">
+                <p className="text-sm text-base-content/60 mb-3">
+                  Sign in to sync your coding sessions to GuideAI cloud
+                </p>
+                <Link to="/settings" className="btn btn-primary btn-sm">
+                  Sign In to Sync
+                </Link>
+              </div>
             )}
           </div>
         </div>

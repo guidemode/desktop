@@ -2,6 +2,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { CODING_AGENTS } from '../../types/providers'
 import ProviderIcon from '../icons/ProviderIcon'
 import { useAuth } from '../../hooks/useAuth'
+import { useProviderConfig } from '../../hooks/useProviderConfig'
+import { useDirectoryExists } from '../../hooks/useDirectoryExists'
 import { open } from '@tauri-apps/plugin-shell'
 
 interface NavItem {
@@ -9,6 +11,49 @@ interface NavItem {
   label: string
   icon: string
   type?: 'main' | 'section' | 'provider'
+}
+
+interface ProviderNavItemProps {
+  item: NavItem
+  provider: typeof CODING_AGENTS[0] | undefined
+  isActive: boolean
+  onClick: () => void
+}
+
+function ProviderNavItem({ item, provider, isActive, onClick }: ProviderNavItemProps) {
+  // Get provider config to check home directory
+  const { data: config } = useProviderConfig(provider?.id || '')
+  const homeDir = config?.homeDirectory || provider?.defaultHomeDirectory
+
+  // Check if directory exists
+  const { data: directoryExists } = useDirectoryExists(homeDir, !!provider)
+
+  // Determine if provider is unavailable (directory doesn't exist)
+  const isUnavailable = provider && directoryExists === false
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left ${
+        isActive
+          ? 'bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-sm hover:from-green-700 hover:to-blue-700'
+          : isUnavailable
+          ? 'text-base-content/50 hover:bg-base-200/50 opacity-60'
+          : 'text-base-content hover:bg-base-200'
+      }`}
+    >
+      {provider ? (
+        <div className={`flex-shrink-0 w-5 h-5 flex items-center justify-center ${isUnavailable ? 'opacity-50' : ''}`}>
+          <ProviderIcon providerId={provider.id} size={20} />
+        </div>
+      ) : (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+        </svg>
+      )}
+      <span className="flex-1">{item.label}</span>
+    </button>
+  )
 }
 
 const navItems: NavItem[] = [
@@ -73,6 +118,7 @@ function SideNav() {
         <div className="mb-4">
           {navItems.filter(item => item.type === 'main').map(item => {
             const isActive = location.pathname === item.path
+            const dataTour = item.path === '/sessions' ? 'sessions-nav' : undefined
 
             return (
               <button
@@ -83,6 +129,7 @@ function SideNav() {
                     ? 'bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-sm hover:from-green-700 hover:to-blue-700'
                     : 'text-base-content hover:bg-base-200'
                 }`}
+                data-tour={dataTour}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
@@ -104,26 +151,13 @@ function SideNav() {
               const provider = CODING_AGENTS.find(agent => item.path === `/provider/${agent.id}`)
 
               return (
-                <button
+                <ProviderNavItem
                   key={item.path}
+                  item={item}
+                  provider={provider}
+                  isActive={isActive}
                   onClick={() => handleNavClick(item.path)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left ${
-                    isActive
-                      ? 'bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-sm hover:from-green-700 hover:to-blue-700'
-                      : 'text-base-content hover:bg-base-200'
-                  }`}
-                >
-                  {provider ? (
-                    <div className={`flex-shrink-0 w-5 h-5 flex items-center justify-center`}>
-                      <ProviderIcon providerId={provider.id} size={20} />
-                    </div>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
-                    </svg>
-                  )}
-                  <span className="flex-1">{item.label}</span>
-                </button>
+                />
               )
             })}
           </div>
@@ -137,6 +171,9 @@ function SideNav() {
           <div className="space-y-1">
             {navItems.filter(item => item.type === 'section').map(item => {
               const isActive = location.pathname === item.path
+              const dataTour = item.path === '/upload-queue' ? 'upload-queue-nav' :
+                               item.path === '/sessions' ? 'sessions-nav' :
+                               item.path === '/settings' ? 'settings-nav' : undefined
 
               return (
                 <button
@@ -147,6 +184,7 @@ function SideNav() {
                       ? 'bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-sm hover:from-green-700 hover:to-blue-700'
                       : 'text-base-content hover:bg-base-200'
                   }`}
+                  data-tour={dataTour}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />

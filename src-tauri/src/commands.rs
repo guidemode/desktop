@@ -215,6 +215,16 @@ pub async fn scan_projects_command(
     crate::providers::scan_projects(&provider_id, &directory)
 }
 
+// Directory validation command
+#[tauri::command]
+pub async fn check_directory_exists(path: String) -> Result<bool, String> {
+    use std::path::Path;
+
+    // Expand ~ and environment variables
+    let expanded = shellexpand::tilde(&path).to_string();
+    Ok(Path::new(&expanded).exists())
+}
+
 // Activity logging commands
 #[tauri::command]
 pub async fn add_activity_log_command(entry: ActivityLogEntry) -> Result<(), String> {
@@ -344,6 +354,19 @@ pub async fn start_claude_watcher(
     state: State<'_, AppState>,
     projects: Vec<String>,
 ) -> Result<(), String> {
+    // Load provider config to check home directory
+    let provider_config = load_provider_config("claude-code")
+        .map_err(|e| format!("Failed to load provider config: {}", e))?;
+
+    // Check if home directory exists before starting watcher
+    let expanded_path = shellexpand::tilde(&provider_config.home_directory).to_string();
+    if !std::path::Path::new(&expanded_path).exists() {
+        return Err(format!(
+            "Cannot start watcher: directory '{}' does not exist. Please install Claude Code or configure a valid directory.",
+            provider_config.home_directory
+        ));
+    }
+
     // Update upload queue with current config
     if let Ok(config) = load_config() {
         state.upload_queue.set_config(config);
@@ -401,6 +424,19 @@ pub async fn start_opencode_watcher(
     state: State<'_, AppState>,
     projects: Vec<String>,
 ) -> Result<(), String> {
+    // Load provider config to check home directory
+    let provider_config = load_provider_config("opencode")
+        .map_err(|e| format!("Failed to load provider config: {}", e))?;
+
+    // Check if home directory exists before starting watcher
+    let expanded_path = shellexpand::tilde(&provider_config.home_directory).to_string();
+    if !std::path::Path::new(&expanded_path).exists() {
+        return Err(format!(
+            "Cannot start watcher: directory '{}' does not exist. Please install OpenCode or configure a valid directory.",
+            provider_config.home_directory
+        ));
+    }
+
     // Update upload queue with current config
     if let Ok(config) = load_config() {
         state.upload_queue.set_config(config);
@@ -458,6 +494,19 @@ pub async fn start_codex_watcher(
     state: State<'_, AppState>,
     projects: Vec<String>,
 ) -> Result<(), String> {
+    // Load provider config to check home directory
+    let provider_config = load_provider_config("codex")
+        .map_err(|e| format!("Failed to load provider config: {}", e))?;
+
+    // Check if home directory exists before starting watcher
+    let expanded_path = shellexpand::tilde(&provider_config.home_directory).to_string();
+    if !std::path::Path::new(&expanded_path).exists() {
+        return Err(format!(
+            "Cannot start watcher: directory '{}' does not exist. Please install Codex or configure a valid directory.",
+            provider_config.home_directory
+        ));
+    }
+
     // Update upload queue with current config
     if let Ok(config) = load_config() {
         state.upload_queue.set_config(config);
@@ -511,6 +560,19 @@ pub async fn start_copilot_watcher(
     state: State<'_, AppState>,
     projects: Vec<String>,
 ) -> Result<(), String> {
+    // Load provider config to check home directory
+    let provider_config = load_provider_config("github-copilot")
+        .map_err(|e| format!("Failed to load provider config: {}", e))?;
+
+    // Check if home directory exists before starting watcher
+    let expanded_path = shellexpand::tilde(&provider_config.home_directory).to_string();
+    if !std::path::Path::new(&expanded_path).exists() {
+        return Err(format!(
+            "Cannot start watcher: directory '{}' does not exist. Please install GitHub Copilot or configure a valid directory.",
+            provider_config.home_directory
+        ));
+    }
+
     // Update upload queue with current config
     if let Ok(config) = load_config() {
         state.upload_queue.set_config(config);
@@ -568,6 +630,19 @@ pub async fn start_gemini_watcher(
     state: State<'_, AppState>,
     projects: Vec<String>,
 ) -> Result<(), String> {
+    // Load provider config to check home directory
+    let provider_config = load_provider_config("gemini-code")
+        .map_err(|e| format!("Failed to load provider config: {}", e))?;
+
+    // Check if home directory exists before starting watcher
+    let expanded_path = shellexpand::tilde(&provider_config.home_directory).to_string();
+    if !std::path::Path::new(&expanded_path).exists() {
+        return Err(format!(
+            "Cannot start watcher: directory '{}' does not exist. Please install Gemini Code or configure a valid directory.",
+            provider_config.home_directory
+        ));
+    }
+
     // Update upload queue with current config
     if let Ok(config) = load_config() {
         state.upload_queue.set_config(config);
@@ -1168,9 +1243,20 @@ pub fn start_enabled_watchers(app_state: &AppState) {
     // Try to start Claude Code watcher if enabled
     if let Ok(claude_config) = load_provider_config("claude-code") {
         if claude_config.enabled {
-            // Scan for projects
-            match crate::providers::scan_projects("claude-code", &claude_config.home_directory) {
-                Ok(projects) => {
+            // Check if home directory exists before starting watcher
+            let expanded_path = shellexpand::tilde(&claude_config.home_directory).to_string();
+            if !std::path::Path::new(&expanded_path).exists() {
+                error!(
+                    provider = "claude-code",
+                    directory = %claude_config.home_directory,
+                    "Cannot start watcher: directory does not exist"
+                );
+                // Continue without starting this watcher
+                // No need to return error - just skip this provider
+            } else {
+                // Scan for projects
+                match crate::providers::scan_projects("claude-code", &claude_config.home_directory) {
+                    Ok(projects) => {
                     let projects_to_watch = if claude_config.project_selection == "ALL" {
                         projects.iter().map(|p| p.name.clone()).collect()
                     } else {
@@ -1202,14 +1288,24 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                     error!(error = %e, "Failed to scan Claude Code projects");
                 }
             }
+                }
         }
     }
 
     // Try to start OpenCode watcher if enabled
     if let Ok(opencode_config) = load_provider_config("opencode") {
         if opencode_config.enabled {
-            // Scan for projects
-            match crate::providers::scan_projects("opencode", &opencode_config.home_directory) {
+            // Check if home directory exists before starting watcher
+            let expanded_path = shellexpand::tilde(&opencode_config.home_directory).to_string();
+            if !std::path::Path::new(&expanded_path).exists() {
+                error!(
+                    provider = "opencode",
+                    directory = %opencode_config.home_directory,
+                    "Cannot start watcher: directory does not exist"
+                );
+            } else {
+                // Scan for projects
+                match crate::providers::scan_projects("opencode", &opencode_config.home_directory) {
                 Ok(projects) => {
                     let projects_to_watch = if opencode_config.project_selection == "ALL" {
                         projects.iter().map(|p| p.name.clone()).collect()
@@ -1241,6 +1337,7 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                 }
             }
         }
+    }
     }
 
     // Try to start Codex watcher if enabled

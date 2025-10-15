@@ -205,6 +205,7 @@ fn main() {
             commands::save_provider_config_command,
             commands::delete_provider_config_command,
             commands::scan_projects_command,
+            commands::check_directory_exists,
             commands::add_activity_log_command,
             commands::get_activity_logs_command,
             commands::start_claude_watcher,

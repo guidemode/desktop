@@ -3,6 +3,7 @@ import {
   ComputerDesktopIcon,
   ChartBarIcon,
   CloudArrowUpIcon,
+  ExclamationCircleIcon,
 } from '@heroicons/react/24/solid'
 import type { ProviderStatus } from '../types/providers'
 
@@ -38,6 +39,7 @@ interface ProviderStatusIndicatorProps {
 
 // Map status to icon component
 const iconMap: Record<ProviderStatus, typeof XCircleIcon> = {
+  'not-installed': ExclamationCircleIcon,
   disabled: XCircleIcon,
   'local-only': ComputerDesktopIcon,
   'metrics-only': ChartBarIcon,
@@ -46,6 +48,7 @@ const iconMap: Record<ProviderStatus, typeof XCircleIcon> = {
 
 // Map status to color class
 const colorMap: Record<ProviderStatus, string> = {
+  'not-installed': 'text-base-content/30',
   disabled: 'text-base-content/30',
   'local-only': 'text-info',
   'metrics-only': 'text-warning',
@@ -55,6 +58,8 @@ const colorMap: Record<ProviderStatus, string> = {
 // Generate aria-label from status
 const generateAriaLabel = (status: ProviderStatus): string => {
   switch (status) {
+    case 'not-installed':
+      return 'Provider is not installed'
     case 'disabled':
       return 'Provider is disabled'
     case 'local-only':
@@ -71,6 +76,8 @@ const generateAriaLabel = (status: ProviderStatus): string => {
 // Generate tooltip text from status
 const generateTooltipText = (status: ProviderStatus): string => {
   switch (status) {
+    case 'not-installed':
+      return 'Not Installed - Provider directory not found'
     case 'disabled':
       return 'Disabled - Provider is turned off'
     case 'local-only':

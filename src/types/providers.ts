@@ -29,12 +29,13 @@ export interface CodingAgent {
 /**
  * Operational status of a provider, derived from configuration and watcher state.
  *
+ * - 'not-installed': Provider directory does not exist (provider not installed)
  * - 'disabled': Provider not active (not configured, disabled, or watcher not running)
  * - 'local-only': Sessions processed locally without cloud sync (Privacy-first mode)
  * - 'metrics-only': Only metadata synced (duration, counts), no transcript data
  * - 'full-sync': Full session data synced to cloud for analytics
  */
-export type ProviderStatus = 'disabled' | 'local-only' | 'metrics-only' | 'full-sync'
+export type ProviderStatus = 'not-installed' | 'disabled' | 'local-only' | 'metrics-only' | 'full-sync'
 
 /**
  * Combined provider metadata and real-time status for display.
@@ -72,7 +73,7 @@ export interface ProviderInfo {
 export function isValidProviderStatus(value: unknown): value is ProviderStatus {
   return (
     typeof value === 'string' &&
-    ['disabled', 'local-only', 'metrics-only', 'full-sync'].includes(value)
+    ['not-installed', 'disabled', 'local-only', 'metrics-only', 'full-sync'].includes(value)
   )
 }
 

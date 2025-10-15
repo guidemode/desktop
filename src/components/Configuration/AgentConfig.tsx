@@ -3,6 +3,7 @@ import { CodingAgent, ProviderConfig } from '../../types/providers'
 import { useProviderConfig, useSaveProviderConfig, useScanProjects } from '../../hooks/useProviderConfig'
 import { useAuth } from '../../hooks/useAuth'
 import { useLocation } from 'react-router-dom'
+import { useDirectoryExists } from '../../hooks/useDirectoryExists'
 import ConfirmDialog from '../ConfirmDialog'
 import { open } from '@tauri-apps/plugin-dialog'
 import {
@@ -94,6 +95,9 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
   })
 
   const effectiveHomeDirectory = localConfig.homeDirectory || agent.defaultHomeDirectory
+
+  // Check if home directory exists
+  const { data: directoryExists } = useDirectoryExists(effectiveHomeDirectory)
 
   const { data: projects = [], isLoading: projectsLoading } = useScanProjects(
     agent.id,
@@ -257,7 +261,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
   const isConfigLoading = configLoading || saving
   const isWatcherBusy = startingWatcher || stoppingWatcher
-  const canStartWatcher = localConfig.enabled && startWatcher !== undefined &&
+  const canStartWatcher = localConfig.enabled && directoryExists && startWatcher !== undefined &&
     (localConfig.projectSelection === 'ALL' || localConfig.selectedProjects.length > 0)
 
   // Note: Autostart has been moved to Rust code at application startup
@@ -283,7 +287,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
           <div className="flex items-center gap-3">
             {headerActions}
-            <div className="form-control">
+            <div className="form-control" data-tour="enable-toggle">
               <label className="label cursor-pointer gap-2.5">
                 <span className="label-text font-medium">Enabled</span>
                 <input
@@ -299,12 +303,35 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
         </div>
 
         {/* Configuration */}
-        {localConfig.enabled && (
-          <>
-            <div className="divider my-4"></div>
-            <div className="space-y-6">
-            {/* Home Directory */}
-            <div className="form-control w-full">
+        <>
+          <div className="divider my-4"></div>
+
+          {/* Directory Not Found Note */}
+          {directoryExists === false && (
+            <div className="bg-base-200 border border-base-300 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-base-content/50 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <div className="font-medium text-base-content/80 text-sm">Provider Not Installed</div>
+                  <div className="text-sm text-base-content/60 mt-1">
+                    The directory <code className="bg-base-300 px-1 rounded text-xs">{effectiveHomeDirectory}</code> does not exist.
+                    Install {agent.name} or set a custom directory below to enable this provider.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-6">
+            {/* Home Directory - Always enabled */}
+            <div className="form-control w-full" data-tour="home-directory">
               <label className="label pb-3">
                 <span className="label-text text-base font-semibold">Home Directory</span>
               </label>
@@ -335,11 +362,11 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
             {/* File Watching Controls */}
             {startWatcher !== undefined && (
-              <div className="form-control">
+              <div className="form-control" data-tour="file-watching">
                 <label className="label pb-2">
                   <span className="label-text text-base font-semibold">File Watching</span>
                 </label>
-                <div className="bg-base-200 rounded-lg p-4 space-y-3">
+                <div className={`bg-base-200 rounded-lg p-4 space-y-3 ${!localConfig.enabled ? 'opacity-50' : ''}`}>
                   {/* Watcher Status */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -355,7 +382,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                       <button
                         className="btn btn-sm btn-outline btn-warning"
                         onClick={handleStopWatcher}
-                        disabled={isWatcherBusy}
+                        disabled={isWatcherBusy || !localConfig.enabled}
                       >
                         {stoppingWatcher ? (
                           <>
@@ -370,7 +397,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                       <button
                         className="btn btn-sm btn-primary"
                         onClick={handleStartWatcher}
-                        disabled={!canStartWatcher || isWatcherBusy}
+                        disabled={!canStartWatcher || isWatcherBusy || !localConfig.enabled}
                       >
                         {startingWatcher ? (
                           <>
@@ -389,6 +416,8 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                     <div className="text-xs text-base-content/60">
                       {!localConfig.enabled
                         ? 'Enable the provider to start file watching'
+                        : directoryExists === false
+                        ? 'Cannot start watcher - directory does not exist'
                         : localConfig.projectSelection === 'SELECTED' && localConfig.selectedProjects.length === 0
                         ? 'Select at least one project to watch'
                         : 'Configure your projects above to start watching'}
@@ -401,8 +430,9 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
             {/* Synchronization Mode - only show if logged in */}
             {user && (
               <div
-                className={`form-control transition-all duration-1000 ${shouldFlash ? 'bg-warning/20 -mx-6 px-6 py-3 rounded-lg' : ''}`}
+                className={`form-control transition-all duration-1000 ${shouldFlash ? 'bg-warning/20 -mx-6 px-6 py-3 rounded-lg' : ''} ${!localConfig.enabled || directoryExists === false ? 'opacity-50' : ''}`}
                 id="sync-mode"
+                data-tour="sync-mode"
               >
                 <label className="label pb-2">
                   <span className="label-text text-base font-semibold">Synchronization</span>
@@ -415,7 +445,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                       className="radio radio-primary"
                       checked={localConfig.syncMode === 'Nothing'}
                       onChange={() => handleConfigChange({ syncMode: 'Nothing' })}
-                      disabled={isConfigLoading}
+                      disabled={isConfigLoading || !localConfig.enabled || directoryExists === false}
                     />
                     <span className="label-text">Nothing</span>
                   </label>
@@ -426,7 +456,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                       className="radio radio-primary"
                       checked={localConfig.syncMode === 'Metrics Only'}
                       onChange={() => handleConfigChange({ syncMode: 'Metrics Only' })}
-                      disabled={isConfigLoading}
+                      disabled={isConfigLoading || !localConfig.enabled || directoryExists === false}
                     />
                     <span className="label-text">Metrics Only</span>
                   </label>
@@ -437,7 +467,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                       className="radio radio-primary"
                       checked={localConfig.syncMode === 'Transcript and Metrics'}
                       onChange={() => handleConfigChange({ syncMode: 'Transcript and Metrics' })}
-                      disabled={isConfigLoading}
+                      disabled={isConfigLoading || !localConfig.enabled || directoryExists === false}
                     />
                     <span className="label-text">Transcript & Metrics</span>
                   </label>
@@ -456,7 +486,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
             )}
 
             {/* Project Selection */}
-            <div className="form-control">
+            <div className={`form-control ${!localConfig.enabled || directoryExists === false ? 'opacity-50' : ''}`}>
               <label className="label pb-2">
                 <span className="label-text text-base font-semibold">Projects</span>
               </label>
@@ -468,7 +498,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                     className="radio radio-primary"
                     checked={localConfig.projectSelection === 'ALL'}
                     onChange={() => handleConfigChange({ projectSelection: 'ALL' })}
-                    disabled={isConfigLoading}
+                    disabled={isConfigLoading || !localConfig.enabled || directoryExists === false}
                   />
                   <span className="label-text">All projects</span>
                 </label>
@@ -479,7 +509,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                     className="radio radio-primary"
                     checked={localConfig.projectSelection === 'SELECTED'}
                     onChange={() => handleConfigChange({ projectSelection: 'SELECTED' })}
-                    disabled={isConfigLoading}
+                    disabled={isConfigLoading || !localConfig.enabled || directoryExists === false}
                   />
                   <span className="label-text">Selected only</span>
                 </label>
@@ -520,7 +550,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                               className="checkbox checkbox-primary checkbox-xs"
                               checked={isSelected}
                               onChange={() => handleProjectToggle(project.name)}
-                              disabled={isConfigLoading}
+                              disabled={isConfigLoading || !localConfig.enabled || directoryExists === false}
                             />
                             <span className="truncate flex-1">{project.name}</span>
                             <span className="text-[11px] text-base-content/60 shrink-0">
@@ -542,8 +572,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
               </div>
             )}
           </div>
-          </>
-        )}
+        </>
 
         {/* Loading indicator */}
         {isConfigLoading && (
