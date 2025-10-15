@@ -316,18 +316,13 @@ export function OnboardingTour() {
         // Step 12 -> 13: Navigate back to Dashboard for sync status
         else if (index === 12 && action === ACTIONS.NEXT) {
           navigate('/')
-          // Wait for navigation, force enable scrolling, scroll to top, then advance step
+          // Wait for navigation, scroll main content to top, then advance step
           setTimeout(() => {
-            // Force enable scrolling
-            document.body.style.overflow = 'auto'
-            document.documentElement.style.overflow = 'auto'
-
-            // Scroll to top
-            const mainContent = document.querySelector('#root')
-            if (mainContent) {
-              mainContent.scrollTo({ top: 0, behavior: 'instant' })
+            // Find the scrollable main content element
+            const mainElement = document.querySelector('main')
+            if (mainElement) {
+              mainElement.scrollTop = 0
             }
-            window.scrollTo({ top: 0, behavior: 'instant' })
 
             // Advance step after scroll completes
             setTimeout(() => setStepIndex(nextIndex), 150)
