@@ -1,49 +1,30 @@
 use crate::config::load_provider_config;
+use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_debug, log_error, log_info, log_warn};
-use crate::providers::db_helpers::insert_session_immediately;
+use crate::providers::common::{
+    extract_session_id_from_filename, get_file_size, has_extension, should_skip_file,
+    SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
+    MIN_SIZE_CHANGE_BYTES,
+};
 use crate::providers::gemini_parser::GeminiSession;
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
-use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
 
 const PROVIDER_ID: &str = "gemini-code";
-
-// Minimum time between re-uploads to prevent spam
-#[cfg(debug_assertions)]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(30); // 30 seconds in dev mode
-
-#[cfg(not(debug_assertions))]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(300); // 5 minutes in production
-
-const MIN_SIZE_CHANGE_BYTES: u64 = 1024; // Minimum 1KB change to trigger upload
 
 #[derive(Debug, Clone)]
 pub struct FileChangeEvent {
     pub path: PathBuf,
     pub project_hash: String, // Project identified by hash
-    pub last_modified: Instant,
-    pub file_size: u64,
     pub session_id: String,
-    pub is_new_session: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct SessionState {
-    pub last_modified: Instant,
-    pub last_size: u64,
-    pub is_active: bool,
-    pub upload_pending: bool,
-    pub last_uploaded_time: Option<Instant>,
-    pub last_uploaded_size: u64,
-}
 
 #[derive(Debug)]
 pub struct GeminiWatcher {
@@ -51,12 +32,14 @@ pub struct GeminiWatcher {
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
+    event_bus: EventBus,
 }
 
 impl GeminiWatcher {
     pub fn new(
         project_hashes: Vec<String>, // Project hashes to watch
         upload_queue: Arc<UploadQueue>,
+        event_bus: EventBus,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         if let Err(e) = log_info(PROVIDER_ID, "🔍 Starting Gemini Code file monitoring") {
             eprintln!("Logging error: {}", e);
@@ -126,7 +109,7 @@ impl GeminiWatcher {
         // Create the file watcher
         let mut watcher = RecommendedWatcher::new(
             tx,
-            Config::default().with_poll_interval(Duration::from_secs(2)),
+            Config::default().with_poll_interval(FILE_WATCH_POLL_INTERVAL),
         )?;
 
         // Watch each project's chats directory
@@ -154,6 +137,7 @@ impl GeminiWatcher {
         let is_running_clone = Arc::clone(&is_running);
         let upload_queue_clone = Arc::clone(&upload_queue);
         let tmp_path_clone = tmp_path.clone();
+        let event_bus_clone = event_bus.clone();
 
         // Start background thread to handle file events
         let thread_handle = thread::spawn(move || {
@@ -161,6 +145,7 @@ impl GeminiWatcher {
                 rx,
                 tmp_path_clone,
                 upload_queue_clone,
+                event_bus_clone,
                 is_running_clone,
             );
         });
@@ -170,6 +155,7 @@ impl GeminiWatcher {
             _thread_handle: thread_handle,
             upload_queue,
             is_running,
+            event_bus,
         })
     }
 
@@ -208,9 +194,10 @@ impl GeminiWatcher {
         rx: mpsc::Receiver<Result<Event, notify::Error>>,
         tmp_path: PathBuf,
         _upload_queue: Arc<UploadQueue>,
+        event_bus: EventBus,
         is_running: Arc<Mutex<bool>>,
     ) {
-        let mut session_states: HashMap<String, SessionState> = HashMap::new();
+        let mut session_states = SessionStateManager::new();
 
         loop {
             // Check if we should continue running
@@ -223,14 +210,11 @@ impl GeminiWatcher {
             }
 
             // Process file system events with timeout
-            match rx.recv_timeout(Duration::from_secs(5)) {
+            match rx.recv_timeout(EVENT_TIMEOUT) {
                 Ok(Ok(event)) => {
                     if let Some(file_event) =
                         Self::process_file_event(&event, &tmp_path, &session_states)
                     {
-                        // Check if this is a new session or significant change
-                        let should_log = Self::should_log_event(&file_event, &session_states);
-
                         // Convert Gemini JSON to JSONL and cache it
                         let jsonl_path = match Self::convert_to_jsonl_and_cache(
                             &file_event.path,
@@ -252,46 +236,65 @@ impl GeminiWatcher {
                         };
 
                         // Get file size of JSONL
-                        let jsonl_size = Self::get_file_size(&jsonl_path).unwrap_or(0);
+                        let jsonl_size = get_file_size(&jsonl_path).unwrap_or(0);
 
-                        // INSERT TO DATABASE IMMEDIATELY (no debounce) with JSONL path
-                        // Note: project_hash is used as temporary project_name here, but db_helpers.rs
-                        // will extract the real project name from CWD and link to projects table
-                        if let Err(e) = insert_session_immediately(
-                            PROVIDER_ID,
-                            &file_event.project_hash, // Temporary - db_helpers extracts real name from CWD
+                        // Check if this is a new session (before get_or_create)
+                        let is_new_session = !session_states.contains(&file_event.session_id);
+
+                        // Get or create session state
+                        let state = session_states.get_or_create(
                             &file_event.session_id,
-                            &jsonl_path, // Use JSONL path instead of original JSON
-                            jsonl_size,  // Use JSONL file size
-                            None,        // Hash will be calculated during upload
-                        ) {
+                            jsonl_size,
+                        );
+                        let should_log = state.should_log(
+                            jsonl_size,
+                            MIN_SIZE_CHANGE_BYTES,
+                            is_new_session,
+                        );
+
+                        // Publish SessionChanged event to event bus
+                        // DatabaseEventHandler will call db_helpers which does smart insert-or-update
+                        // Note: project_hash is used as temporary project_name here
+                        let payload = SessionEventPayload::SessionChanged {
+                            session_id: file_event.session_id.clone(),
+                            project_name: file_event.project_hash.clone(), // Temporary - db_helpers will extract real name
+                            file_path: jsonl_path.clone(), // Use JSONL path instead of original JSON
+                            file_size: jsonl_size,  // Use JSONL file size
+                        };
+
+                        if let Err(e) = event_bus.publish(PROVIDER_ID, payload) {
                             if let Err(log_err) = log_error(
                                 PROVIDER_ID,
-                                &format!("Failed to insert session to database: {}", e),
+                                &format!("Failed to publish session event: {}", e),
                             ) {
                                 eprintln!("Logging error: {}", log_err);
                             }
                         }
 
-                        // Update session state immediately
-                        Self::update_session_state(&mut session_states, &file_event);
+                        // Update session state immediately to prevent duplicate events
+                        state.update(jsonl_size);
+
+                        // Mark session as seen so it's not treated as new again
+                        if is_new_session {
+                            state.mark_as_seen();
+                        }
 
                         if should_log {
-                            if file_event.is_new_session {
+                            if is_new_session {
                                 let log_message = format!(
-                                    "🆕 New Gemini session detected: {} → Saved to database",
+                                    "🆕 New Gemini session detected: {}",
                                     file_event.session_id
                                 );
                                 if let Err(e) = log_info(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
                             } else {
-                                // Use debug level for routine session activity
+                                // Log session updates at info level
                                 let log_message = format!(
-                                    "📝 Gemini session active: {} (size: {} bytes)",
-                                    file_event.session_id, file_event.file_size
+                                    "📝 Gemini session changed: {} (size: {} bytes)",
+                                    file_event.session_id, jsonl_size
                                 );
-                                if let Err(e) = log_debug(PROVIDER_ID, &log_message) {
+                                if let Err(e) = log_info(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
                             }
@@ -325,15 +328,25 @@ impl GeminiWatcher {
     fn process_file_event(
         event: &Event,
         tmp_path: &Path,
-        session_states: &HashMap<String, SessionState>,
+        session_states: &SessionStateManager,
     ) -> Option<FileChangeEvent> {
         // Only process write events for session JSON files
         match &event.kind {
             EventKind::Create(_) | EventKind::Modify(_) => {
                 for path in &event.paths {
+                    // Skip hidden files
+                    if should_skip_file(path) {
+                        continue;
+                    }
+
                     // Check if it's a session JSON file
+                    if !has_extension(path, "json") {
+                        continue;
+                    }
+
+                    // Check if filename starts with "session-"
                     if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                        if !filename.starts_with("session-") || !filename.ends_with(".json") {
+                        if !filename.starts_with("session-") {
                             continue;
                         }
                     } else {
@@ -342,17 +355,13 @@ impl GeminiWatcher {
 
                     // Extract project hash from path
                     if let Some(project_hash) = Self::extract_project_hash(path, tmp_path) {
-                        // Get file size and session ID
-                        let file_size = Self::get_file_size(path).unwrap_or(0);
-                        let session_id = Self::extract_session_id_from_filename(path);
+                        // Get session ID
+                        let session_id = extract_session_id_from_filename(path);
 
                         return Some(FileChangeEvent {
                             path: path.clone(),
                             project_hash,
-                            last_modified: Instant::now(),
-                            file_size,
                             session_id: session_id.clone(),
-                            is_new_session: Self::is_new_session(&session_id, session_states),
                         });
                     }
                 }
@@ -378,20 +387,6 @@ impl GeminiWatcher {
         None
     }
 
-    fn get_file_size(path: &Path) -> Result<u64, std::io::Error> {
-        let metadata = std::fs::metadata(path)?;
-        Ok(metadata.len())
-    }
-
-    fn extract_session_id_from_filename(path: &Path) -> String {
-        // Filename format: session-2025-10-11T07-44-ae9730b6.json
-        // Extract the full filename without extension as session ID
-        if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
-            filename.to_string()
-        } else {
-            "unknown".to_string()
-        }
-    }
 
     /// Convert Gemini JSON file to JSONL and cache it
     /// Returns the path to the cached JSONL file
@@ -521,75 +516,6 @@ impl GeminiWatcher {
         computed_hash == expected_hash
     }
 
-    fn is_new_session(session_id: &str, session_states: &HashMap<String, SessionState>) -> bool {
-        !session_states.contains_key(session_id)
-    }
-
-    fn should_log_event(
-        file_event: &FileChangeEvent,
-        session_states: &HashMap<String, SessionState>,
-    ) -> bool {
-        match session_states.get(&file_event.session_id) {
-            Some(existing_state) => {
-                // Only log if significant size change or new session
-                file_event.is_new_session
-                    || file_event
-                        .file_size
-                        .saturating_sub(existing_state.last_size)
-                        >= MIN_SIZE_CHANGE_BYTES
-            }
-            None => file_event.is_new_session,
-        }
-    }
-
-    fn update_session_state(
-        session_states: &mut HashMap<String, SessionState>,
-        file_event: &FileChangeEvent,
-    ) {
-        match session_states.get_mut(&file_event.session_id) {
-            Some(existing_state) => {
-                // Update existing session state
-                existing_state.last_modified = file_event.last_modified;
-                existing_state.last_size = file_event.file_size;
-                existing_state.is_active = true;
-
-                // Smart re-upload logic
-                if existing_state.upload_pending {
-                    let should_allow_reupload =
-                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                            let cooldown_elapsed = file_event
-                                .last_modified
-                                .duration_since(last_uploaded_time)
-                                >= RE_UPLOAD_COOLDOWN;
-                            let size_changed_significantly = file_event
-                                .file_size
-                                .saturating_sub(existing_state.last_uploaded_size)
-                                >= MIN_SIZE_CHANGE_BYTES;
-
-                            cooldown_elapsed || size_changed_significantly
-                        } else {
-                            true
-                        };
-
-                    if should_allow_reupload {
-                        existing_state.upload_pending = false;
-                    }
-                }
-            }
-            None => {
-                // Create new session state
-                let session_state = SessionState {
-                    last_modified: file_event.last_modified,
-                    last_size: file_event.file_size,
-                    is_active: true,
-                    upload_pending: false,
-                    last_uploaded_time: None,
-                    last_uploaded_size: 0,
-                };
-                session_states.insert(file_event.session_id.clone(), session_state);
-            }
-        }
-    }
 
     pub fn stop(&self) {
         if let Ok(mut running) = self.is_running.lock() {
@@ -601,7 +527,7 @@ impl GeminiWatcher {
         }
     }
 
-    pub fn get_status(&self) -> GeminiWatcherStatus {
+    pub fn get_status(&self) -> WatcherStatus {
         let is_running = if let Ok(running) = self.is_running.lock() {
             *running
         } else {
@@ -610,7 +536,7 @@ impl GeminiWatcher {
 
         let upload_status = self.upload_queue.get_status();
 
-        GeminiWatcherStatus {
+        WatcherStatus {
             is_running,
             pending_uploads: upload_status.pending,
             processing_uploads: upload_status.processing,
@@ -619,13 +545,8 @@ impl GeminiWatcher {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GeminiWatcherStatus {
-    pub is_running: bool,
-    pub pending_uploads: usize,
-    pub processing_uploads: usize,
-    pub failed_uploads: usize,
-}
+// Type alias for backward compatibility
+pub type GeminiWatcherStatus = WatcherStatus;
 
 impl Drop for GeminiWatcher {
     fn drop(&mut self) {
@@ -640,7 +561,7 @@ mod tests {
     #[test]
     fn test_extract_session_id_from_filename() {
         let path = Path::new("/path/to/session-2025-10-11T07-44-ae9730b6.json");
-        let session_id = GeminiWatcher::extract_session_id_from_filename(path);
+        let session_id = extract_session_id_from_filename(path);
         assert_eq!(session_id, "session-2025-10-11T07-44-ae9730b6");
     }
 

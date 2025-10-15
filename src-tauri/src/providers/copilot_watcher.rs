@@ -1,50 +1,30 @@
 use crate::config::load_provider_config;
 use crate::logging::{log_debug, log_error, log_info};
+use crate::providers::common::{
+    get_file_size, SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
+    MIN_SIZE_CHANGE_BYTES,
+};
 use crate::providers::copilot_parser::{
     detect_project_and_cwd_from_timeline, load_copilot_config, CopilotSession,
 };
 use crate::providers::copilot_snapshot::SnapshotManager;
-use crate::providers::db_helpers::insert_session_immediately;
+use crate::events::{EventBus, SessionEventPayload};
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
 
 const PROVIDER_ID: &str = "github-copilot";
-
-// Minimum time between re-uploads to prevent spam
-#[cfg(debug_assertions)]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(30); // 30 seconds in dev mode
-
-#[cfg(not(debug_assertions))]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(300); // 5 minutes in production
-
-const MIN_SIZE_CHANGE_BYTES: u64 = 1024; // Minimum 1KB change to trigger upload
 
 #[derive(Debug, Clone)]
 pub struct FileChangeEvent {
     pub path: PathBuf,
     pub project_name: String,
-    pub last_modified: Instant,
     pub file_size: u64,
     pub session_id: String,
-    pub is_new_session: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionState {
-    pub last_modified: Instant,
-    pub last_size: u64,
-    pub is_active: bool,
-    pub upload_pending: bool,
-    pub last_uploaded_time: Option<Instant>,
-    pub last_uploaded_size: u64,
 }
 
 #[derive(Debug)]
@@ -53,12 +33,14 @@ pub struct CopilotWatcher {
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
+    event_bus: EventBus,
 }
 
 impl CopilotWatcher {
     pub fn new(
         _projects: Vec<String>,
         upload_queue: Arc<UploadQueue>,
+        event_bus: EventBus,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         if let Err(e) = log_info(PROVIDER_ID, "🔍 Starting GitHub Copilot file monitoring") {
             eprintln!("Logging error: {}", e);
@@ -109,7 +91,7 @@ impl CopilotWatcher {
         // Create the file watcher
         let mut watcher = RecommendedWatcher::new(
             tx,
-            Config::default().with_poll_interval(Duration::from_secs(2)),
+            Config::default().with_poll_interval(FILE_WATCH_POLL_INTERVAL),
         )?;
 
         // Watch the session directory
@@ -127,10 +109,11 @@ impl CopilotWatcher {
         let is_running = Arc::new(Mutex::new(true));
         let is_running_clone = Arc::clone(&is_running);
         let upload_queue_clone = Arc::clone(&upload_queue);
+        let event_bus_clone = event_bus.clone();
 
         // Start background thread to handle file events
         let thread_handle = thread::spawn(move || {
-            Self::file_event_processor(rx, session_dir, upload_queue_clone, is_running_clone);
+            Self::file_event_processor(rx, session_dir, upload_queue_clone, event_bus_clone, is_running_clone);
         });
 
         Ok(CopilotWatcher {
@@ -138,6 +121,7 @@ impl CopilotWatcher {
             _thread_handle: thread_handle,
             upload_queue,
             is_running,
+            event_bus,
         })
     }
 
@@ -145,10 +129,11 @@ impl CopilotWatcher {
         rx: mpsc::Receiver<Result<Event, notify::Error>>,
         session_dir: PathBuf,
         _upload_queue: Arc<UploadQueue>,
+        event_bus: EventBus,
         is_running: Arc<Mutex<bool>>,
     ) {
         // Track SNAPSHOT states, not source file states
-        let mut snapshot_states: HashMap<String, SessionState> = HashMap::new();
+        let mut snapshot_states = SessionStateManager::new();
 
         // Create snapshot manager
         let snapshot_manager = match SnapshotManager::new() {
@@ -189,7 +174,7 @@ impl CopilotWatcher {
             };
 
             // Process file system events with timeout
-            match rx.recv_timeout(Duration::from_secs(5)) {
+            match rx.recv_timeout(EVENT_TIMEOUT) {
                 Ok(Ok(event)) => {
                     // Detect if this is a copilot source file change
                     if let Some(source_file) =
@@ -203,7 +188,7 @@ impl CopilotWatcher {
                         ) {
                             Ok(Some(snapshot_event)) => {
                                 // Process the snapshot event (not the source file event!)
-                                Self::process_snapshot_event(snapshot_event, &mut snapshot_states);
+                                Self::process_snapshot_event(snapshot_event, &mut snapshot_states, &event_bus);
                             }
                             Ok(None) => {
                                 // No new entries, skip
@@ -395,7 +380,6 @@ impl CopilotWatcher {
                 Some(Self::create_snapshot_event(
                     &snapshot_path,
                     new_snapshot_id,
-                    true,
                     &project_name,
                 ))
             } else {
@@ -424,7 +408,6 @@ impl CopilotWatcher {
                     Some(Self::create_snapshot_event(
                         &snapshot_path,
                         snapshot_id,
-                        false,
                         &project_name,
                     ))
                 } else {
@@ -460,7 +443,6 @@ impl CopilotWatcher {
             Some(Self::create_snapshot_event(
                 &snapshot_path,
                 snapshot_id,
-                true,
                 &project_name,
             ))
         };
@@ -471,139 +453,86 @@ impl CopilotWatcher {
     fn create_snapshot_event(
         snapshot_path: &Path,
         snapshot_id: uuid::Uuid,
-        is_new_session: bool,
         project_name: &str,
     ) -> FileChangeEvent {
-        let file_size = fs::metadata(snapshot_path).map(|m| m.len()).unwrap_or(0);
+        let file_size = get_file_size(snapshot_path).unwrap_or(0);
 
         FileChangeEvent {
             path: snapshot_path.to_path_buf(), // SNAPSHOT path, not source!
             project_name: project_name.to_string(),
-            last_modified: Instant::now(),
             file_size,
             session_id: snapshot_id.to_string(), // SNAPSHOT UUID, not source session id!
-            is_new_session,
         }
     }
 
     fn process_snapshot_event(
         snapshot_event: FileChangeEvent,
-        snapshot_states: &mut HashMap<String, SessionState>,
+        snapshot_states: &mut SessionStateManager,
+        event_bus: &EventBus,
     ) {
-        let should_log = Self::should_log_event(&snapshot_event, snapshot_states);
+        // Check if this is a new session (before get_or_create)
+        let is_new_session = !snapshot_states.contains(&snapshot_event.session_id);
 
-        // INSERT SNAPSHOT TO DATABASE (snapshot path, snapshot id)
-        if let Err(e) = insert_session_immediately(
-            PROVIDER_ID,
-            &snapshot_event.project_name,
-            &snapshot_event.session_id, // snapshot UUID
-            &snapshot_event.path,       // snapshot .jsonl path
+        // Get or create session state
+        let state = snapshot_states.get_or_create(
+            &snapshot_event.session_id,
             snapshot_event.file_size,
-            None, // Hash will be calculated during upload
-        ) {
+        );
+        let should_log = state.should_log(
+            snapshot_event.file_size,
+            MIN_SIZE_CHANGE_BYTES,
+            is_new_session,
+        );
+
+        // Publish SessionChanged event to event bus
+        // DatabaseEventHandler will call db_helpers which does smart insert-or-update
+        let payload = SessionEventPayload::SessionChanged {
+            session_id: snapshot_event.session_id.clone(),
+            project_name: snapshot_event.project_name.clone(),
+            file_path: snapshot_event.path.clone(),
+            file_size: snapshot_event.file_size,
+        };
+
+        if let Err(e) = event_bus.publish(PROVIDER_ID, payload) {
             if let Err(log_err) = log_error(
                 PROVIDER_ID,
-                &format!("Failed to insert snapshot to database: {}", e),
+                &format!("Failed to publish session event: {}", e),
             ) {
                 eprintln!("Logging error: {}", log_err);
             }
         }
 
         // Update snapshot state tracking
-        Self::update_session_state(snapshot_states, &snapshot_event);
+        state.update(snapshot_event.file_size);
+
+        // Mark session as seen so it's not treated as new again
+        if is_new_session {
+            state.mark_as_seen();
+        }
 
         // Log events
         if should_log {
-            if snapshot_event.is_new_session {
+            if is_new_session {
                 if let Err(e) = log_info(
                     PROVIDER_ID,
                     &format!(
-                        "🆕 New Copilot snapshot saved to database: {} ({} bytes)",
-                        snapshot_event.session_id, snapshot_event.file_size
+                        "🆕 New Copilot session detected: {}",
+                        snapshot_event.session_id
                     ),
                 ) {
                     eprintln!("Logging error: {}", e);
                 }
             } else {
-                if let Err(e) = log_debug(
+                // Log session updates at info level
+                if let Err(e) = log_info(
                     PROVIDER_ID,
                     &format!(
-                        "📝 Copilot snapshot updated: {} ({} bytes)",
+                        "📝 Copilot session changed: {} (size: {} bytes)",
                         snapshot_event.session_id, snapshot_event.file_size
                     ),
                 ) {
                     eprintln!("Logging error: {}", e);
                 }
-            }
-        }
-    }
-
-    fn should_log_event(
-        file_event: &FileChangeEvent,
-        session_states: &HashMap<String, SessionState>,
-    ) -> bool {
-        match session_states.get(&file_event.session_id) {
-            Some(existing_state) => {
-                // Only log if significant size change or new session
-                file_event.is_new_session
-                    || file_event
-                        .file_size
-                        .saturating_sub(existing_state.last_size)
-                        >= MIN_SIZE_CHANGE_BYTES
-            }
-            None => {
-                // Only log if this is actually a new session
-                file_event.is_new_session
-            }
-        }
-    }
-
-    fn update_session_state(
-        session_states: &mut HashMap<String, SessionState>,
-        file_event: &FileChangeEvent,
-    ) {
-        match session_states.get_mut(&file_event.session_id) {
-            Some(existing_state) => {
-                // Update existing session state
-                existing_state.last_modified = file_event.last_modified;
-                existing_state.last_size = file_event.file_size;
-                existing_state.is_active = true;
-
-                // Smart re-upload logic: clear upload_pending if conditions met
-                if existing_state.upload_pending {
-                    let should_allow_reupload =
-                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                            // Check if cooldown has elapsed OR size changed significantly
-                            let cooldown_elapsed =
-                                file_event.last_modified.duration_since(last_uploaded_time)
-                                    >= RE_UPLOAD_COOLDOWN;
-                            let size_changed_significantly = file_event
-                                .file_size
-                                .saturating_sub(existing_state.last_uploaded_size)
-                                >= MIN_SIZE_CHANGE_BYTES;
-
-                            cooldown_elapsed || size_changed_significantly
-                        } else {
-                            // No last upload time recorded, allow re-upload
-                            true
-                        };
-
-                    if should_allow_reupload {
-                        existing_state.upload_pending = false;
-                    }
-                }
-            }
-            None => {
-                // Create new session state
-                let session_state = SessionState {
-                    last_modified: file_event.last_modified,
-                    last_size: file_event.file_size,
-                    is_active: true,
-                    upload_pending: false,
-                    last_uploaded_time: None,
-                    last_uploaded_size: 0,
-                };
-                session_states.insert(file_event.session_id.clone(), session_state);
             }
         }
     }
@@ -618,7 +547,7 @@ impl CopilotWatcher {
         }
     }
 
-    pub fn get_status(&self) -> CopilotWatcherStatus {
+    pub fn get_status(&self) -> WatcherStatus {
         let is_running = if let Ok(running) = self.is_running.lock() {
             *running
         } else {
@@ -627,7 +556,7 @@ impl CopilotWatcher {
 
         let upload_status = self.upload_queue.get_status();
 
-        CopilotWatcherStatus {
+        WatcherStatus {
             is_running,
             pending_uploads: upload_status.pending,
             processing_uploads: upload_status.processing,
@@ -636,13 +565,8 @@ impl CopilotWatcher {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CopilotWatcherStatus {
-    pub is_running: bool,
-    pub pending_uploads: usize,
-    pub processing_uploads: usize,
-    pub failed_uploads: usize,
-}
+// Type alias for backward compatibility
+pub type CopilotWatcherStatus = WatcherStatus;
 
 impl Drop for CopilotWatcher {
     fn drop(&mut self) {

@@ -5,6 +5,7 @@ mod claude;
 mod claude_watcher;
 mod codex;
 mod codex_watcher;
+pub mod common;
 mod copilot;
 mod copilot_parser;
 mod copilot_snapshot;

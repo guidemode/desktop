@@ -7,6 +7,7 @@ mod commands;
 mod config;
 mod database;
 mod error;
+mod events;
 mod file_watcher;
 mod git_diff;
 mod logging;
@@ -16,6 +17,7 @@ mod upload_queue;
 mod validation;
 
 use commands::{start_enabled_watchers, AppState};
+use events::{DatabaseEventHandler, EventBus, FrontendEventHandler};
 use file_watcher::start_config_file_watcher;
 use tauri::Manager;
 
@@ -147,8 +149,18 @@ fn main() {
             // Set app handle on database for event emission
             database::set_app_handle(app.handle().clone());
 
-            // Initialize application state
-            let app_state = AppState::new();
+            // Create event bus (1000 event buffer)
+            let event_bus = EventBus::new(1000);
+
+            // Start event handlers
+            let db_handler = DatabaseEventHandler::new(event_bus.clone());
+            db_handler.start();
+
+            let frontend_handler = FrontendEventHandler::new(event_bus.clone(), app.handle().clone());
+            frontend_handler.start();
+
+            // Initialize application state with event bus
+            let app_state = AppState::new(event_bus);
 
             // Set app handle on upload queue for event emission
             app_state.upload_queue.set_app_handle(app.handle().clone());

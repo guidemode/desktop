@@ -2,7 +2,7 @@
 
 **Branch:** `rust-improvements`
 **Created:** 2025-10-14
-**Status:** Planning Phase
+**Status:** Phase 3 Complete (In Progress - Event-Driven Architecture)
 
 ---
 
@@ -481,6 +481,61 @@ pub const EVENT_TIMEOUT: Duration = Duration::from_secs(5);
 ---
 
 ## Phase 3: Event-Driven Architecture (Priority: MEDIUM, 3-5 days)
+
+**Status:** ✅ COMPLETE (2025-10-15) - **Bugs Fixed**
+
+**Progress:**
+- ✅ Event types designed (types.rs)
+- ✅ Event bus implemented (bus.rs)
+- ✅ Database event handler implemented (handlers.rs)
+- ✅ Frontend event handler implemented (handlers.rs)
+- ✅ ClaudeWatcher updated to use EventBus
+- ✅ CopilotWatcher updated to use EventBus
+- ✅ OpenCodeWatcher updated to use EventBus
+- ✅ CodexWatcher updated to use EventBus
+- ✅ GeminiWatcher updated to use EventBus
+- ✅ All watchers now publish events instead of direct DB calls
+- ✅ Code compiles successfully
+- ✅ **Session state tracking bugs fixed (2025-10-15)**
+
+**Bug Fixes (2025-10-15):**
+1. **Fixed "new session" detection logic**: Changed from checking `state.last_uploaded_time.is_none()` (which was never set) to checking `!session_states.contains(session_id)` BEFORE calling `get_or_create()`. This correctly identifies first-time session detection.
+
+2. **Mark sessions as seen**: Added `state.last_uploaded_time = Some(Instant::now())` after first detection to prevent repeated "new session" logs for the same session.
+
+3. **Improved logging messages**:
+   - Removed "→ Saved to database" (misleading with async EventBus)
+   - Changed session updates from debug level to info level
+   - Consistent format: "🆕 New {Provider} session detected: {id}" and "📝 {Provider} session changed: {id} (size: {bytes})"
+
+**Files Modified:**
+- `src/providers/claude_watcher.rs`
+- `src/providers/codex_watcher.rs`
+- `src/providers/copilot_watcher.rs`
+- `src/providers/gemini_watcher.rs`
+- `src/providers/opencode_watcher.rs` (no changes needed - different architecture)
+
+**Outcome:**
+All watchers have been successfully migrated to the event-driven architecture. They now publish SessionEventPayload events to the EventBus instead of calling `db_helpers::insert_session_immediately()` directly. The DatabaseEventHandler consumes these events and writes to the database, decoupling the watchers from database implementation details. Session state tracking now works correctly, with proper "new" vs "changed" detection.
+
+**Cleanup (2025-10-15):**
+Removed misleading upload throttling logic from watchers:
+- Removed `RE_UPLOAD_COOLDOWN` constant (was not being used effectively)
+- Removed `upload_pending`, `last_uploaded_size` fields from SessionState
+- Simplified `SessionState.update()` to no longer take cooldown/size parameters
+- Renamed `last_uploaded_time` to `last_seen_time` for clarity (only used for "new" session detection)
+- Added `mark_as_seen()` method to SessionState for clearer semantics
+- Kept `MIN_SIZE_CHANGE_BYTES` for logging decisions only
+
+**Rationale:** The throttling constants suggested upload throttling was happening in watchers, but:
+- Watchers publish events to EventBus immediately regardless of throttling flags
+- Upload queue has no awareness of these thresholds
+- The `upload_pending` flag was set but never checked before publishing events
+- This created misleading dead code that suggested throttling when there was none
+
+If upload throttling is needed in the future, it should be implemented in the upload queue processor where it belongs, not scattered across watcher state tracking logic.
+
+---
 
 ### 3.1 Design Event Types
 

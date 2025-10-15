@@ -318,10 +318,11 @@ impl Watcher {
 pub struct AppState {
     pub watchers: Arc<Mutex<HashMap<String, Watcher>>>,
     pub upload_queue: Arc<UploadQueue>,
+    pub event_bus: crate::events::EventBus,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(event_bus: crate::events::EventBus) -> Self {
         let upload_queue = Arc::new(UploadQueue::new());
 
         // Start the upload queue processor
@@ -332,6 +333,7 @@ impl AppState {
         Self {
             watchers: Arc::new(Mutex::new(HashMap::new())),
             upload_queue,
+            event_bus,
         }
     }
 }
@@ -348,8 +350,12 @@ pub async fn start_claude_watcher(
     }
 
     // Create new watcher
-    let watcher = ClaudeWatcher::new(projects, Arc::clone(&state.upload_queue))
-        .map_err(|e| format!("Failed to create Claude watcher: {}", e))?;
+    let watcher = ClaudeWatcher::new(
+        projects,
+        Arc::clone(&state.upload_queue),
+        state.event_bus.clone(),
+    )
+    .map_err(|e| format!("Failed to create Claude watcher: {}", e))?;
 
     // Store watcher in state
     if let Ok(mut watchers) = state.watchers.lock() {
@@ -401,8 +407,12 @@ pub async fn start_opencode_watcher(
     }
 
     // Create new watcher
-    let watcher = OpenCodeWatcher::new(projects, Arc::clone(&state.upload_queue))
-        .map_err(|e| format!("Failed to create OpenCode watcher: {}", e))?;
+    let watcher = OpenCodeWatcher::new(
+        projects,
+        Arc::clone(&state.upload_queue),
+        state.event_bus.clone(),
+    )
+    .map_err(|e| format!("Failed to create OpenCode watcher: {}", e))?;
 
     // Store watcher in state
     if let Ok(mut watchers) = state.watchers.lock() {
@@ -454,7 +464,7 @@ pub async fn start_codex_watcher(
     }
 
     // Create new watcher
-    let watcher = CodexWatcher::new(projects, Arc::clone(&state.upload_queue))
+    let watcher = CodexWatcher::new(projects, Arc::clone(&state.upload_queue), state.event_bus.clone())
         .map_err(|e| format!("Failed to create Codex watcher: {}", e))?;
 
     // Store watcher in state
@@ -507,8 +517,12 @@ pub async fn start_copilot_watcher(
     }
 
     // Create new watcher
-    let watcher = CopilotWatcher::new(projects, Arc::clone(&state.upload_queue))
-        .map_err(|e| format!("Failed to create Copilot watcher: {}", e))?;
+    let watcher = CopilotWatcher::new(
+        projects,
+        Arc::clone(&state.upload_queue),
+        state.event_bus.clone(),
+    )
+    .map_err(|e| format!("Failed to create Copilot watcher: {}", e))?;
 
     // Store watcher in state
     if let Ok(mut watchers) = state.watchers.lock() {
@@ -560,7 +574,7 @@ pub async fn start_gemini_watcher(
     }
 
     // Create new watcher - Gemini uses project hashes instead of names
-    let watcher = GeminiWatcher::new(projects, Arc::clone(&state.upload_queue))
+    let watcher = GeminiWatcher::new(projects, Arc::clone(&state.upload_queue), state.event_bus.clone())
         .map_err(|e| format!("Failed to create Gemini watcher: {}", e))?;
 
     // Store watcher in state
@@ -1167,6 +1181,7 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                         match ClaudeWatcher::new(
                             projects_to_watch,
                             Arc::clone(&app_state.upload_queue),
+                            app_state.event_bus.clone(),
                         ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
@@ -1206,6 +1221,7 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                         match OpenCodeWatcher::new(
                             projects_to_watch,
                             Arc::clone(&app_state.upload_queue),
+                            app_state.event_bus.clone(),
                         ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
@@ -1243,6 +1259,7 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                         match CodexWatcher::new(
                             projects_to_watch,
                             Arc::clone(&app_state.upload_queue),
+                            app_state.event_bus.clone(),
                         ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
@@ -1280,6 +1297,7 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                         match CopilotWatcher::new(
                             projects_to_watch,
                             Arc::clone(&app_state.upload_queue),
+                            app_state.event_bus.clone(),
                         ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {
@@ -1331,6 +1349,7 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                         match GeminiWatcher::new(
                             projects_to_watch,
                             Arc::clone(&app_state.upload_queue),
+                            app_state.event_bus.clone(),
                         ) {
                             Ok(watcher) => {
                                 if let Ok(mut watchers) = app_state.watchers.lock() {

@@ -302,24 +302,6 @@ pub fn update_session(
     })
 }
 
-/// Check if a session already exists in the database
-pub fn session_exists(session_id: &str, _file_name: &str) -> Result<bool> {  // Kept for API compatibility but not used in query
-    let db_conn = DB_CONNECTION.lock().unwrap();
-    let conn = db_conn
-        .as_ref()
-        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
-
-    // Check by session_id only since providers like OpenCode have multiple files per session
-    // The session_id field has a UNIQUE constraint, so we only need to check that
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM agent_sessions WHERE session_id = ?",
-        params![session_id],
-        |row| row.get(0),
-    )?;
-
-    Ok(count > 0)
-}
-
 /// Get all unsynced sessions (for upload queue)
 /// Only returns sessions that have both start and end times, no sync failure,
 /// and where the provider's sync mode is set to "Transcript and Metrics" or "Metrics Only"

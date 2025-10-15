@@ -1,45 +1,25 @@
 use crate::config::load_provider_config;
+use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_debug, log_error, log_info};
-use crate::providers::db_helpers::insert_session_immediately;
+use crate::providers::common::{
+    get_file_size, has_extension, should_skip_file, SessionStateManager, WatcherStatus,
+    EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL, MIN_SIZE_CHANGE_BYTES,
+};
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, PollWatcher, RecursiveMode, Watcher};
-use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
 
 const PROVIDER_ID: &str = "codex";
-
-// Minimum time between re-uploads to prevent spam
-#[cfg(debug_assertions)]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(30); // 30 seconds in dev mode
-
-#[cfg(not(debug_assertions))]
-const RE_UPLOAD_COOLDOWN: Duration = Duration::from_secs(300); // 5 minutes in production
-
-const MIN_SIZE_CHANGE_BYTES: u64 = 1024; // Minimum 1KB change to trigger upload
 
 #[derive(Debug, Clone)]
 pub struct FileChangeEvent {
     pub path: PathBuf,
     pub project_name: String,
-    pub last_modified: Instant,
     pub file_size: u64,
     pub session_id: String,
-    pub is_new_session: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionState {
-    pub last_modified: Instant,
-    pub last_size: u64,
-    pub is_active: bool,
-    pub upload_pending: bool,
-    pub last_uploaded_time: Option<Instant>,
-    pub last_uploaded_size: u64,
 }
 
 #[derive(Debug)]
@@ -48,12 +28,14 @@ pub struct CodexWatcher {
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
+    event_bus: EventBus,
 }
 
 impl CodexWatcher {
     pub fn new(
         _projects: Vec<String>,
         upload_queue: Arc<UploadQueue>,
+        event_bus: EventBus,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         if let Err(e) = log_info(PROVIDER_ID, "🔍 Starting Codex file monitoring") {
             eprintln!("Logging error: {}", e);
@@ -115,7 +97,7 @@ impl CodexWatcher {
         let mut watcher = notify::PollWatcher::new(
             tx,
             Config::default()
-                .with_poll_interval(Duration::from_secs(2))
+                .with_poll_interval(FILE_WATCH_POLL_INTERVAL)
                 .with_compare_contents(true), // Actually check file contents changed
         )?;
 
@@ -156,6 +138,7 @@ impl CodexWatcher {
         let is_running_clone = Arc::clone(&is_running);
         let upload_queue_clone = Arc::clone(&upload_queue);
         let sessions_path_clone = sessions_path.clone();
+        let event_bus_clone = event_bus.clone();
 
         // Start background thread to handle file events
         let thread_handle = thread::spawn(move || {
@@ -163,6 +146,7 @@ impl CodexWatcher {
                 rx,
                 sessions_path_clone,
                 upload_queue_clone,
+                event_bus_clone,
                 is_running_clone,
             );
         });
@@ -172,6 +156,7 @@ impl CodexWatcher {
             _thread_handle: thread_handle,
             upload_queue,
             is_running,
+            event_bus,
         })
     }
 
@@ -242,9 +227,10 @@ impl CodexWatcher {
         rx: mpsc::Receiver<Result<Event, notify::Error>>,
         sessions_path: PathBuf,
         _upload_queue: Arc<UploadQueue>,
+        event_bus: EventBus,
         is_running: Arc<Mutex<bool>>,
     ) {
-        let mut session_states: HashMap<String, SessionState> = HashMap::new();
+        let mut session_states = SessionStateManager::new();
 
         loop {
             // Check if we should continue running
@@ -257,52 +243,67 @@ impl CodexWatcher {
             }
 
             // Process file system events with timeout
-            match rx.recv_timeout(Duration::from_secs(5)) {
+            match rx.recv_timeout(EVENT_TIMEOUT) {
                 Ok(Ok(event)) => {
                     if let Some(file_event) =
                         Self::process_file_event(&event, &sessions_path, &session_states)
                     {
-                        // Check if this is a new session or significant change (before updating state)
-                        let should_log = Self::should_log_event(&file_event, &session_states);
+                        // Check if this is a new session (before get_or_create)
+                        let is_new_session = !session_states.contains(&file_event.session_id);
 
-                        // INSERT TO DATABASE IMMEDIATELY (no debounce)
-                        if let Err(e) = insert_session_immediately(
-                            PROVIDER_ID,
-                            &file_event.project_name,
+                        // Get or create session state
+                        let state = session_states.get_or_create(
                             &file_event.session_id,
-                            &file_event.path,
                             file_event.file_size,
-                            None, // Hash will be calculated during upload
-                        ) {
+                        );
+                        let should_log = state.should_log(
+                            file_event.file_size,
+                            MIN_SIZE_CHANGE_BYTES,
+                            is_new_session,
+                        );
+
+                        // Publish SessionChanged event to event bus
+                        // DatabaseEventHandler will call db_helpers which does smart insert-or-update
+                        let payload = SessionEventPayload::SessionChanged {
+                            session_id: file_event.session_id.clone(),
+                            project_name: file_event.project_name.clone(),
+                            file_path: file_event.path.clone(),
+                            file_size: file_event.file_size,
+                        };
+
+                        if let Err(e) = event_bus.publish(PROVIDER_ID, payload) {
                             if let Err(log_err) = log_error(
                                 PROVIDER_ID,
-                                &format!("Failed to insert session to database: {}", e),
+                                &format!("Failed to publish session event: {}", e),
                             ) {
                                 eprintln!("Logging error: {}", log_err);
                             }
                         }
 
                         // Update session state immediately to prevent duplicate events
-                        Self::update_session_state(&mut session_states, &file_event);
+                        state.update(file_event.file_size);
+
+                        // Mark session as seen so it's not treated as new again
+                        if is_new_session {
+                            state.mark_as_seen();
+                        }
 
                         if should_log {
-                            if file_event.is_new_session {
-                                // First time this watcher session has seen this session
-                                // (but it may already exist in database from previous run)
+                            if is_new_session {
                                 let log_message = format!(
-                                    "🔍 Codex session detected: {} (size: {} bytes) → Processing",
-                                    file_event.session_id, file_event.file_size
+                                    "🆕 New Codex session detected: {}",
+                                    file_event.session_id
                                 );
                                 if let Err(e) = log_info(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
                             } else {
-                                // Use debug level for routine session activity
+                                // Log session updates at info level
                                 let log_message = format!(
-                                    "📝 Codex session active: {} (size: {} bytes)",
+                                    "📝 Codex session changed: {} (size: {} bytes)",
                                     file_event.session_id, file_event.file_size
                                 );
-                                if let Err(e) = log_debug(PROVIDER_ID, &log_message) {
+                                if let Err(e) = log_info(PROVIDER_ID, &log_message) {
                                     eprintln!("Logging error: {}", e);
                                 }
                             }
@@ -339,7 +340,7 @@ impl CodexWatcher {
     fn process_file_event(
         event: &Event,
         sessions_path: &Path,
-        session_states: &HashMap<String, SessionState>,
+        session_states: &SessionStateManager,
     ) -> Option<FileChangeEvent> {
         // Filter out event types we don't care about
         match &event.kind {
@@ -354,18 +355,12 @@ impl CodexWatcher {
             EventKind::Create(_) | EventKind::Modify(_) => {
                 for path in &event.paths {
                     // Skip hidden files (starting with .)
-                    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                        if file_name.starts_with('.') {
-                            continue;
-                        }
+                    if should_skip_file(path) {
+                        continue;
                     }
 
                     // Check if it's a .jsonl file
-                    if let Some(extension) = path.extension() {
-                        if extension != "jsonl" {
-                            continue;
-                        }
-                    } else {
+                    if !has_extension(path, "jsonl") {
                         continue;
                     }
 
@@ -380,17 +375,13 @@ impl CodexWatcher {
                         let project_name = Self::extract_project_name_from_file(path);
 
                         // Get file size
-                        let file_size = Self::get_file_size(path).unwrap_or(0);
-
-                        let is_new = Self::is_new_session(&session_id, path, session_states);
+                        let file_size = get_file_size(path).unwrap_or(0);
 
                         return Some(FileChangeEvent {
                             path: path.clone(),
                             project_name,
-                            last_modified: Instant::now(),
                             file_size,
                             session_id: session_id.clone(),
-                            is_new_session: is_new,
                         });
                     } else {
                         // Only log if extraction truly failed
@@ -508,93 +499,6 @@ impl CodexWatcher {
         "unknown".to_string()
     }
 
-    fn get_file_size(path: &Path) -> Result<u64, std::io::Error> {
-        let metadata = std::fs::metadata(path)?;
-        Ok(metadata.len())
-    }
-
-    fn is_new_session(
-        session_id: &str,
-        _path: &Path,
-        session_states: &HashMap<String, SessionState>,
-    ) -> bool {
-        // A session is considered new if we haven't seen it before
-        // We don't check file size because sessions can grow quickly
-        !session_states.contains_key(session_id)
-    }
-
-    fn should_log_event(
-        file_event: &FileChangeEvent,
-        session_states: &HashMap<String, SessionState>,
-    ) -> bool {
-        match session_states.get(&file_event.session_id) {
-            Some(existing_state) => {
-                // Only log if significant size change or new session
-                file_event.is_new_session
-                    || file_event
-                        .file_size
-                        .saturating_sub(existing_state.last_size)
-                        >= MIN_SIZE_CHANGE_BYTES
-            }
-            None => {
-                // Only log if this is actually a new session (small file size)
-                // This prevents duplicate logging for the same session when multiple
-                // file events occur before the session state is updated
-                file_event.is_new_session
-            }
-        }
-    }
-
-    fn update_session_state(
-        session_states: &mut HashMap<String, SessionState>,
-        file_event: &FileChangeEvent,
-    ) {
-        match session_states.get_mut(&file_event.session_id) {
-            Some(existing_state) => {
-                // Update existing session state
-                existing_state.last_modified = file_event.last_modified;
-                existing_state.last_size = file_event.file_size;
-                existing_state.is_active = true;
-
-                // Smart re-upload logic: clear upload_pending if conditions met
-                if existing_state.upload_pending {
-                    let should_allow_reupload =
-                        if let Some(last_uploaded_time) = existing_state.last_uploaded_time {
-                            // Check if cooldown has elapsed OR size changed significantly since last upload
-                            let cooldown_elapsed =
-                                file_event.last_modified.duration_since(last_uploaded_time)
-                                    >= RE_UPLOAD_COOLDOWN;
-                            let size_since_upload = file_event
-                                .file_size
-                                .saturating_sub(existing_state.last_uploaded_size);
-                            let size_changed_significantly = size_since_upload >= MIN_SIZE_CHANGE_BYTES;
-
-                            cooldown_elapsed || size_changed_significantly
-                        } else {
-                            // No last upload time recorded, allow re-upload
-                            true
-                        };
-
-                    if should_allow_reupload {
-                        existing_state.upload_pending = false;
-                    }
-                }
-            }
-            None => {
-                // Create new session state
-                let session_state = SessionState {
-                    last_modified: file_event.last_modified,
-                    last_size: file_event.file_size,
-                    is_active: true,
-                    upload_pending: false,
-                    last_uploaded_time: None,
-                    last_uploaded_size: 0,
-                };
-                session_states.insert(file_event.session_id.clone(), session_state);
-            }
-        }
-    }
-
     pub fn stop(&self) {
         if let Ok(mut running) = self.is_running.lock() {
             *running = false;
@@ -605,7 +509,7 @@ impl CodexWatcher {
         }
     }
 
-    pub fn get_status(&self) -> CodexWatcherStatus {
+    pub fn get_status(&self) -> WatcherStatus {
         let is_running = if let Ok(running) = self.is_running.lock() {
             *running
         } else {
@@ -614,7 +518,7 @@ impl CodexWatcher {
 
         let upload_status = self.upload_queue.get_status();
 
-        CodexWatcherStatus {
+        WatcherStatus {
             is_running,
             pending_uploads: upload_status.pending,
             processing_uploads: upload_status.processing,
@@ -623,13 +527,8 @@ impl CodexWatcher {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CodexWatcherStatus {
-    pub is_running: bool,
-    pub pending_uploads: usize,
-    pub processing_uploads: usize,
-    pub failed_uploads: usize,
-}
+// Type alias for backward compatibility
+pub type CodexWatcherStatus = WatcherStatus;
 
 impl Drop for CodexWatcher {
     fn drop(&mut self) {
@@ -644,33 +543,14 @@ mod tests {
     #[test]
     fn test_is_new_session() {
         let session_id = "test-session";
-        let mut session_states = HashMap::new();
-        let dummy_path = std::path::Path::new("dummy.jsonl");
+        let mut session_states = SessionStateManager::new();
 
         // Session not in states - should be considered new
-        assert!(CodexWatcher::is_new_session(
-            session_id,
-            dummy_path,
-            &session_states
-        ));
+        assert!(!session_states.contains(session_id));
 
         // Add session to states - should not be considered new
-        session_states.insert(
-            session_id.to_string(),
-            SessionState {
-                last_modified: Instant::now(),
-                last_size: 100,
-                is_active: true,
-                upload_pending: false,
-                last_uploaded_time: None,
-                last_uploaded_size: 0,
-            },
-        );
-        assert!(!CodexWatcher::is_new_session(
-            session_id,
-            dummy_path,
-            &session_states
-        ));
+        session_states.get_or_create(session_id, 100);
+        assert!(session_states.contains(session_id));
     }
 
     #[test]
