@@ -41,7 +41,6 @@ pub struct OpenCodeWatcher {
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
-    event_bus: EventBus,
 }
 
 impl OpenCodeWatcher {
@@ -158,7 +157,6 @@ impl OpenCodeWatcher {
             _thread_handle: thread_handle,
             upload_queue,
             is_running,
-            event_bus,
         })
     }
 
@@ -256,7 +254,6 @@ impl OpenCodeWatcher {
                         &storage_path,
                         &parser,
                         &projects_to_watch,
-                        &session_states,
                     ) {
                         // PHASE 1: WATCH - Just mark session as needing aggregation
                         Self::mark_session_for_aggregation(&mut session_states, &session_event);
@@ -348,7 +345,6 @@ impl OpenCodeWatcher {
         storage_path: &Path,
         parser: &OpenCodeParser,
         projects_to_watch: &[String],
-        _session_states: &std::collections::HashMap<String, OpenCodeSessionState>,
     ) -> Option<SessionChangeEvent> {
         // Only process create/modify events
         match &event.kind {
@@ -615,7 +611,6 @@ mod tests {
         // Create a minimal parser (won't actually parse, just checking file filtering)
         let parser = OpenCodeParser::new(storage_path.to_path_buf());
         let projects_to_watch = vec!["project1".to_string()];
-        let session_states = std::collections::HashMap::new();
 
         // Test hidden file is ignored
         let hidden_event = Event {
@@ -628,7 +623,6 @@ mod tests {
             storage_path,
             &parser,
             &projects_to_watch,
-            &session_states,
         );
         assert!(result.is_none(), "Hidden file should be ignored");
 
@@ -643,7 +637,6 @@ mod tests {
             storage_path,
             &parser,
             &projects_to_watch,
-            &session_states,
         );
         // Result might be None if project lookup fails, but that's OK - we're just testing file filtering
         // The important thing is it didn't get filtered out like the hidden file

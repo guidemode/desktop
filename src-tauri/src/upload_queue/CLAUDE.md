@@ -167,7 +167,7 @@ Key test areas:
 
 ### Memory
 - In-memory queue (`VecDeque`)
-- Uploaded hashes cache (unbounded - TODO: add TTL/size limit)
+- Uploaded hashes cache (`IndexSet` with 10,000 entry limit, prunes to 100 when exceeded)
 - Active tasks tracked in `HashMap`
 
 ### Database
@@ -177,7 +177,7 @@ Key test areas:
 
 ## Known Issues / Future Enhancements
 
-- [ ] Unbounded `uploaded_hashes` cache (memory leak potential - add TTL/size limit)
+- [x] ~~Unbounded `uploaded_hashes` cache~~ - **FIXED**: Now uses `IndexSet` with 10,000 entry limit (prunes to 100 when exceeded)
 - [ ] DB polling could use trigger/notification instead (reactive updates)
 - [ ] Consider persistent queue for crash recovery
 - [ ] Add metrics/telemetry for upload success rates

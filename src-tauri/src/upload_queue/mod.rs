@@ -13,6 +13,7 @@ pub use types::*;
 use crate::config::GuideAIConfig;
 use crate::project_metadata::ProjectMetadata;
 use crate::providers::SessionInfo;
+use indexmap::IndexSet;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tokio::sync::Semaphore;
@@ -30,7 +31,7 @@ pub struct UploadQueue {
     queue: Arc<Mutex<VecDeque<UploadItem>>>,
     processing: Arc<Mutex<usize>>,
     failed_items: Arc<Mutex<Vec<UploadItem>>>,
-    uploaded_hashes: Arc<Mutex<std::collections::HashSet<String>>>, // Track uploaded file hashes (SHA256)
+    uploaded_hashes: Arc<Mutex<IndexSet<String>>>, // Track uploaded file hashes (SHA256) with insertion order
     is_running: Arc<Mutex<bool>>,
     config: Arc<Mutex<Option<GuideAIConfig>>>,
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -58,7 +59,7 @@ impl UploadQueue {
             queue: Arc::new(Mutex::new(VecDeque::new())),
             processing: Arc::new(Mutex::new(0)),
             failed_items: Arc::new(Mutex::new(Vec::new())),
-            uploaded_hashes: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            uploaded_hashes: Arc::new(Mutex::new(IndexSet::new())),
             is_running: Arc::new(Mutex::new(false)),
             config: Arc::new(Mutex::new(None)),
             app_handle: Arc::new(Mutex::new(None)),

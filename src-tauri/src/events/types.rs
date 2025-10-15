@@ -42,6 +42,10 @@ pub enum SessionEventPayload {
 }
 
 impl SessionEvent {
+    /// Extract session ID from any event payload type
+    ///
+    /// Note: Used in tests and useful for logging, debugging, and event filtering.
+    #[allow(dead_code)]
     pub fn session_id(&self) -> &str {
         match &self.payload {
             SessionEventPayload::SessionChanged { session_id, .. } => session_id,
@@ -50,6 +54,10 @@ impl SessionEvent {
         }
     }
 
+    /// Get a string representation of the payload type
+    ///
+    /// Note: Useful for logging and metrics.
+    #[allow(dead_code)]
     pub fn payload_type(&self) -> &str {
         match &self.payload {
             SessionEventPayload::SessionChanged { .. } => "session_changed",

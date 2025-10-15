@@ -1,6 +1,6 @@
 use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
-use crate::logging::{log_debug, log_error, log_info};
+use crate::logging::{log_error, log_info};
 use crate::providers::common::{
     get_file_size, has_extension, should_skip_file, SessionStateManager, WatcherStatus,
     EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL, MIN_SIZE_CHANGE_BYTES,
@@ -28,7 +28,6 @@ pub struct CodexWatcher {
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
-    event_bus: EventBus,
 }
 
 impl CodexWatcher {
@@ -156,7 +155,6 @@ impl CodexWatcher {
             _thread_handle: thread_handle,
             upload_queue,
             is_running,
-            event_bus,
         })
     }
 
@@ -246,7 +244,7 @@ impl CodexWatcher {
             match rx.recv_timeout(EVENT_TIMEOUT) {
                 Ok(Ok(event)) => {
                     if let Some(file_event) =
-                        Self::process_file_event(&event, &sessions_path, &session_states)
+                        Self::process_file_event(&event, &sessions_path)
                     {
                         // Check if this is a new session (before get_or_create)
                         let is_new_session = !session_states.contains(&file_event.session_id);
@@ -340,7 +338,6 @@ impl CodexWatcher {
     fn process_file_event(
         event: &Event,
         sessions_path: &Path,
-        session_states: &SessionStateManager,
     ) -> Option<FileChangeEvent> {
         // Filter out event types we don't care about
         match &event.kind {

@@ -1,38 +1,49 @@
 use super::{EventBus, SessionEvent, SessionEventPayload};
 use crate::database;
 use crate::logging::{log_error, log_info};
+use crate::shutdown::ShutdownCoordinator;
 use tauri::Emitter;
 use tokio::sync::broadcast;
 
 /// Handler that writes events to database
 pub struct DatabaseEventHandler {
     event_bus: EventBus,
+    shutdown: ShutdownCoordinator,
 }
 
 impl DatabaseEventHandler {
-    pub fn new(event_bus: EventBus) -> Self {
-        Self { event_bus }
+    pub fn new(event_bus: EventBus, shutdown: ShutdownCoordinator) -> Self {
+        Self { event_bus, shutdown }
     }
 
     pub fn start(self) {
         tauri::async_runtime::spawn(async move {
             let mut rx = self.event_bus.subscribe();
+            let mut shutdown_rx = self.shutdown.subscribe();
 
             loop {
-                match rx.recv().await {
-                    Ok(event) => {
-                        if let Err(e) = self.handle_event(&event) {
-                            log_error(&event.provider, &format!("Database handler error: {}", e))
-                                .unwrap_or_default();
+                tokio::select! {
+                    result = rx.recv() => {
+                        match result {
+                            Ok(event) => {
+                                if let Err(e) = self.handle_event(&event) {
+                                    log_error(&event.provider, &format!("Database handler error: {}", e))
+                                        .unwrap_or_default();
+                                }
+                            }
+                            Err(broadcast::error::RecvError::Closed) => {
+                                log_info("events", "Database handler stopped (event bus closed)").unwrap_or_default();
+                                break;
+                            }
+                            Err(broadcast::error::RecvError::Lagged(n)) => {
+                                log_error("events", &format!("Database handler lagged {} events", n))
+                                    .unwrap_or_default();
+                            }
                         }
                     }
-                    Err(broadcast::error::RecvError::Closed) => {
-                        log_info("events", "Database handler stopped").unwrap_or_default();
+                    _ = shutdown_rx.recv() => {
+                        log_info("events", "Database handler gracefully shutting down").unwrap_or_default();
                         break;
-                    }
-                    Err(broadcast::error::RecvError::Lagged(n)) => {
-                        log_error("events", &format!("Database handler lagged {} events", n))
-                            .unwrap_or_default();
                     }
                 }
             }
@@ -97,41 +108,52 @@ impl DatabaseEventHandler {
 pub struct FrontendEventHandler {
     event_bus: EventBus,
     app_handle: tauri::AppHandle,
+    shutdown: ShutdownCoordinator,
 }
 
 impl FrontendEventHandler {
-    pub fn new(event_bus: EventBus, app_handle: tauri::AppHandle) -> Self {
+    pub fn new(event_bus: EventBus, app_handle: tauri::AppHandle, shutdown: ShutdownCoordinator) -> Self {
         Self {
             event_bus,
             app_handle,
+            shutdown,
         }
     }
 
     pub fn start(self) {
         tauri::async_runtime::spawn(async move {
             let mut rx = self.event_bus.subscribe();
+            let mut shutdown_rx = self.shutdown.subscribe();
 
             loop {
-                match rx.recv().await {
-                    Ok(event) => {
-                        // Emit different events based on payload type
-                        match &event.payload {
-                            SessionEventPayload::SessionChanged { session_id, .. } => {
-                                let _ = self.app_handle.emit("session-updated", session_id);
-                            }
+                tokio::select! {
+                    result = rx.recv() => {
+                        match result {
+                            Ok(event) => {
+                                // Emit different events based on payload type
+                                match &event.payload {
+                                    SessionEventPayload::SessionChanged { session_id, .. } => {
+                                        let _ = self.app_handle.emit("session-updated", session_id);
+                                    }
 
-                            SessionEventPayload::Completed { session_id, .. } => {
-                                let _ = self.app_handle.emit("session-completed", session_id);
-                            }
+                                    SessionEventPayload::Completed { session_id, .. } => {
+                                        let _ = self.app_handle.emit("session-completed", session_id);
+                                    }
 
-                            _ => {}
+                                    _ => {}
+                                }
+                            }
+                            Err(broadcast::error::RecvError::Closed) => {
+                                log_info("events", "Frontend handler stopped (event bus closed)").unwrap_or_default();
+                                break;
+                            }
+                            Err(_) => continue,
                         }
                     }
-                    Err(broadcast::error::RecvError::Closed) => {
-                        log_info("events", "Frontend handler stopped").unwrap_or_default();
+                    _ = shutdown_rx.recv() => {
+                        log_info("events", "Frontend handler gracefully shutting down").unwrap_or_default();
                         break;
                     }
-                    Err(_) => continue,
                 }
             }
         });

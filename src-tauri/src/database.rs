@@ -13,13 +13,25 @@ lazy_static! {
     static ref APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
 }
 
-/// Helper function to get database connection with proper error handling
-/// Replaces repeated `.lock().unwrap()` pattern throughout the code
+/// Helper function to get database connection with retry logic
+/// Retries up to 3 times with 100ms delay between attempts to handle temporary lock contention
 fn get_db_connection(
 ) -> Result<std::sync::MutexGuard<'static, Option<Connection>>, rusqlite::Error> {
-    DB_CONNECTION
-        .lock()
-        .map_err(|_| rusqlite::Error::InvalidQuery)
+    const MAX_RETRIES: u32 = 3;
+    const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(100);
+
+    for attempt in 0..MAX_RETRIES {
+        match DB_CONNECTION.lock() {
+            Ok(guard) => return Ok(guard),
+            Err(_) if attempt < MAX_RETRIES - 1 => {
+                std::thread::sleep(RETRY_DELAY);
+                continue;
+            }
+            Err(_) => return Err(rusqlite::Error::InvalidQuery),
+        }
+    }
+
+    unreachable!()
 }
 
 /// Helper function to get the active database connection with mutable access

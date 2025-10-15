@@ -12,7 +12,8 @@ use crate::project_metadata::extract_project_metadata;
 use crate::providers::SessionInfo;
 use crate::validation::{validate_session_file, MAX_SESSION_FILE_SIZE};
 use chrono::Utc;
-use std::collections::{HashSet, VecDeque};
+use indexmap::IndexSet;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -25,7 +26,7 @@ use super::validation::validate_jsonl_timestamps;
 #[cfg(test)]
 pub fn add_item(
     queue: &Arc<Mutex<VecDeque<UploadItem>>>,
-    uploaded_hashes: &Arc<Mutex<HashSet<String>>>,
+    uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
     provider: &str,
     project_name: &str,
     file_path: PathBuf,
@@ -98,7 +99,7 @@ pub fn add_item(
 /// Add a historical session to the queue
 pub fn add_historical_session(
     queue: &Arc<Mutex<VecDeque<UploadItem>>>,
-    uploaded_hashes: &Arc<Mutex<HashSet<String>>>,
+    uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
     _config: &Arc<Mutex<Option<GuideAIConfig>>>,
     session: &SessionInfo,
 ) -> Result<(), String> {
@@ -254,7 +255,7 @@ pub fn add_historical_session(
 #[cfg(test)]
 pub fn add_session_content(
     queue: &Arc<Mutex<VecDeque<UploadItem>>>,
-    uploaded_hashes: &Arc<Mutex<HashSet<String>>>,
+    uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
     provider: &str,
     project_name: &str,
     session_id: &str,
@@ -456,7 +457,7 @@ pub fn find_ready_item(queue: &mut VecDeque<UploadItem>) -> Option<UploadItem> {
 
 /// Check if a file hash has already been uploaded
 pub fn is_file_already_uploaded(
-    uploaded_hashes: &Arc<Mutex<HashSet<String>>>,
+    uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
     file_hash: &str,
 ) -> bool {
     if let Ok(uploaded_hashes) = uploaded_hashes.lock() {

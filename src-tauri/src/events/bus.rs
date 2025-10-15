@@ -50,11 +50,17 @@ impl EventBus {
     }
 
     /// Get current sequence number
+    ///
+    /// Note: Useful for debugging event ordering and monitoring event flow.
+    #[allow(dead_code)]
     pub fn current_sequence(&self) -> EventSequence {
         self.sequence.load(Ordering::SeqCst)
     }
 
     /// Get number of active receivers
+    ///
+    /// Note: Useful for monitoring event handler health.
+    #[allow(dead_code)]
     pub fn receiver_count(&self) -> usize {
         self.sender.receiver_count()
     }

@@ -12,6 +12,10 @@ pub const DB_POLL_INTERVAL_SECS: u64 = 10;
 // Maximum number of concurrent uploads (can be tuned based on system performance)
 pub const MAX_CONCURRENT_UPLOADS: usize = 3;
 
+// Maximum number of uploaded hashes to cache (prevents unbounded memory growth)
+// Each hash is ~64 bytes, so 10,000 hashes = ~640KB
+pub const MAX_UPLOADED_HASHES: usize = 10_000;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadItem {
     pub id: String,

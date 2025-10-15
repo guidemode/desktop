@@ -1,6 +1,6 @@
 use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
-use crate::logging::{log_debug, log_error, log_info, log_warn};
+use crate::logging::{log_error, log_info, log_warn};
 use crate::providers::common::{
     extract_session_id_from_filename, get_file_size, has_extension, should_skip_file,
     SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
@@ -32,7 +32,6 @@ pub struct GeminiWatcher {
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
-    event_bus: EventBus,
 }
 
 impl GeminiWatcher {
@@ -155,7 +154,6 @@ impl GeminiWatcher {
             _thread_handle: thread_handle,
             upload_queue,
             is_running,
-            event_bus,
         })
     }
 
@@ -213,7 +211,7 @@ impl GeminiWatcher {
             match rx.recv_timeout(EVENT_TIMEOUT) {
                 Ok(Ok(event)) => {
                     if let Some(file_event) =
-                        Self::process_file_event(&event, &tmp_path, &session_states)
+                        Self::process_file_event(&event, &tmp_path)
                     {
                         // Convert Gemini JSON to JSONL and cache it
                         let jsonl_path = match Self::convert_to_jsonl_and_cache(
@@ -328,7 +326,6 @@ impl GeminiWatcher {
     fn process_file_event(
         event: &Event,
         tmp_path: &Path,
-        session_states: &SessionStateManager,
     ) -> Option<FileChangeEvent> {
         // Only process write events for session JSON files
         match &event.kind {

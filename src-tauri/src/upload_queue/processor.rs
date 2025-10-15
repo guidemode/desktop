@@ -7,7 +7,8 @@ use crate::config::GuideAIConfig;
 use crate::database::{get_unsynced_sessions, mark_session_sync_failed, mark_session_synced};
 use crate::logging::{log_error, log_info, log_warn};
 use chrono::{DateTime, Utc};
-use std::collections::{HashSet, VecDeque};
+use indexmap::IndexSet;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -16,7 +17,7 @@ use tokio::sync::Semaphore;
 use tokio::time::sleep;
 
 use super::queue_manager;
-use super::types::{UploadItem, DB_POLL_INTERVAL_SECS};
+use super::types::{UploadItem, DB_POLL_INTERVAL_SECS, MAX_UPLOADED_HASHES};
 use super::upload::{process_upload_item, classify_error, should_retry, schedule_retry, calculate_backoff, ErrorType};
 
 /// Main upload processor that manages the processing loop
@@ -25,7 +26,7 @@ pub struct UploadProcessor {
     queue: Arc<Mutex<VecDeque<UploadItem>>>,
     processing: Arc<Mutex<usize>>,
     failed_items: Arc<Mutex<Vec<UploadItem>>>,
-    uploaded_hashes: Arc<Mutex<HashSet<String>>>,
+    uploaded_hashes: Arc<Mutex<IndexSet<String>>>,
     is_running: Arc<Mutex<bool>>,
     config: Arc<Mutex<Option<GuideAIConfig>>>,
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -38,7 +39,7 @@ impl UploadProcessor {
         queue: Arc<Mutex<VecDeque<UploadItem>>>,
         processing: Arc<Mutex<usize>>,
         failed_items: Arc<Mutex<Vec<UploadItem>>>,
-        uploaded_hashes: Arc<Mutex<HashSet<String>>>,
+        uploaded_hashes: Arc<Mutex<IndexSet<String>>>,
         is_running: Arc<Mutex<bool>>,
         config: Arc<Mutex<Option<GuideAIConfig>>>,
         app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -320,13 +321,34 @@ fn get_config(config: &Arc<Mutex<Option<GuideAIConfig>>>) -> Option<GuideAIConfi
 
 async fn handle_upload_success(
     item: UploadItem,
-    uploaded_hashes: &Arc<Mutex<HashSet<String>>>,
+    uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
     app_handle: &Arc<Mutex<Option<tauri::AppHandle>>>,
 ) {
     // Mark hash as uploaded
     if let Some(file_hash) = &item.file_hash {
         if let Ok(mut hashes) = uploaded_hashes.lock() {
             hashes.insert(file_hash.clone());
+
+            // Prune oldest entries if cache exceeds the limit
+            if hashes.len() > MAX_UPLOADED_HASHES {
+                // Keep the most recent 100 entries (1% of max)
+                let keep_count = MAX_UPLOADED_HASHES / 100;
+                let remove_count = hashes.len() - keep_count;
+
+                log_info(
+                    "upload-queue",
+                    &format!(
+                        "Uploaded hashes cache exceeded limit ({}), pruning {} oldest entries, keeping {}",
+                        MAX_UPLOADED_HASHES, remove_count, keep_count
+                    ),
+                )
+                .unwrap_or_default();
+
+                // Remove oldest entries (shift_remove removes from the front)
+                for _ in 0..remove_count {
+                    hashes.shift_remove_index(0);
+                }
+            }
         }
     }
 

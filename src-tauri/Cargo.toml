@@ -67,6 +67,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # Directory for database path
 lazy_static = "1.4"
 tauri-plugin-http = "2"
+# IndexSet for maintaining insertion order in hash cache
+indexmap = "2.0"
 
 # macOS specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

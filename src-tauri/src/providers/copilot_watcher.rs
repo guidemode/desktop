@@ -33,7 +33,6 @@ pub struct CopilotWatcher {
     _thread_handle: thread::JoinHandle<()>,
     upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
-    event_bus: EventBus,
 }
 
 impl CopilotWatcher {
@@ -121,7 +120,6 @@ impl CopilotWatcher {
             _thread_handle: thread_handle,
             upload_queue,
             is_running,
-            event_bus,
         })
     }
 

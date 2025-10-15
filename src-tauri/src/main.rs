@@ -13,12 +13,15 @@ mod git_diff;
 mod logging;
 mod project_metadata;
 mod providers;
+mod shutdown;
+mod types;
 mod upload_queue;
 mod validation;
 
 use commands::{start_enabled_watchers, AppState};
 use events::{DatabaseEventHandler, EventBus, FrontendEventHandler};
 use file_watcher::start_config_file_watcher;
+use shutdown::ShutdownCoordinator;
 use tauri::Manager;
 
 fn main() {
@@ -149,14 +152,17 @@ fn main() {
             // Set app handle on database for event emission
             database::set_app_handle(app.handle().clone());
 
+            // Create shutdown coordinator for graceful shutdown
+            let shutdown = ShutdownCoordinator::new();
+
             // Create event bus (1000 event buffer)
             let event_bus = EventBus::new(1000);
 
-            // Start event handlers
-            let db_handler = DatabaseEventHandler::new(event_bus.clone());
+            // Start event handlers with shutdown coordination
+            let db_handler = DatabaseEventHandler::new(event_bus.clone(), shutdown.clone());
             db_handler.start();
 
-            let frontend_handler = FrontendEventHandler::new(event_bus.clone(), app.handle().clone());
+            let frontend_handler = FrontendEventHandler::new(event_bus.clone(), app.handle().clone(), shutdown.clone());
             frontend_handler.start();
 
             // Initialize application state with event bus
