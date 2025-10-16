@@ -70,7 +70,7 @@ Example:
 ```json
 {
   "apiKey": "your-api-key",
-  "serverUrl": "https://guideai.dev",
+  "serverUrl": "https://be.guideai.dev",
   "username": "your-username",
   "tenantId": "your-tenant-id",
   "tenantName": "Your Team"

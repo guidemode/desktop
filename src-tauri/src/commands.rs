@@ -1594,3 +1594,13 @@ pub async fn get_session_git_diff(
 pub async fn scan_context_files(cwd: String) -> Result<Vec<crate::context_files::ContextFile>, String> {
     crate::context_files::scan_context_files(&cwd)
 }
+
+/// Log updater events from the frontend
+#[tauri::command]
+pub async fn log_updater_event_command(
+    level: String,
+    message: String,
+    details: Option<serde_json::Value>,
+) -> Result<(), String> {
+    crate::logging::log_updater_event(&level, &message, details).map_err(|e| e.to_string())
+}

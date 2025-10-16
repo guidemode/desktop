@@ -375,6 +375,23 @@ pub fn log_with_details(
     log_provider_event(provider, level, message, Some(details))
 }
 
+// Updater-specific logging functions
+pub fn log_updater_event(
+    level: &str,
+    message: &str,
+    details: Option<serde_json::Value>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    log_provider_event("updater", level, message, details)
+}
+
+pub fn log_updater_info(message: &str) -> Result<(), Box<dyn std::error::Error>> {
+    log_updater_event("INFO", message, None)
+}
+
+pub fn log_updater_error(message: &str, details: Option<serde_json::Value>) -> Result<(), Box<dyn std::error::Error>> {
+    log_updater_event("ERROR", message, details)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

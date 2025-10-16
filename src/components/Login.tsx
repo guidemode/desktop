@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../hooks/useAuth'
 
-const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL || (import.meta.env.MODE === 'production' ? 'https://guideai.dev' : 'http://localhost:3000')
+const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL || (import.meta.env.MODE === 'production' ? 'https://be.guideai.dev' : 'http://localhost:3000')
 
 export default function Login() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL)
