@@ -59,7 +59,7 @@ pub async fn login_command(
 
     let callback_url = &auth_server.callback_url;
     let auth_url = format!(
-        "{}/auth/cli?redirect_uri={}",
+        "{}/auth/desktop?redirect_uri={}",
         server_url,
         urlencoding::encode(callback_url)
     );

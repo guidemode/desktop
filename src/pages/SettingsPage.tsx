@@ -30,9 +30,7 @@ function SettingsPage() {
   const [geminiKey, setGeminiKey] = useState(aiApiKeys.gemini || '')
 
   const handleLogout = async () => {
-    if (confirm('Are you sure you want to logout?')) {
-      await logout()
-    }
+    await logout()
   }
 
   const handleRestartTour = () => {

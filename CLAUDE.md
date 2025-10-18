@@ -274,6 +274,38 @@ Asynchronous upload processing with modular architecture (see `upload_queue/CLAU
   }
   ```
 
+### Environment Variables
+
+The desktop app uses Vite's environment variable system with the following files:
+
+- **`.env`** - Shared defaults (committed to git)
+  - `VITE_SERVER_URL=https://be.guideai.dev`
+  - Loaded in all modes (dev and production)
+
+- **`.env.local`** - Local development overrides (NOT committed)
+  - Your personal server URL for development
+  - Example: `VITE_SERVER_URL=https://clifton.guideai.dev`
+  - Takes priority over `.env`
+  - Copy from `.env.example` to get started
+
+- **`.env.production`** - Production-specific settings (committed)
+  - `VITE_SERVER_URL=https://be.guideai.dev`
+  - Only loaded during `vite build` (production builds)
+
+**Loading Priority (highest to lowest):**
+1. Existing shell environment variables (highest)
+2. `.env.[mode].local` (e.g., `.env.development.local`)
+3. `.env.local`
+4. `.env.[mode]` (e.g., `.env.development` or `.env.production`)
+5. `.env` (lowest)
+
+**For local development:**
+1. Copy `.env.example` to `.env.local`
+2. Edit `.env.local` with your preferred server URL
+3. Restart the dev server (`pnpm tauri:dev`)
+
+**Note:** Environment variable changes require a dev server restart to take effect.
+
 ### Tauri Configuration
 - **System Tray**: Always visible in menubar
 - **Window**: Hidden by default, shows on tray click

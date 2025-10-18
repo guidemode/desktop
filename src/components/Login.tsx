@@ -1,18 +1,19 @@
-import React, { useState } from 'react'
-import { Cog6ToothIcon } from '@heroicons/react/24/outline'
-import { useAuth } from '../hooks/useAuth'
+import React, { useState } from "react";
+import { Cog6ToothIcon } from "@heroicons/react/24/outline";
+import { useAuth } from "../hooks/useAuth";
 
-const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL || (import.meta.env.MODE === 'production' ? 'https://be.guideai.dev' : 'http://localhost:3000')
+const DEFAULT_SERVER_URL =
+  import.meta.env.VITE_SERVER_URL?.trim() || "https://be.guideai.dev";
 
 export default function Login() {
-  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL)
-  const [showServerUrl, setShowServerUrl] = useState(false)
-  const { login, isLoggingIn } = useAuth()
+  const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
+  const [showServerUrl, setShowServerUrl] = useState(false);
+  const { login, isLoggingIn } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    login(serverUrl)
-  }
+    e.preventDefault();
+    login(serverUrl);
+  };
 
   return (
     <div className="card bg-base-200 shadow-lg">
@@ -22,19 +23,25 @@ export default function Login() {
           <div className="flex items-center gap-3 mb-2">
             <div className="avatar">
               <div className="w-8 rounded">
-                <img src="/logo-32-optimized.png" alt="GuideAI" className="w-full h-full object-contain" />
+                <img
+                  src="/logo-32-optimized.png"
+                  alt="GuideAI"
+                  className="w-full h-full object-contain"
+                />
               </div>
             </div>
             <div>
               <h1 className="text-xl font-bold text-primary">GuideAI</h1>
             </div>
           </div>
-          <h2 className="text-base font-medium text-base-content/80">Sign In to Continue</h2>
+          <h2 className="text-base font-medium text-base-content/80">
+            Sign In to Continue
+          </h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           {showServerUrl && (
-            <div className="form-control">
+            <div className="form-control text-center">
               <label className="label">
                 <span className="label-text">Server URL</span>
               </label>
@@ -61,7 +68,7 @@ export default function Login() {
                   Signing In...
                 </>
               ) : (
-                'Sign In with GitHub'
+                "Sign In"
               )}
             </button>
           </div>
@@ -87,5 +94,5 @@ export default function Login() {
         </div>
       </div>
     </div>
-  )
+  );
 }
