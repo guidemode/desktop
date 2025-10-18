@@ -1,6 +1,6 @@
 {
   "name": "@guideai-dev/desktop",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "description": "GuideAI desktop menubar application",
   "type": "module",
   "scripts": {
