@@ -18,16 +18,31 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import ProcessingModeDialog from '../components/ProcessingModeDialog'
 import { useLocalProjects } from '../hooks/useLocalProjects'
 import { useQuickRating } from '../hooks/useQuickRating'
+import { ActiveSessionCard } from '../components/ActiveSessionCard'
 
 const SESSIONS_PER_PAGE = 50
+const PROVIDER_FILTER_KEY = 'sessions.providerFilter'
+const DATE_FILTER_KEY = 'sessions.dateFilter'
+const ACTIVE_FILTER_KEY = 'sessions.activeFilter'
 
 export default function SessionsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ option: 'all' })
-  const [providerFilter, setProviderFilter] = useState<string>('all')
+
+  // Initialize filters from localStorage
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => {
+    const saved = localStorage.getItem(DATE_FILTER_KEY)
+    return saved ? JSON.parse(saved) : { option: 'all' }
+  })
+  const [providerFilter, setProviderFilter] = useState<string>(() => {
+    return localStorage.getItem(PROVIDER_FILTER_KEY) || 'all'
+  })
   const [projectFilter, setProjectFilter] = useState<string>('all')
+  const [showActiveOnly, setShowActiveOnly] = useState<boolean>(() => {
+    const saved = localStorage.getItem(ACTIVE_FILTER_KEY)
+    return saved === 'true'
+  })
   const [clearing, setClearing] = useState(false)
   const [rescanning, setRescanning] = useState(false)
   const [processingSessionId, setProcessingSessionId] = useState<string | null>(null)
@@ -71,6 +86,17 @@ export default function SessionsPage() {
   const { projects } = useLocalProjects()
   const quickRatingMutation = useQuickRating()
 
+  // Count active sessions
+  const activeSessions = sessions.filter(session =>
+    isSessionActive(session.sessionId as string, session.sessionEndTime)
+  )
+  const hasActiveSessions = activeSessions.length > 0
+
+  // Filter sessions by active status if enabled AND there are active sessions
+  const filteredSessions = showActiveOnly && hasActiveSessions
+    ? activeSessions
+    : sessions
+
   // Initialize project filter from URL parameter
   useEffect(() => {
     const projectParam = searchParams.get('project')
@@ -79,17 +105,32 @@ export default function SessionsPage() {
     }
   }, [searchParams])
 
+  // Persist provider filter to localStorage
+  useEffect(() => {
+    localStorage.setItem(PROVIDER_FILTER_KEY, providerFilter)
+  }, [providerFilter])
+
+  // Persist date filter to localStorage
+  useEffect(() => {
+    localStorage.setItem(DATE_FILTER_KEY, JSON.stringify(dateFilter))
+  }, [dateFilter])
+
+  // Persist active filter to localStorage
+  useEffect(() => {
+    localStorage.setItem(ACTIVE_FILTER_KEY, String(showActiveOnly))
+  }, [showActiveOnly])
+
   // Reset display count when filters change
   useEffect(() => {
     setDisplayCount(SESSIONS_PER_PAGE)
-  }, [providerFilter, dateFilter, projectFilter])
+  }, [providerFilter, dateFilter, projectFilter, showActiveOnly])
 
   // Infinite scroll observer
   const loadMore = useCallback(() => {
-    if (displayCount < sessions.length) {
-      setDisplayCount(prev => Math.min(prev + SESSIONS_PER_PAGE, sessions.length))
+    if (displayCount < filteredSessions.length) {
+      setDisplayCount(prev => Math.min(prev + SESSIONS_PER_PAGE, filteredSessions.length))
     }
-  }, [displayCount, sessions.length])
+  }, [displayCount, filteredSessions.length])
 
   useEffect(() => {
     if (!loadMoreRef.current) return
@@ -113,7 +154,7 @@ export default function SessionsPage() {
   }, [loadMore])
 
   // Get visible sessions
-  const visibleSessions = sessions.slice(0, displayCount)
+  const visibleSessions = filteredSessions.slice(0, displayCount)
 
   // Listen for sync/update events from backend and invalidate cache
   useEffect(() => {
@@ -749,6 +790,16 @@ export default function SessionsPage() {
         <div className="flex-1"></div>
 
         {/* Right side: Filters */}
+        <label className={`label gap-2 ${!hasActiveSessions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+          <span className="label-text text-sm">Active Only</span>
+          <input
+            type="checkbox"
+            className="toggle toggle-primary toggle-sm"
+            checked={showActiveOnly}
+            disabled={!hasActiveSessions}
+            onChange={e => setShowActiveOnly(e.target.checked)}
+          />
+        </label>
         <DateFilter value={dateFilter} onChange={setDateFilter} />
         <select
           className="select select-bordered select-sm"
@@ -875,7 +926,7 @@ export default function SessionsPage() {
       )}
 
       {/* Sessions List */}
-      {sessions.length === 0 ? (
+      {filteredSessions.length === 0 ? (
         <div className="text-center py-12">
           <svg
             className="w-16 h-16 mx-auto text-base-content/30 mb-4"
@@ -892,7 +943,9 @@ export default function SessionsPage() {
           </svg>
           <h3 className="text-lg font-semibold mb-2">No sessions found</h3>
           <p className="text-base-content/70">
-            Sessions will appear here as they're detected by the file watchers
+            {showActiveOnly && sessions.length > 0
+              ? 'No active sessions match the current filters'
+              : 'Sessions will appear here as they\'re detected by the file watchers'}
           </p>
         </div>
       ) : (
@@ -901,6 +954,56 @@ export default function SessionsPage() {
             {visibleSessions.map(session => {
               const isCompleted = session.assessmentStatus === 'completed'
               const isSelected = selectedSessionIds.includes(session.sessionId as string)
+              const isActive = isSessionActive(session.sessionId as string, session.sessionEndTime)
+
+              // Use ActiveSessionCard when showActiveOnly filter is enabled AND there are active sessions
+              if (showActiveOnly && hasActiveSessions) {
+                return (
+                  <ActiveSessionCard
+                    key={session.sessionId as string}
+                    session={{
+                      sessionId: session.sessionId as string,
+                      provider: session.provider,
+                      projectName: session.projectName,
+                      sessionStartTime: session.sessionStartTime,
+                      sessionEndTime: session.sessionEndTime,
+                      durationMs: session.durationMs,
+                      filePath: session.filePath as string,
+                      fileSize: session.fileSize,
+                      cwd: session.cwd || null,
+                      gitBranch: session.gitBranch || null,
+                      firstCommitHash: session.firstCommitHash || null,
+                      latestCommitHash: session.latestCommitHash || null,
+                      aiModelSummary: session.aiModelSummary,
+                      aiModelQualityScore: session.aiModelQualityScore,
+                      processingStatus: session.processingStatus,
+                      assessmentStatus: session.assessmentStatus,
+                      assessmentRating: session.assessmentRating,
+                      syncedToServer: session.syncedToServer === 1,
+                      syncFailedReason: session.syncFailedReason,
+                    }}
+                    isActive={isActive}
+                    isProcessing={processingSessionId === session.sessionId || (bulkProcessing && isSelected)}
+                    onViewSession={() => handleViewSession(session.sessionId as string)}
+                    onProcessSession={
+                      isCompleted
+                        ? undefined
+                        : () =>
+                            handleProcessSession(
+                              session.sessionId as string,
+                              session.provider,
+                              session.filePath as string
+                            )
+                    }
+                    onRateSession={handleQuickRate}
+                    onSyncSession={handleSyncSession}
+                    onShowSyncError={handleShowSyncError}
+                    ProviderIcon={ProviderIcon}
+                  />
+                )
+              }
+
+              // Default SessionCard for non-active filter view
               return (
                 <SessionCard
                   key={session.sessionId as string}
@@ -909,7 +1012,7 @@ export default function SessionsPage() {
                     aiModelQualityScore: session.aiModelQualityScore,
                   }}
                   isSelected={isSelected}
-                  isActive={isSessionActive(session.sessionId as string, session.sessionEndTime)}
+                  isActive={isActive}
                   onSelect={
                     selectionMode
                       ? checked => handleToggleSelection(session.sessionId as string, checked)
@@ -939,19 +1042,19 @@ export default function SessionsPage() {
           </div>
 
           {/* Load more trigger */}
-          {displayCount < sessions.length && (
+          {displayCount < filteredSessions.length && (
             <div ref={loadMoreRef} className="flex items-center justify-center py-8">
               <span className="loading loading-spinner loading-md" />
               <span className="ml-3 text-sm text-base-content/70">
-                Loading more... ({displayCount} of {sessions.length})
+                Loading more... ({displayCount} of {filteredSessions.length})
               </span>
             </div>
           )}
 
           {/* Show completion message */}
-          {displayCount >= sessions.length && sessions.length > SESSIONS_PER_PAGE && (
+          {displayCount >= filteredSessions.length && filteredSessions.length > SESSIONS_PER_PAGE && (
             <div className="text-center py-4 text-sm text-base-content/70">
-              All {sessions.length} sessions loaded
+              All {filteredSessions.length} sessions loaded
             </div>
           )}
         </>
