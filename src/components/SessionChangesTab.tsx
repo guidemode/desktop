@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useState } from 'react'
 import './git-diff-scoped.css'
 import {
+  ArrowPathIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   DocumentTextIcon,
@@ -35,6 +36,8 @@ interface SessionChangesTabProps {
     session_start_time: number | null
     session_end_time: number | null
   }
+  hasPendingChanges?: boolean
+  onRefresh?: () => void
 }
 
 async function fetchGitDiff(
@@ -90,7 +93,11 @@ async function fetchGitDiff(
   }))
 }
 
-export function SessionChangesTab({ session }: SessionChangesTabProps) {
+export function SessionChangesTab({
+  session,
+  hasPendingChanges = false,
+  onRefresh,
+}: SessionChangesTabProps) {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('split')
 
@@ -98,17 +105,16 @@ export function SessionChangesTab({ session }: SessionChangesTabProps) {
   const isActive = session.session_end_time === null
 
   // Fetch git diff with React Query
+  // Note: We use a stable query key (only sessionId) to prevent full refreshes
+  // when session_end_time changes. This preserves scroll position and expansion state.
   const {
     data: diffs = [],
     isLoading: loading,
+    isFetching,
     error,
+    refetch,
   } = useQuery<FileDiff[], Error>({
-    queryKey: [
-      'session-git-diff',
-      session.sessionId,
-      session.session_start_time,
-      session.session_end_time,
-    ],
+    queryKey: ['session-git-diff', session.sessionId],
     queryFn: () =>
       fetchGitDiff(
         session.cwd,
@@ -140,6 +146,11 @@ export function SessionChangesTab({ session }: SessionChangesTabProps) {
 
   const collapseAll = () => {
     setExpandedFiles(new Set())
+  }
+
+  const handleRefresh = () => {
+    refetch()
+    onRefresh?.() // Clear the pending changes indicator in parent
   }
 
   const totalStats = diffs.reduce(
@@ -249,6 +260,16 @@ export function SessionChangesTab({ session }: SessionChangesTabProps) {
 
             {/* Controls */}
             <div className="flex items-center gap-2">
+              <button
+                className={`btn btn-xs gap-1 ${hasPendingChanges ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={handleRefresh}
+                disabled={isFetching}
+                title={hasPendingChanges ? 'New changes detected - click to refresh' : 'Refresh changes'}
+              >
+                <ArrowPathIcon className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+                {hasPendingChanges && <span className="hidden sm:inline">Update Available</span>}
+              </button>
+              <div className="divider divider-horizontal mx-0" />
               <button className="btn btn-xs btn-ghost" onClick={expandAll}>
                 Expand All
               </button>
