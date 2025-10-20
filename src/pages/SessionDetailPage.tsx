@@ -19,7 +19,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AiProcessingProgress } from '../components/AiProcessingProgress'
 import { SessionChangesTab } from '../components/SessionChangesTab'
@@ -120,6 +120,7 @@ export default function SessionDetailPage() {
   const toast = useToast()
   const quickRatingMutation = useQuickRating()
   const [scrollParent, setScrollParent] = useState<HTMLElement | undefined>(undefined)
+  const [hasPendingChanges, setHasPendingChanges] = useState(false)
 
   // Track session activity from file watchers
   useSessionActivity()
@@ -269,10 +270,15 @@ export default function SessionDetailPage() {
     if (!sessionId) return
 
     const invalidateSessionData = () => {
-      // Invalidate metadata, content, git diff, and git diff stats
+      // Invalidate metadata and content
       queryClient.invalidateQueries({ queryKey: ['session-metadata', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['session-content', sessionId] })
-      queryClient.invalidateQueries({ queryKey: ['session-git-diff', sessionId] })
+
+      // For git diff changes, set pending flag instead of invalidating
+      // This prevents the Changes tab from refreshing and losing scroll/expansion state
+      setHasPendingChanges(true)
+
+      // Still invalidate git diff stats for the tab badge
       queryClient.invalidateQueries({ queryKey: ['session-git-diff-stats', sessionId] })
     }
 
@@ -398,6 +404,18 @@ export default function SessionDetailPage() {
   const handleViewDiff = () => {
     setActiveTab('changes')
   }
+
+  // Handler to clear pending changes flag
+  const handleClearPendingChanges = () => {
+    setHasPendingChanges(false)
+  }
+
+  // Clear pending changes when switching to Changes tab
+  useEffect(() => {
+    if (activeTab === 'changes' && hasPendingChanges) {
+      setHasPendingChanges(false)
+    }
+  }, [activeTab, hasPendingChanges])
 
   // Format file size helper
   const formatSize = (bytes: number): string => {
@@ -613,12 +631,19 @@ export default function SessionDetailPage() {
                 className={`tab tab-lg gap-2 ${
                   activeTab === 'changes'
                     ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                    : 'hover:bg-base-300'
+                    : hasPendingChanges
+                      ? 'hover:bg-base-300 animate-pulse'
+                      : 'hover:bg-base-300'
                 }`}
                 onClick={() => setActiveTab('changes')}
-                title="Changes"
+                title={hasPendingChanges ? 'New changes detected' : 'Changes'}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className={`w-5 h-5 ${hasPendingChanges && activeTab !== 'changes' ? 'text-primary' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -626,7 +651,9 @@ export default function SessionDetailPage() {
                     d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
                   />
                 </svg>
-                <span className="hidden md:inline">Changes</span>
+                <span className={`hidden md:inline ${hasPendingChanges && activeTab !== 'changes' ? 'text-primary' : ''}`}>
+                  Changes
+                </span>
                 {activeTab !== 'changes' &&
                   gitDiffStats &&
                   (gitDiffStats.additions > 0 || gitDiffStats.deletions > 0) && (
@@ -641,6 +668,12 @@ export default function SessionDetailPage() {
                       )}
                     </span>
                   )}
+                {hasPendingChanges && activeTab !== 'changes' && (
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                )}
               </button>
             )}
           </div>
@@ -723,6 +756,7 @@ export default function SessionDetailPage() {
               <VirtualizedMessageList
                 items={orderedItems}
                 customScrollParent={scrollParent}
+                reverseOrder={reverseOrder}
               />
             )}
           </>
@@ -761,6 +795,8 @@ export default function SessionDetailPage() {
               session_start_time: session.session_start_time,
               session_end_time: session.session_end_time,
             }}
+            hasPendingChanges={hasPendingChanges}
+            onRefresh={handleClearPendingChanges}
           />
         )}
         {activeTab === 'context' && session.cwd && (
