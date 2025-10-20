@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
-import { useParams, Navigate, useSearchParams } from 'react-router-dom'
-import { CODING_AGENTS } from '../types/providers'
+import { DocumentTextIcon } from '@heroicons/react/24/outline'
+import { useEffect, useState } from 'react'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import AgentConfig from '../components/Configuration/AgentConfig'
 import LogViewer from '../components/LogViewer'
-import { DocumentTextIcon } from '@heroicons/react/24/outline'
+import { CODING_AGENTS } from '../types/providers'
 
 function ProviderPage() {
   const { providerId } = useParams<{ providerId: string }>()

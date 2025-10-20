@@ -1,7 +1,7 @@
+import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { ProviderConfig } from '../types/providers'
-import { invoke } from '@tauri-apps/api/core'
+import type { ProviderConfig } from '../types/providers'
 
 interface AiApiKeys {
   claude?: string

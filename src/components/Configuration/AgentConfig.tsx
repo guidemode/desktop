@@ -1,40 +1,40 @@
-import { useState, useEffect } from 'react'
-import { CodingAgent, ProviderConfig } from '../../types/providers'
-import {
-  useProviderConfig,
-  useSaveProviderConfig,
-  useScanProjects,
-} from '../../hooks/useProviderConfig'
-import { useAuth } from '../../hooks/useAuth'
-import { useLocation } from 'react-router-dom'
-import { useDirectoryExists } from '../../hooks/useDirectoryExists'
-import ConfirmDialog from '../ConfirmDialog'
-import { open } from '@tauri-apps/plugin-dialog'
 import { useQueryClient } from '@tanstack/react-query'
+import { open } from '@tauri-apps/plugin-dialog'
+import { formatDistanceToNow } from 'date-fns'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
 import {
   useClaudeWatcherStatus,
   useStartClaudeWatcher,
   useStopClaudeWatcher,
 } from '../../hooks/useClaudeWatcher'
 import {
+  useCodexWatcherStatus,
+  useStartCodexWatcher,
+  useStopCodexWatcher,
+} from '../../hooks/useCodexWatcher'
+import {
   useCopilotWatcherStatus,
   useStartCopilotWatcher,
   useStopCopilotWatcher,
 } from '../../hooks/useCopilotWatcher'
+import { useDirectoryExists } from '../../hooks/useDirectoryExists'
 import {
   useOpenCodeWatcherStatus,
   useStartOpenCodeWatcher,
   useStopOpenCodeWatcher,
 } from '../../hooks/useOpenCodeWatcher'
 import {
-  useCodexWatcherStatus,
-  useStartCodexWatcher,
-  useStopCodexWatcher,
-} from '../../hooks/useCodexWatcher'
-import { formatDistanceToNow } from 'date-fns'
+  useProviderConfig,
+  useSaveProviderConfig,
+  useScanProjects,
+} from '../../hooks/useProviderConfig'
+import { useSetupInstructions } from '../../hooks/useSetupInstructions'
+import type { CodingAgent, ProviderConfig } from '../../types/providers'
+import ConfirmDialog from '../ConfirmDialog'
 import ProviderIcon from '../icons/ProviderIcon'
 import SetupInstructions from './SetupInstructions'
-import { useSetupInstructions } from '../../hooks/useSetupInstructions'
 
 interface AgentConfigProps {
   agent: CodingAgent
@@ -218,7 +218,8 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
       if (updates.syncMode === 'Transcript and Metrics') {
         setPendingSyncMode('Transcript and Metrics')
         return // Show confirmation dialog
-      } else if (updates.syncMode === 'Metrics Only') {
+      }
+      if (updates.syncMode === 'Metrics Only') {
         setPendingSyncMode('Metrics Only')
         return // Show confirmation dialog
       }
@@ -341,9 +342,11 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
         {/* Header */}
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-3">
-            <div className={`avatar placeholder`}>
+            <div className={'avatar placeholder'}>
               <div
-                className={`bg-base-200 rounded-lg w-10 h-10 flex items-center justify-center p-1.5`}
+                className={
+                  'bg-base-200 rounded-lg w-10 h-10 flex items-center justify-center p-1.5'
+                }
               >
                 <ProviderIcon providerId={agent.id} size={24} />
               </div>
@@ -373,7 +376,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
 
         {/* Configuration */}
         <>
-          <div className="divider my-4"></div>
+          <div className="divider my-4" />
 
           {/* Setup Instructions */}
           {agent.setupInstructionsFile && setupInstructions && (
@@ -482,7 +485,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                       >
                         {stoppingWatcher ? (
                           <>
-                            <span className="loading loading-spinner loading-xs"></span>
+                            <span className="loading loading-spinner loading-xs" />
                             Pausing...
                           </>
                         ) : (
@@ -497,7 +500,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
                       >
                         {startingWatcher ? (
                           <>
-                            <span className="loading loading-spinner loading-xs"></span>
+                            <span className="loading loading-spinner loading-xs" />
                             Resuming...
                           </>
                         ) : (
@@ -630,7 +633,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
               <div className="form-control">
                 <label className="label pb-2">
                   <span className="label-text">Available Projects</span>
-                  {projectsLoading && <span className="loading loading-spinner loading-xs"></span>}
+                  {projectsLoading && <span className="loading loading-spinner loading-xs" />}
                 </label>
                 <div className="max-h-48 overflow-y-auto border border-base-300 rounded-lg p-3">
                   {projects.length === 0 ? (
@@ -689,7 +692,7 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
         {/* Loading indicator */}
         {isConfigLoading && (
           <div className="flex items-center justify-center py-4">
-            <span className="loading loading-spinner loading-sm"></span>
+            <span className="loading loading-spinner loading-sm" />
           </div>
         )}
       </div>

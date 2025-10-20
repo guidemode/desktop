@@ -1,7 +1,7 @@
+import { ChevronDownIcon, ChevronUpIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { InformationCircleIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 
 interface SetupInstructionsProps {
   content: string
@@ -22,7 +22,7 @@ function SetupInstructions({
     return (
       <div className="bg-base-200 border border-base-300 rounded-lg p-4">
         <div className="flex items-center gap-2">
-          <span className="loading loading-spinner loading-sm"></span>
+          <span className="loading loading-spinner loading-sm" />
           <span className="text-sm text-base-content/70">Loading setup instructions...</span>
         </div>
       </div>
@@ -43,9 +43,7 @@ function SetupInstructions({
       >
         <div className="flex items-center gap-2">
           <InformationCircleIcon className="w-5 h-5 text-info" />
-          <span className="font-medium text-info">
-            {providerName} Setup Instructions
-          </span>
+          <span className="font-medium text-info">{providerName} Setup Instructions</span>
         </div>
         {isExpanded ? (
           <ChevronUpIcon className="w-4 h-4 text-info" />
@@ -113,7 +111,10 @@ function SetupInstructions({
                 </ol>
               ),
               li: ({ children, ...props }) => (
-                <li className="text-base-content/80 leading-relaxed [&>p]:inline [&>p]:m-0" {...props}>
+                <li
+                  className="text-base-content/80 leading-relaxed [&>p]:inline [&>p]:m-0"
+                  {...props}
+                >
                   {children}
                 </li>
               ),
@@ -135,7 +136,7 @@ function SetupInstructions({
                   {children}
                 </blockquote>
               ),
-              hr: (props) => <hr className="my-4 border-base-300" {...props} />,
+              hr: props => <hr className="my-4 border-base-300" {...props} />,
               strong: ({ children, ...props }) => (
                 <strong className="font-semibold text-base-content" {...props}>
                   {children}

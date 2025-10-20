@@ -1,25 +1,24 @@
+import {
+  TimelineGroup as TimelineGroupComponent,
+  TimelineMessage as TimelineMessageComponent,
+  isTimelineGroup,
+} from '@guideai-dev/session-processing/ui'
+import { RatingBadge } from '@guideai-dev/session-processing/ui'
+import type { SessionRating } from '@guideai-dev/session-processing/ui'
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChartBarIcon,
+  CloudArrowUpIcon,
+  ExclamationTriangleIcon,
+  SparklesIcon,
+  XCircleIcon,
+} from '@heroicons/react/24/outline'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useEffect } from 'react'
 import { useLocalSessionContent } from '../hooks/useLocalSessionContent'
-import {
-  isTimelineGroup,
-  type TimelineMessage,
-  TimelineMessage as TimelineMessageComponent,
-  TimelineGroup as TimelineGroupComponent,
-} from '@guideai-dev/session-processing/ui'
-import {
-  ArrowUpIcon,
-  ArrowDownIcon,
-  SparklesIcon,
-  CloudArrowUpIcon,
-  ExclamationTriangleIcon,
-  ChartBarIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline'
-import { RatingBadge } from '@guideai-dev/session-processing/ui'
-import type { SessionRating } from '@guideai-dev/session-processing/ui'
 
 interface ActiveSessionCardProps {
   session: {
@@ -81,7 +80,14 @@ export function ActiveSessionCard({
       isActive,
       gitBranch: session.gitBranch,
     })
-  }, [session.sessionId, session.cwd, session.firstCommitHash, session.latestCommitHash, isActive, session.gitBranch])
+  }, [
+    session.sessionId,
+    session.cwd,
+    session.firstCommitHash,
+    session.latestCommitHash,
+    isActive,
+    session.gitBranch,
+  ])
 
   // Fetch session content for transcript
   const { timeline, loading: contentLoading } = useLocalSessionContent(
@@ -190,7 +196,7 @@ export function ActiveSessionCard({
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
   const formatCommitRange = () => {
@@ -201,7 +207,10 @@ export function ActiveSessionCard({
 
     if (!latestCommit || firstCommit === latestCommit) {
       return (
-        <span className="font-mono text-xs" title={`Unstaged changes from ${session.firstCommitHash}`}>
+        <span
+          className="font-mono text-xs"
+          title={`Unstaged changes from ${session.firstCommitHash}`}
+        >
           {firstCommit} → <span className="text-warning">UNSTAGED</span>
         </span>
       )
@@ -216,7 +225,6 @@ export function ActiveSessionCard({
       </span>
     )
   }
-
 
   // Status helpers
   const getProcessingStatusInfo = (status: string) => {
@@ -285,7 +293,8 @@ export function ActiveSessionCard({
         label: 'Sync Failed',
         clickable: true,
       }
-    } else if (session.syncedToServer) {
+    }
+    if (session.syncedToServer) {
       return {
         icon: <CloudArrowUpIcon className="w-4 h-4" strokeWidth={2} />,
         color: 'text-success',
@@ -293,14 +302,13 @@ export function ActiveSessionCard({
         label: 'Synced',
         clickable: false,
       }
-    } else {
-      return {
-        icon: <CloudArrowUpIcon className="w-4 h-4" strokeWidth={2} />,
-        color: 'text-base-content/30',
-        bgColor: 'bg-base-200',
-        label: 'Not synced',
-        clickable: true,
-      }
+    }
+    return {
+      icon: <CloudArrowUpIcon className="w-4 h-4" strokeWidth={2} />,
+      color: 'text-base-content/30',
+      bgColor: 'bg-base-200',
+      label: 'Not synced',
+      clickable: true,
     }
   }
 
@@ -356,22 +364,23 @@ export function ActiveSessionCard({
               </div>
 
               <div className="flex flex-wrap items-center gap-3 text-sm text-base-content/70 mt-1">
-                {session.aiModelQualityScore !== null && session.aiModelQualityScore !== undefined && (
-                  <div className="flex items-center gap-1">
-                    <span>Quality:</span>
-                    <span
-                      className={`font-medium ${
-                        session.aiModelQualityScore >= 80
-                          ? 'text-success'
-                          : session.aiModelQualityScore >= 60
-                            ? 'text-warning'
-                            : 'text-error'
-                      }`}
-                    >
-                      {session.aiModelQualityScore}%
-                    </span>
-                  </div>
-                )}
+                {session.aiModelQualityScore !== null &&
+                  session.aiModelQualityScore !== undefined && (
+                    <div className="flex items-center gap-1">
+                      <span>Quality:</span>
+                      <span
+                        className={`font-medium ${
+                          session.aiModelQualityScore >= 80
+                            ? 'text-success'
+                            : session.aiModelQualityScore >= 60
+                              ? 'text-warning'
+                              : 'text-error'
+                        }`}
+                      >
+                        {session.aiModelQualityScore}%
+                      </span>
+                    </div>
+                  )}
                 {session.filePath && formatFileSize(session.fileSize) && (
                   <div>Size: {formatFileSize(session.fileSize)}</div>
                 )}
@@ -385,11 +394,15 @@ export function ActiveSessionCard({
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
                       <ArrowUpIcon className="w-3.5 h-3.5 text-success" />
-                      <span className="text-success font-mono text-xs font-medium">{gitDiffStats.additions}</span>
+                      <span className="text-success font-mono text-xs font-medium">
+                        {gitDiffStats.additions}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <ArrowDownIcon className="w-3.5 h-3.5 text-error" />
-                      <span className="text-error font-mono text-xs font-medium">{gitDiffStats.deletions}</span>
+                      <span className="text-error font-mono text-xs font-medium">
+                        {gitDiffStats.deletions}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -402,8 +415,8 @@ export function ActiveSessionCard({
             {isActive && (
               <span className="badge badge-success gap-1.5 animate-pulse">
                 <span className="relative flex h-2 w-2 items-center justify-center">
-                  <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75"></span>
-                  <span className="relative rounded-full h-2 w-2 bg-white"></span>
+                  <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75" />
+                  <span className="relative rounded-full h-2 w-2 bg-white" />
                 </span>
                 <span>LIVE</span>
               </span>
@@ -412,13 +425,17 @@ export function ActiveSessionCard({
             {/* Processing Status */}
             <div
               className={`tooltip tooltip-left flex items-center justify-center w-8 h-8 rounded-md ${processingInfo.bgColor} ${
-                processingInfo.clickable && !actuallyProcessing ? 'cursor-pointer hover:scale-110' : ''
+                processingInfo.clickable && !actuallyProcessing
+                  ? 'cursor-pointer hover:scale-110'
+                  : ''
               } transition-all`}
               data-tip={actuallyProcessing ? 'Processing...' : processingInfo.label}
-              onClick={processingInfo.clickable && !actuallyProcessing ? handleProcessClick : undefined}
+              onClick={
+                processingInfo.clickable && !actuallyProcessing ? handleProcessClick : undefined
+              }
             >
               {actuallyProcessing ? (
-                <span className="loading loading-spinner loading-xs text-info"></span>
+                <span className="loading loading-spinner loading-xs text-info" />
               ) : (
                 <span className={processingInfo.color}>{processingInfo.icon}</span>
               )}
@@ -465,7 +482,7 @@ export function ActiveSessionCard({
             <span className="text-sm font-semibold text-base-content/70 uppercase">
               Latest Activity
             </span>
-            {contentLoading && <span className="loading loading-spinner loading-xs"></span>}
+            {contentLoading && <span className="loading loading-spinner loading-xs" />}
           </div>
 
           {latestItems.length > 0 ? (
@@ -473,9 +490,8 @@ export function ActiveSessionCard({
               {latestItems.map(item => {
                 if (isTimelineGroup(item)) {
                   return <TimelineGroupComponent key={item.id} group={item} />
-                } else {
-                  return <TimelineMessageComponent key={item.id} message={item} />
                 }
+                return <TimelineMessageComponent key={item.id} message={item} />
               })}
             </div>
           ) : (

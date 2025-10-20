@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
 import { open } from '@tauri-apps/plugin-shell'
+import { Link } from 'react-router-dom'
 import { useLocalProjects } from '../hooks/useLocalProjects'
 
 const PROJECT_TYPE_LABELS: Record<string, string> = {

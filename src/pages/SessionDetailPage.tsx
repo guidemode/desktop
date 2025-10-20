@@ -1,41 +1,41 @@
-import { useParams, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
-import { useAuth } from '../hooks/useAuth'
-import { useToast } from '../hooks/useToast'
-import { useLocalSessionContent } from '../hooks/useLocalSessionContent'
-import { useLocalSessionMetrics } from '../hooks/useLocalSessionMetrics'
-import { useAiProcessing } from '../hooks/useAiProcessing'
-import { useSessionProcessing } from '../hooks/useSessionProcessing'
-import { useSessionActivity } from '../hooks/useSessionActivity'
-import { useSessionActivityStore } from '../stores/sessionActivityStore'
-import { useAiProcessingProgress } from '../hooks/useAiProcessingProgress'
-import { AiProcessingProgress } from '../components/AiProcessingProgress'
 import {
-  TimelineMessage,
-  TimelineGroup,
-  isTimelineGroup,
   MetricsOverview,
   PhaseTimeline,
   SessionDetailHeader,
   type SessionPhaseAnalysis,
+  TimelineGroup,
+  TimelineMessage,
+  isTimelineGroup,
 } from '@guideai-dev/session-processing/ui'
 import type { SessionRating } from '@guideai-dev/session-processing/ui'
-import ProviderIcon from '../components/icons/ProviderIcon'
-import { useQuickRating } from '../hooks/useQuickRating'
 import {
-  ClockIcon,
-  ChartBarIcon,
-  ArrowUpIcon,
   ArrowDownIcon,
-  Cog6ToothIcon,
+  ArrowUpIcon,
+  ChartBarIcon,
   ChatBubbleLeftRightIcon,
+  ClockIcon,
+  Cog6ToothIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { AiProcessingProgress } from '../components/AiProcessingProgress'
 import { SessionChangesTab } from '../components/SessionChangesTab'
 import { SessionContextTab } from '../components/SessionContextTab'
+import ProviderIcon from '../components/icons/ProviderIcon'
+import { useAiProcessing } from '../hooks/useAiProcessing'
+import { useAiProcessingProgress } from '../hooks/useAiProcessingProgress'
+import { useAuth } from '../hooks/useAuth'
+import { useLocalSessionContent } from '../hooks/useLocalSessionContent'
+import { useLocalSessionMetrics } from '../hooks/useLocalSessionMetrics'
+import { useQuickRating } from '../hooks/useQuickRating'
+import { useSessionActivity } from '../hooks/useSessionActivity'
+import { useSessionProcessing } from '../hooks/useSessionProcessing'
+import { useToast } from '../hooks/useToast'
+import { useSessionActivityStore } from '../stores/sessionActivityStore'
 
 interface AgentSession {
   id: string
@@ -231,7 +231,7 @@ export default function SessionDetailPage() {
       toast.success('Session queued for upload. Check the Upload Queue page for status.')
     } catch (err) {
       console.error('Failed to queue session for upload:', err)
-      toast.error('Failed to queue session: ' + (err as Error).message)
+      toast.error(`Failed to queue session: ${(err as Error).message}`)
     }
   }
 
@@ -246,7 +246,7 @@ export default function SessionDetailPage() {
       toast.success('Rating saved!')
     } catch (err) {
       console.error('Failed to rate session:', err)
-      toast.error('Failed to save rating: ' + (err as Error).message)
+      toast.error(`Failed to save rating: ${(err as Error).message}`)
     }
   }
 
@@ -325,7 +325,7 @@ export default function SessionDetailPage() {
         filePath: (session as any).file_path,
         sessionId: session.session_id,
       })
-      const parsedSession = processor.parseSession(content)
+      const parsedSession = processor.parseSession(content, session.provider)
 
       // Step 1: Calculate metrics (always)
       updateProgress({
@@ -359,7 +359,7 @@ export default function SessionDetailPage() {
       }
     } catch (err) {
       console.error('Failed to process:', err)
-      toast.error('Failed to process: ' + (err as Error).message)
+      toast.error(`Failed to process: ${(err as Error).message}`)
     } finally {
       setProcessingAi(false)
       resetProgress()
@@ -397,10 +397,9 @@ export default function SessionDetailPage() {
         if (isTimelineGroup(item)) {
           // Keep group if neither message is meta
           return item.messages.every(msg => msg.originalMessage.type !== 'meta')
-        } else {
-          // Keep single message if not meta
-          return item.originalMessage.type !== 'meta'
         }
+        // Keep single message if not meta
+        return item.originalMessage.type !== 'meta'
       })
     }
 
@@ -412,9 +411,8 @@ export default function SessionDetailPage() {
         {orderedItems.map(item => {
           if (isTimelineGroup(item)) {
             return <TimelineGroup key={item.id} group={item} />
-          } else {
-            return <TimelineMessage key={item.id} message={item} />
           }
+          return <TimelineMessage key={item.id} message={item} />
         })}
       </div>
     )
@@ -463,8 +461,8 @@ export default function SessionDetailPage() {
             isSessionActive(sessionId, new Date(session.session_end_time).toISOString()) && (
               <span className="badge badge-success gap-1.5 animate-pulse">
                 <span className="relative flex h-2 w-2 items-center justify-center">
-                  <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75"></span>
-                  <span className="relative rounded-full h-2 w-2 bg-white"></span>
+                  <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75" />
+                  <span className="relative rounded-full h-2 w-2 bg-white" />
                 </span>
                 <span>LIVE</span>
               </span>
@@ -703,7 +701,7 @@ export default function SessionDetailPage() {
             {/* Timeline Messages */}
             {contentLoading ? (
               <div className="flex items-center justify-center h-64">
-                <span className="loading loading-spinner loading-lg"></span>
+                <span className="loading loading-spinner loading-lg" />
               </div>
             ) : contentError ? (
               <div className="alert alert-error">

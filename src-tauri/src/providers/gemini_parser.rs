@@ -116,7 +116,7 @@ impl GeminiSession {
                     if let Some(ref result) = tool_call.result {
                         // Extract the actual output from Gemini's functionResponse wrapper
                         // Result format: [{ functionResponse: { response: { output: "..." } } }]
-                        let content = if let Some(fr) = result.get(0).and_then(|r| r.get("functionResponse")) {
+                        let content = if let Some(fr) = result.first().and_then(|r| r.get("functionResponse")) {
                             // Try to extract the response.output field for shell commands
                             if let Some(response) = fr.get("response") {
                                 if let Some(output) = response.get("output") {

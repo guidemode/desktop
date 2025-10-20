@@ -1,11 +1,11 @@
-import { useEffect, useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import Joyride, {
-  CallBackProps,
-  Step,
+  type CallBackProps,
+  type Step,
   STATUS,
   EVENTS,
   ACTIONS,
-  TooltipRenderProps,
+  type TooltipRenderProps,
 } from 'react-joyride'
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../../hooks/useOnboarding'

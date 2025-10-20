@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
-import { insertSession, sessionExists, SessionData } from '../services/sessionIngestion'
+import { useEffect } from 'react'
+import { type SessionData, insertSession, sessionExists } from '../services/sessionIngestion'
 
 interface SessionDetectedPayload {
   provider: string

@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { DiffModeEnum, DiffView } from '@git-diff-view/react'
 import { useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
-import { DiffView, DiffModeEnum } from '@git-diff-view/react'
+import { useState } from 'react'
 import './git-diff-scoped.css'
 import {
-  ChevronRightIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   DocumentTextIcon,
-  PlusIcon,
   MinusIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline'
 
 interface FileDiff {
@@ -208,7 +208,7 @@ export function SessionChangesTab({ session }: SessionChangesTabProps) {
               strokeLinejoin="round"
               strokeWidth="2"
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            ></path>
+            />
           </svg>
           <div>
             <h3 className="font-semibold text-info">
@@ -255,7 +255,7 @@ export function SessionChangesTab({ session }: SessionChangesTabProps) {
               <button className="btn btn-xs btn-ghost" onClick={collapseAll}>
                 Collapse All
               </button>
-              <div className="divider divider-horizontal mx-0"></div>
+              <div className="divider divider-horizontal mx-0" />
               <div className="btn-group">
                 <button
                   className={`btn btn-xs ${viewMode === 'split' ? 'btn-active' : ''}`}
@@ -331,7 +331,7 @@ function FileDiffCard({ file, expanded, onToggle, viewMode }: FileDiffCardProps)
     })
     .map(hunk => {
       // Ensure hunk ends properly
-      return hunk.endsWith('\n') ? hunk : hunk + '\n'
+      return hunk.endsWith('\n') ? hunk : `${hunk}\n`
     })
 
   return (

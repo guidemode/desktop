@@ -438,18 +438,16 @@ impl CodexWatcher {
         if let Ok(file) = File::open(file_path) {
             let reader = BufReader::new(file);
             // Check first few lines for session_meta entry
-            for line in reader.lines().take(10) {
-                if let Ok(line_content) = line {
-                    if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&line_content) {
-                        // Check for sessionId field (Codex format)
-                        if let Some(session_id) = entry.get("sessionId").and_then(|v| v.as_str()) {
-                            return Some(session_id.to_string());
-                        }
-                        // Also check payload.id (alternative format)
-                        if let Some(payload) = entry.get("payload") {
-                            if let Some(id) = payload.get("id").and_then(|v| v.as_str()) {
-                                return Some(id.to_string());
-                            }
+            for line_content in reader.lines().take(10).flatten() {
+                if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&line_content) {
+                    // Check for sessionId field (Codex format)
+                    if let Some(session_id) = entry.get("sessionId").and_then(|v| v.as_str()) {
+                        return Some(session_id.to_string());
+                    }
+                    // Also check payload.id (alternative format)
+                    if let Some(payload) = entry.get("payload") {
+                        if let Some(id) = payload.get("id").and_then(|v| v.as_str()) {
+                            return Some(id.to_string());
                         }
                     }
                 }
@@ -473,20 +471,18 @@ impl CodexWatcher {
         if let Ok(file) = File::open(file_path) {
             let reader = BufReader::new(file);
             // Check first few lines (in case session_meta isn't first)
-            for line_result in reader.lines().take(10) {
-                if let Ok(line_content) = line_result {
-                    if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&line_content) {
-                        // Try to find CWD from various locations in the JSON
-                        let cwd = entry.get("cwd").and_then(|v| v.as_str())
-                            .or_else(|| entry.get("payload").and_then(|p| p.get("cwd")).and_then(|v| v.as_str()));
+            for line_content in reader.lines().take(10).flatten() {
+                if let Ok(entry) = serde_json::from_str::<serde_json::Value>(&line_content) {
+                    // Try to find CWD from various locations in the JSON
+                    let cwd = entry.get("cwd").and_then(|v| v.as_str())
+                        .or_else(|| entry.get("payload").and_then(|p| p.get("cwd")).and_then(|v| v.as_str()));
 
-                        if let Some(cwd_path) = cwd {
-                            return Path::new(cwd_path)
-                                .file_name()
-                                .and_then(|name| name.to_str())
-                                .unwrap_or("unknown")
-                                .to_string();
-                        }
+                    if let Some(cwd_path) = cwd {
+                        return Path::new(cwd_path)
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                            .unwrap_or("unknown")
+                            .to_string();
                     }
                 }
             }

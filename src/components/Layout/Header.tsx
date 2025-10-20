@@ -1,8 +1,8 @@
-import { useAuth } from '../../hooks/useAuth'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import { useUpdater } from '../../hooks/useUpdater'
+import { useAuth } from '../../hooks/useAuth'
 import { useOnboarding } from '../../hooks/useOnboarding'
+import { useUpdater } from '../../hooks/useUpdater'
 
 function Header() {
   const { user, logout } = useAuth()

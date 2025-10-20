@@ -15,9 +15,13 @@
     "tauri:build:windows:prod": "NODE_ENV=production tauri build --target x86_64-pc-windows-msvc",
     "tauri:build:macos": "tauri build --target aarch64-apple-darwin",
     "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist/* build src-tauri/target",
-    "test": "vitest run"
+    "typecheck": "pnpm typecheck:ts && pnpm typecheck:rust",
+    "typecheck:ts": "tsc --noEmit",
+    "typecheck:rust": "cd src-tauri && cargo check --all-targets && cargo clippy -- -D warnings",
+    "test": "pnpm test:ts && pnpm test:rust",
+    "test:ts": "vitest run",
+    "test:rust": "cd src-tauri && cargo test",
+    "clean": "rm -rf dist/* build src-tauri/target"
   },
   "dependencies": {
     "@git-diff-view/core": "^0.0.32",
@@ -69,11 +73,5 @@
     "type": "git",
     "url": "https://github.com/guideai-dev/desktop.git"
   },
-  "keywords": [
-    "ai",
-    "guide",
-    "desktop",
-    "tauri",
-    "menubar"
-  ]
+  "keywords": ["ai", "guide", "desktop", "tauri", "menubar"]
 }

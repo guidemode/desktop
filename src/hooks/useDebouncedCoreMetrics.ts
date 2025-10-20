@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react'
-import { listen } from '@tauri-apps/api/event'
-import { invoke } from '@tauri-apps/api/core'
 import { useQueryClient } from '@tanstack/react-query'
-import { useSessionProcessing } from './useSessionProcessing'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { useEffect, useRef } from 'react'
 import { useConfigStore } from '../stores/configStore'
+import { useSessionProcessing } from './useSessionProcessing'
 
 /**
  * Hook that listens for session-updated events and processes core metrics

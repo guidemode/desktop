@@ -75,7 +75,6 @@ impl Default for SessionStateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread::sleep;
 
     #[test]
     fn test_session_state_new() {

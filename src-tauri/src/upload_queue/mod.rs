@@ -53,6 +53,12 @@ impl std::fmt::Debug for UploadQueue {
     }
 }
 
+impl Default for UploadQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UploadQueue {
     pub fn new() -> Self {
         Self {

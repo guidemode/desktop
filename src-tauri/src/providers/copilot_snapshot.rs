@@ -145,6 +145,7 @@ impl SnapshotManager {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&self.metadata_path)?;
 
         // Exclusive lock (blocks until available)

@@ -1,5 +1,5 @@
-import { getDatabase } from '../db/client'
 import { v4 as uuidv4 } from 'uuid'
+import { getDatabase } from '../db/client'
 
 export interface SessionData {
   provider: string

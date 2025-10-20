@@ -8,6 +8,16 @@ use std::sync::Mutex;
 use tauri::Emitter;
 use uuid::Uuid;
 
+/// Type alias for session data tuple returned from database queries
+type SessionDataTuple = (
+    Option<i64>,    // start_time
+    Option<i64>,    // end_time
+    Option<String>, // cwd
+    Option<String>, // git_branch
+    Option<String>, // first_commit
+    Option<String>, // latest_commit
+);
+
 lazy_static! {
     static ref DB_CONNECTION: Mutex<Option<Connection>> = Mutex::new(None);
     static ref APP_HANDLE: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
@@ -95,6 +105,7 @@ fn get_db_path() -> Result<std::path::PathBuf> {
 }
 
 /// Insert a session into the database
+#[allow(clippy::too_many_arguments)]
 pub fn insert_session(
     provider: &str,
     project_name: &str,
@@ -179,6 +190,7 @@ pub fn insert_session(
 
 /// Update an existing session with new activity (file size, timestamp)
 /// Uses a transaction to prevent race conditions during read-modify-write
+#[allow(clippy::too_many_arguments)]
 pub fn update_session(
     session_id: &str,
     _file_name: &str,  // Kept for API compatibility but not used in query
@@ -198,7 +210,7 @@ pub fn update_session(
 
         // Get the existing start time, end time, cwd, and git fields from database
         // Query by session_id only since providers like OpenCode have multiple files per session
-        let (existing_start_time_ms, existing_end_time_ms, existing_cwd, existing_git_branch, existing_first_commit, existing_latest_commit): (Option<i64>, Option<i64>, Option<String>, Option<String>, Option<String>, Option<String>) = tx.query_row(
+        let (existing_start_time_ms, existing_end_time_ms, existing_cwd, existing_git_branch, existing_first_commit, existing_latest_commit): SessionDataTuple = tx.query_row(
             "SELECT session_start_time, session_end_time, cwd, git_branch, first_commit_hash, latest_commit_hash FROM agent_sessions WHERE session_id = ?",
             params![session_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),

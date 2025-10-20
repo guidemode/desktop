@@ -42,10 +42,7 @@ export function useContextFileUsage(
     for (const line of lines) {
       try {
         messages.push(JSON.parse(line))
-      } catch (err) {
-        // Skip malformed lines
-        continue
-      }
+      } catch (_err) {}
     }
 
     // Scan each context file for mentions

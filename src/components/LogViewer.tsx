@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useProviderLogs } from '../hooks/useClaudeWatcher'
 import type { LogEntry } from '../hooks/useClaudeWatcher'
 
@@ -80,7 +80,7 @@ function LogViewer({
                 {providerName ? `${providerName} Logs` : title}
               </h1>
             )}
-            {isLoading && <span className="loading loading-spinner loading-sm"></span>}
+            {isLoading && <span className="loading loading-spinner loading-sm" />}
           </div>
 
           <div className="flex items-center gap-2">
@@ -176,7 +176,7 @@ function LogViewer({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {title && <h2 className="text-lg font-semibold">{title}</h2>}
-          {isLoading && <span className="loading loading-spinner loading-sm"></span>}
+          {isLoading && <span className="loading loading-spinner loading-sm" />}
         </div>
 
         <div className="flex items-center gap-2">

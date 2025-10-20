@@ -371,7 +371,7 @@ impl OpenCodeWatcher {
                         let components: Vec<_> = relative_path.components().collect();
 
                         // Process different types of file changes
-                        match components.get(0).and_then(|c| c.as_os_str().to_str()) {
+                        match components.first().and_then(|c| c.as_os_str().to_str()) {
                             Some("part") => {
                                 // Part file changed: part/{messageId}/{partId}.json
                                 if let Some(session_id) = parser.get_session_for_part(path) {

@@ -1,10 +1,10 @@
-import { useAuth } from '../hooks/useAuth'
-import { useConfigStore } from '../stores/configStore'
-import { useUpdater } from '../hooks/useUpdater'
-import { useOnboarding } from '../hooks/useOnboarding'
-import Login from '../components/Login'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import Login from '../components/Login'
+import { useAuth } from '../hooks/useAuth'
+import { useOnboarding } from '../hooks/useOnboarding'
+import { useUpdater } from '../hooks/useUpdater'
+import { useConfigStore } from '../stores/configStore'
 
 function SettingsPage() {
   const navigate = useNavigate()
@@ -90,13 +90,13 @@ function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="divider"></div>
+                <div className="divider" />
 
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-base-content/70">Connected Server</span>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-success rounded-full"></div>
+                      <div className="w-2 h-2 bg-success rounded-full" />
                       <span className="text-sm font-mono">{user.serverUrl}</span>
                     </div>
                   </div>
@@ -108,7 +108,7 @@ function SettingsPage() {
                   )}
                 </div>
 
-                <div className="divider"></div>
+                <div className="divider" />
 
                 <button onClick={handleLogout} className="btn btn-error btn-outline">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -411,7 +411,9 @@ function SettingsPage() {
                   max="60"
                   value={systemConfig.coreMetricsDebounceSeconds}
                   onChange={e =>
-                    updateSystemConfig({ coreMetricsDebounceSeconds: parseInt(e.target.value) })
+                    updateSystemConfig({
+                      coreMetricsDebounceSeconds: Number.parseInt(e.target.value),
+                    })
                   }
                   className="range range-primary"
                   step="5"
@@ -442,7 +444,9 @@ function SettingsPage() {
                   max="60"
                   value={systemConfig.aiProcessingDelayMinutes}
                   onChange={e =>
-                    updateSystemConfig({ aiProcessingDelayMinutes: parseInt(e.target.value) })
+                    updateSystemConfig({
+                      aiProcessingDelayMinutes: Number.parseInt(e.target.value),
+                    })
                   }
                   className="range range-primary"
                   step="1"
@@ -511,7 +515,7 @@ function SettingsPage() {
 
             {error && (
               <>
-                <div className="divider"></div>
+                <div className="divider" />
                 <div className="alert alert-error">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -531,7 +535,7 @@ function SettingsPage() {
 
             {isUpToDate && (
               <>
-                <div className="divider"></div>
+                <div className="divider" />
                 <div className="alert alert-success">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -553,7 +557,7 @@ function SettingsPage() {
 
             {hasUpdate && (
               <>
-                <div className="divider"></div>
+                <div className="divider" />
                 <div className="alert alert-success">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -581,7 +585,7 @@ function SettingsPage() {
                       className="progress progress-success w-full"
                       value={downloadProgress}
                       max="100"
-                    ></progress>
+                    />
                   </div>
                 ) : (
                   <button
@@ -605,7 +609,7 @@ function SettingsPage() {
 
             {!hasUpdate && !isChecking && (
               <>
-                <div className="divider"></div>
+                <div className="divider" />
                 <button
                   onClick={checkForUpdates}
                   className="btn btn-outline btn-block"
@@ -613,7 +617,7 @@ function SettingsPage() {
                 >
                   {isChecking ? (
                     <>
-                      <span className="loading loading-spinner loading-sm"></span>
+                      <span className="loading loading-spinner loading-sm" />
                       Checking for updates...
                     </>
                   ) : (

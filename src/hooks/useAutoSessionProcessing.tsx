@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
-import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { useEffect } from 'react'
 import { useSessionProcessing } from './useSessionProcessing'
 
 /**
@@ -13,7 +13,7 @@ export function useAutoSessionProcessing() {
 
   useEffect(() => {
     let unlisten: (() => void) | null = null
-    let processingQueue = new Set<string>() // Track sessions currently being processed
+    const processingQueue = new Set<string>() // Track sessions currently being processed
 
     const setupListener = async () => {
       unlisten = await listen<string>('session-completed', async event => {

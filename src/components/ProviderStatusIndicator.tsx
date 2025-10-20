@@ -1,9 +1,9 @@
 import {
-  XCircleIcon,
-  ComputerDesktopIcon,
   ChartBarIcon,
   CloudArrowUpIcon,
+  ComputerDesktopIcon,
   ExclamationCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/solid'
 import type { ProviderStatus } from '../types/providers'
 

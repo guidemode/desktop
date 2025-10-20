@@ -7,6 +7,9 @@ use tokio::sync::{oneshot, Mutex};
 use tokio::time::timeout;
 use warp::Filter;
 
+/// Type alias for the result sender used in auth callbacks
+type ResultSender = Arc<Mutex<Option<oneshot::Sender<Result<AuthCallbackData, AuthError>>>>>;
+
 #[derive(Debug, Clone)]
 pub struct AuthCallbackData {
     pub api_key: String,
@@ -115,7 +118,7 @@ impl AuthServer {
 
     async fn handle_callback(
         params: HashMap<String, String>,
-        result_tx: Arc<Mutex<Option<oneshot::Sender<Result<AuthCallbackData, AuthError>>>>>,
+        result_tx: ResultSender,
     ) -> Result<impl warp::Reply, Infallible> {
         use tracing::info;
         info!(params_count = params.len(), "Received auth callback");

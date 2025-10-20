@@ -106,13 +106,11 @@ impl GeminiWatcher {
                 ) {
                     eprintln!("Logging error: {}", e);
                 }
-            } else {
-                if let Err(e) = log_warn(
-                    PROVIDER_ID,
-                    &format!("⚠ Project chats directory not found: {}", chats_path.display()),
-                ) {
-                    eprintln!("Logging error: {}", e);
-                }
+            } else if let Err(e) = log_warn(
+                PROVIDER_ID,
+                &format!("⚠ Project chats directory not found: {}", chats_path.display()),
+            ) {
+                eprintln!("Logging error: {}", e);
             }
         }
 

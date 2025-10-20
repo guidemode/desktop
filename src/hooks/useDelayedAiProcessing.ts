@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { useQueryClient } from '@tanstack/react-query'
-import { useAiProcessing } from './useAiProcessing'
-import { useConfigStore } from '../stores/configStore'
 import { ProcessorRegistry } from '@guideai-dev/session-processing/processors'
+import { useQueryClient } from '@tanstack/react-query'
+import { invoke } from '@tauri-apps/api/core'
+import { useEffect, useRef } from 'react'
+import { useConfigStore } from '../stores/configStore'
+import { useAiProcessing } from './useAiProcessing'
 
 /**
  * Hook that runs background task to process AI for completed sessions
@@ -85,7 +85,7 @@ export function useDelayedAiProcessing() {
               continue
             }
 
-            const parsedSession = processor.parseSession(content)
+            const parsedSession = processor.parseSession(content, session.provider)
 
             // Process AI tasks
             await processSessionWithAi(session.session_id, parsedSession)

@@ -179,7 +179,7 @@ fn extract_go_project_name(go_mod: &Path) -> Result<String, String> {
         if trimmed.starts_with("module ") {
             let module_path = trimmed.strip_prefix("module ").unwrap().trim();
             // Extract last component of module path
-            if let Some(last_part) = module_path.split('/').last() {
+            if let Some(last_part) = module_path.split('/').next_back() {
                 return Ok(last_part.to_string());
             }
             return Ok(module_path.to_string());

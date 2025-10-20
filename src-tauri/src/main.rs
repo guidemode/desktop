@@ -180,7 +180,7 @@ fn main() {
             // Get reference to main window for config file watcher
             let main_window = app
                 .get_webview_window("main")
-                .ok_or_else(|| "Main window not found")?;
+                .ok_or("Main window not found")?;
 
             // Start config file watcher with main window for event emission
             match start_config_file_watcher(main_window.as_ref().window()) {

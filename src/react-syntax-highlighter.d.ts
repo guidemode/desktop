@@ -1,6 +1,6 @@
 // Type declarations for react-syntax-highlighter ESM imports
 declare module 'react-syntax-highlighter/dist/esm/prism.js' {
-  import { ComponentType } from 'react'
+  import type { ComponentType } from 'react'
 
   interface SyntaxHighlighterProps {
     language?: string

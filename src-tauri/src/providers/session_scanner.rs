@@ -5,6 +5,13 @@ use shellexpand::tilde;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Type alias for timing data tuple returned from JSONL parsing
+type TimingData = (
+    Option<DateTime<Utc>>, // start_time
+    Option<DateTime<Utc>>, // end_time
+    Option<i64>,           // duration_ms
+);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionInfo {
     pub provider: String,
@@ -150,7 +157,7 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
     // Extract session ID (prefer from first entry, fallback to filename)
     let session_id = first_entry
         .session_id
-        .or_else(|| last_entry.session_id)
+        .or(last_entry.session_id)
         .or_else(|| {
             file_path
                 .file_stem()
@@ -595,9 +602,7 @@ fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
 }
 
 // Helper to extract timing from JSONL (same logic as db_helpers)
-fn extract_timing_from_jsonl(
-    file_path: &Path,
-) -> Result<(Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>), String> {
+fn extract_timing_from_jsonl(file_path: &Path) -> Result<TimingData, String> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("Failed to read snapshot file: {}", e))?;
 

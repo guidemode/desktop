@@ -1,14 +1,14 @@
-import { useState, useCallback } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import type { ProcessorContext, ProcessorResult } from '@guideai-dev/session-processing/processors'
 import type {
-  PerformanceMetrics,
-  UsageMetrics,
-  QualityMetrics,
   EngagementMetrics,
   ErrorMetrics,
   GitDiffMetrics,
+  PerformanceMetrics,
+  QualityMetrics,
+  UsageMetrics,
 } from '@guideai-dev/types'
+import { invoke } from '@tauri-apps/api/core'
+import { useCallback, useState } from 'react'
 
 interface SessionMetricsRow {
   id: string
@@ -77,7 +77,7 @@ export function useSessionProcessing() {
   const [error, setError] = useState<string | null>(null)
 
   const processSession = useCallback(
-    async (sessionId: string, provider: string, content: string, userId: string = 'local') => {
+    async (sessionId: string, provider: string, content: string, userId = 'local') => {
       setProcessing(true)
       setError(null)
 

@@ -1,5 +1,5 @@
-import { CODING_AGENTS } from '../types/providers'
 import AgentConfig from '../components/Configuration/AgentConfig'
+import { CODING_AGENTS } from '../types/providers'
 
 function ConfigurationPage() {
   return (

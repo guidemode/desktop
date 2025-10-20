@@ -1,8 +1,8 @@
 import claudeCodeSvg from '../../assets/icons/claude-code.svg'
-import githubCopilotSvg from '../../assets/icons/github-copilot.svg'
-import opencodeSvg from '../../assets/icons/opencode.svg'
-import openaiCodexSvg from '../../assets/icons/openai-codex.svg'
 import geminiCodeSvg from '../../assets/icons/gemini-code.svg'
+import githubCopilotSvg from '../../assets/icons/github-copilot.svg'
+import openaiCodexSvg from '../../assets/icons/openai-codex.svg'
+import opencodeSvg from '../../assets/icons/opencode.svg'
 
 interface ProviderIconProps {
   providerId: string

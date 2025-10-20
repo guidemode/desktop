@@ -282,12 +282,10 @@ pub async fn get_activity_logs_command(
     // Read log files from most recent to oldest
     let mut log_files = Vec::new();
     if let Ok(entries) = fs::read_dir(&logs_dir) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
-                    log_files.push(path);
-                }
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
+                log_files.push(path);
             }
         }
     }
@@ -750,6 +748,7 @@ pub async fn get_provider_logs(
 
 // Session sync state for tracking progress
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct SessionSyncProgress {
     pub is_scanning: bool,
     pub is_syncing: bool,
@@ -765,23 +764,6 @@ pub struct SessionSyncProgress {
     pub is_uploading: bool,
 }
 
-impl Default for SessionSyncProgress {
-    fn default() -> Self {
-        Self {
-            is_scanning: false,
-            is_syncing: false,
-            total_sessions: 0,
-            synced_sessions: 0,
-            current_provider: String::new(),
-            current_project: String::new(),
-            sessions_found: Vec::new(),
-            errors: Vec::new(),
-            is_complete: false,
-            initial_queue_size: None,
-            is_uploading: false,
-        }
-    }
-}
 
 // Provider-specific sync state - using std::sync::OnceLock for thread-safe initialization
 use std::sync::OnceLock;
@@ -1027,10 +1009,8 @@ pub async fn sync_historical_sessions(
         if let Err(e) = log_info(&provider_id, "✓ Upload queue configured") {
             eprintln!("Logging error: {}", e);
         }
-    } else {
-        if let Err(e) = log_warn(&provider_id, "⚠ Failed to load config for upload queue") {
-            eprintln!("Logging error: {}", e);
-        }
+    } else if let Err(e) = log_warn(&provider_id, "⚠ Failed to load config for upload queue") {
+        eprintln!("Logging error: {}", e);
     }
 
     // Update progress
@@ -1152,11 +1132,7 @@ pub async fn get_session_sync_progress(
 
         // Calculate completed uploads: initial_size - (current pending + processing)
         let currently_in_queue = current_status.pending + current_status.processing;
-        let completed = if currently_in_queue < initial_size {
-            initial_size - currently_in_queue
-        } else {
-            0
-        };
+        let completed = initial_size.saturating_sub(currently_in_queue);
 
         progress.synced_sessions = completed;
 
@@ -1209,14 +1185,12 @@ pub async fn clear_all_sessions() -> Result<String, String> {
         crate::database::execute_sql_query("SELECT COUNT(*) as count FROM agent_sessions", vec![])
             .map_err(|e| e.to_string())?;
 
-    let metrics_num = metrics_count
-        .get(0)
+    let metrics_num = metrics_count.first()
         .and_then(|r| r.get("count"))
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
 
-    let sessions_num = sessions_count
-        .get(0)
+    let sessions_num = sessions_count.first()
         .and_then(|r| r.get("count"))
         .and_then(|v| v.as_i64())
         .unwrap_or(0);

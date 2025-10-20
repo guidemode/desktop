@@ -226,7 +226,7 @@ fn transform_opencode_log(log_content: &str) -> Option<LogEntry> {
                 .get("time")
                 .and_then(|t| t.get("updated").or_else(|| t.get("created")))
                 .and_then(|ts| ts.as_i64())
-                .and_then(|ts| chrono::DateTime::from_timestamp_millis(ts))
+                .and_then(chrono::DateTime::from_timestamp_millis)
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_else(|| Utc::now().to_rfc3339());
 

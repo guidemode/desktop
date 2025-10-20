@@ -10,11 +10,11 @@ use super::super::types::UploadItem;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorType {
     /// Client errors (400-499) - invalid input, don't retry
-    ClientError,
+    Client,
     /// Server errors (500-599) - temporary issues, retry with backoff
-    ServerError,
+    Server,
     /// Network errors - connection issues, retry with backoff
-    NetworkError,
+    Network,
 }
 
 /// Retry strategy configuration
@@ -47,7 +47,7 @@ impl RetryStrategy {
     /// Check if we should retry an item based on current retry count
     pub fn should_retry(&self, item: &UploadItem, error_type: ErrorType) -> bool {
         // Never retry client errors
-        if error_type == ErrorType::ClientError {
+        if error_type == ErrorType::Client {
             return false;
         }
 
@@ -83,7 +83,7 @@ pub fn classify_error(error: &str) -> ErrorType {
         || error.contains("validation failed")
         || error.contains("invalid input")
     {
-        return ErrorType::ClientError;
+        return ErrorType::Client;
     }
 
     // Check for server errors (5xx)
@@ -92,11 +92,11 @@ pub fn classify_error(error: &str) -> ErrorType {
         || error.contains("Service Unavailable")
         || error.contains("Gateway Timeout")
     {
-        return ErrorType::ServerError;
+        return ErrorType::Server;
     }
 
     // Default to network error (connection issues, timeouts, etc.)
-    ErrorType::NetworkError
+    ErrorType::Network
 }
 
 /// Helper function to check if we should retry (uses default strategy)
@@ -120,48 +120,48 @@ mod tests {
 
     #[test]
     fn test_classify_client_errors() {
-        assert_eq!(classify_error("status 400"), ErrorType::ClientError);
-        assert_eq!(classify_error("Bad Request"), ErrorType::ClientError);
-        assert_eq!(classify_error("status 401"), ErrorType::ClientError);
-        assert_eq!(classify_error("Unauthorized"), ErrorType::ClientError);
-        assert_eq!(classify_error("status 403"), ErrorType::ClientError);
-        assert_eq!(classify_error("Forbidden"), ErrorType::ClientError);
-        assert_eq!(classify_error("status 404"), ErrorType::ClientError);
-        assert_eq!(classify_error("Not Found"), ErrorType::ClientError);
-        assert_eq!(classify_error("validation failed"), ErrorType::ClientError);
-        assert_eq!(classify_error("invalid input"), ErrorType::ClientError);
+        assert_eq!(classify_error("status 400"), ErrorType::Client);
+        assert_eq!(classify_error("Bad Request"), ErrorType::Client);
+        assert_eq!(classify_error("status 401"), ErrorType::Client);
+        assert_eq!(classify_error("Unauthorized"), ErrorType::Client);
+        assert_eq!(classify_error("status 403"), ErrorType::Client);
+        assert_eq!(classify_error("Forbidden"), ErrorType::Client);
+        assert_eq!(classify_error("status 404"), ErrorType::Client);
+        assert_eq!(classify_error("Not Found"), ErrorType::Client);
+        assert_eq!(classify_error("validation failed"), ErrorType::Client);
+        assert_eq!(classify_error("invalid input"), ErrorType::Client);
     }
 
     #[test]
     fn test_classify_server_errors() {
-        assert_eq!(classify_error("status 500"), ErrorType::ServerError);
-        assert_eq!(classify_error("status 502"), ErrorType::ServerError);
-        assert_eq!(classify_error("status 503"), ErrorType::ServerError);
+        assert_eq!(classify_error("status 500"), ErrorType::Server);
+        assert_eq!(classify_error("status 502"), ErrorType::Server);
+        assert_eq!(classify_error("status 503"), ErrorType::Server);
         assert_eq!(
             classify_error("Internal Server Error"),
-            ErrorType::ServerError
+            ErrorType::Server
         );
         assert_eq!(
             classify_error("Service Unavailable"),
-            ErrorType::ServerError
+            ErrorType::Server
         );
-        assert_eq!(classify_error("Gateway Timeout"), ErrorType::ServerError);
+        assert_eq!(classify_error("Gateway Timeout"), ErrorType::Server);
     }
 
     #[test]
     fn test_classify_network_errors() {
         assert_eq!(
             classify_error("Connection refused"),
-            ErrorType::NetworkError
+            ErrorType::Network
         );
-        assert_eq!(classify_error("Timeout"), ErrorType::NetworkError);
+        assert_eq!(classify_error("Timeout"), ErrorType::Network);
         assert_eq!(
             classify_error("DNS resolution failed"),
-            ErrorType::NetworkError
+            ErrorType::Network
         );
         assert_eq!(
             classify_error("Unknown error"),
-            ErrorType::NetworkError
+            ErrorType::Network
         );
     }
 
@@ -186,13 +186,13 @@ mod tests {
 
         // Client errors should never retry
         item.retry_count = 0;
-        assert!(!strategy.should_retry(&item, ErrorType::ClientError));
+        assert!(!strategy.should_retry(&item, ErrorType::Client));
 
         item.retry_count = 1;
-        assert!(!strategy.should_retry(&item, ErrorType::ClientError));
+        assert!(!strategy.should_retry(&item, ErrorType::Client));
 
         item.retry_count = 5;
-        assert!(!strategy.should_retry(&item, ErrorType::ClientError));
+        assert!(!strategy.should_retry(&item, ErrorType::Client));
     }
 
     #[test]
@@ -202,19 +202,19 @@ mod tests {
 
         // Server errors should retry up to max_retries
         item.retry_count = 0;
-        assert!(strategy.should_retry(&item, ErrorType::ServerError));
+        assert!(strategy.should_retry(&item, ErrorType::Server));
 
         item.retry_count = 1;
-        assert!(strategy.should_retry(&item, ErrorType::ServerError));
+        assert!(strategy.should_retry(&item, ErrorType::Server));
 
         item.retry_count = 2;
-        assert!(strategy.should_retry(&item, ErrorType::ServerError));
+        assert!(strategy.should_retry(&item, ErrorType::Server));
 
         item.retry_count = 3;
-        assert!(!strategy.should_retry(&item, ErrorType::ServerError));
+        assert!(!strategy.should_retry(&item, ErrorType::Server));
 
         item.retry_count = 4;
-        assert!(!strategy.should_retry(&item, ErrorType::ServerError));
+        assert!(!strategy.should_retry(&item, ErrorType::Server));
     }
 
     #[test]
@@ -224,16 +224,16 @@ mod tests {
 
         // Network errors should retry up to max_retries
         item.retry_count = 0;
-        assert!(strategy.should_retry(&item, ErrorType::NetworkError));
+        assert!(strategy.should_retry(&item, ErrorType::Network));
 
         item.retry_count = 1;
-        assert!(strategy.should_retry(&item, ErrorType::NetworkError));
+        assert!(strategy.should_retry(&item, ErrorType::Network));
 
         item.retry_count = 2;
-        assert!(strategy.should_retry(&item, ErrorType::NetworkError));
+        assert!(strategy.should_retry(&item, ErrorType::Network));
 
         item.retry_count = 3;
-        assert!(!strategy.should_retry(&item, ErrorType::NetworkError));
+        assert!(!strategy.should_retry(&item, ErrorType::Network));
     }
 
     #[test]
@@ -303,12 +303,12 @@ mod tests {
 
         // Test helper function
         item.retry_count = 0;
-        assert!(should_retry(&item, ErrorType::ServerError));
+        assert!(should_retry(&item, ErrorType::Server));
 
         item.retry_count = 3;
-        assert!(!should_retry(&item, ErrorType::ServerError));
+        assert!(!should_retry(&item, ErrorType::Server));
 
-        assert!(!should_retry(&item, ErrorType::ClientError));
+        assert!(!should_retry(&item, ErrorType::Client));
     }
 
     #[test]

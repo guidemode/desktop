@@ -12,7 +12,7 @@ export function AiProcessingProgress({ step, compact = false }: AiProcessingProg
   if (compact) {
     return (
       <div className="flex items-center gap-2">
-        <span className="loading loading-spinner loading-xs"></span>
+        <span className="loading loading-spinner loading-xs" />
         <span className="text-xs">{step.name}</span>
         <span className="text-xs text-base-content/50">{step.percentage}%</span>
       </div>
@@ -23,16 +23,12 @@ export function AiProcessingProgress({ step, compact = false }: AiProcessingProg
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="loading loading-spinner loading-sm"></span>
+          <span className="loading loading-spinner loading-sm" />
           <span className="text-sm font-medium">{step.name}</span>
         </div>
         <span className="text-sm font-semibold text-primary">{step.percentage}%</span>
       </div>
-      <progress
-        className="progress progress-primary w-full"
-        value={step.percentage}
-        max="100"
-      ></progress>
+      <progress className="progress progress-primary w-full" value={step.percentage} max="100" />
       <p className="text-xs text-base-content/60">{step.description}</p>
     </div>
   )

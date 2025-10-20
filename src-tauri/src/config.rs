@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GuideAIConfig {
     #[serde(rename = "apiKey")]
     pub api_key: Option<String>,
@@ -16,20 +16,6 @@ pub struct GuideAIConfig {
     pub tenant_id: Option<String>,
     #[serde(rename = "tenantName")]
     pub tenant_name: Option<String>,
-}
-
-impl Default for GuideAIConfig {
-    fn default() -> Self {
-        Self {
-            api_key: None,
-            server_url: None,
-            username: None,
-            name: None,
-            avatar_url: None,
-            tenant_id: None,
-            tenant_name: None,
-        }
-    }
 }
 
 pub fn get_config_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {

@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
 import type { ProviderConfig, ProviderStatus } from '../types/providers'
-import { useProviderConfig } from './useProviderConfig'
-import { useClaudeWatcherStatus } from './useClaudeWatcher'
-import { useCopilotWatcherStatus } from './useCopilotWatcher'
-import { useOpenCodeWatcherStatus } from './useOpenCodeWatcher'
-import { useCodexWatcherStatus } from './useCodexWatcher'
-import { useGeminiWatcherStatus } from './useGeminiWatcher'
-import { useDirectoryExists } from './useDirectoryExists'
 import { CODING_AGENTS } from '../types/providers'
+import { useClaudeWatcherStatus } from './useClaudeWatcher'
+import { useCodexWatcherStatus } from './useCodexWatcher'
+import { useCopilotWatcherStatus } from './useCopilotWatcher'
+import { useDirectoryExists } from './useDirectoryExists'
+import { useGeminiWatcherStatus } from './useGeminiWatcher'
+import { useOpenCodeWatcherStatus } from './useOpenCodeWatcher'
+import { useProviderConfig } from './useProviderConfig'
 
 interface UseProviderStatusResult {
   status: ProviderStatus

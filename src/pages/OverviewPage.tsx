@@ -1,10 +1,10 @@
-import { CODING_AGENTS } from '../types/providers'
-import { useProviderConfig } from '../hooks/useProviderConfig'
-import { useNavigate } from 'react-router-dom'
-import ProviderIcon from '../components/icons/ProviderIcon'
 import { DocumentTextIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import LogViewer from '../components/LogViewer'
+import ProviderIcon from '../components/icons/ProviderIcon'
+import { useProviderConfig } from '../hooks/useProviderConfig'
+import { CODING_AGENTS } from '../types/providers'
 
 function OverviewPage() {
   const navigate = useNavigate()
@@ -73,9 +73,11 @@ function ProviderCard({ agent, onConfigure }: ProviderCardProps) {
             onClick={onConfigure}
             className="flex items-center gap-3 hover:opacity-70 transition-opacity"
           >
-            <div className={`avatar placeholder`}>
+            <div className={'avatar placeholder'}>
               <div
-                className={`bg-base-200 rounded-lg w-10 h-10 flex items-center justify-center p-1.5`}
+                className={
+                  'bg-base-200 rounded-lg w-10 h-10 flex items-center justify-center p-1.5'
+                }
               >
                 <ProviderIcon providerId={agent.id} size={28} />
               </div>
@@ -88,7 +90,7 @@ function ProviderCard({ agent, onConfigure }: ProviderCardProps) {
 
           <div className="flex items-center gap-3">
             {isLoading ? (
-              <span className="loading loading-spinner loading-sm"></span>
+              <span className="loading loading-spinner loading-sm" />
             ) : (
               <div className="flex items-center gap-2">
                 <div

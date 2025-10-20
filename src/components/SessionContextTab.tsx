@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react'
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CodeBracketIcon,
+  DocumentTextIcon,
+} from '@heroicons/react/24/outline'
 import { useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
-import {
-  ChevronRightIcon,
-  ChevronDownIcon,
-  DocumentTextIcon,
-  CodeBracketIcon,
-} from '@heroicons/react/24/outline'
-import { useContextFileUsage, type FileUsageStats } from '../hooks/useContextFileUsage'
+import { useEffect, useState } from 'react'
+import { type FileUsageStats, useContextFileUsage } from '../hooks/useContextFileUsage'
 
 // Dynamic import types for syntax highlighter
 interface SyntaxHighlighterDeps {

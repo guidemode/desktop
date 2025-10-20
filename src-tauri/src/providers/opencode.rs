@@ -104,7 +104,7 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
         // Fallback to file system metadata
         let metadata_time = fs::metadata(worktree_path)
             .and_then(|metadata| metadata.modified())
-            .map(|time| DateTime::<Utc>::from(time))
+            .map(DateTime::<Utc>::from)
             .ok();
 
         let modified = most_recent_activity

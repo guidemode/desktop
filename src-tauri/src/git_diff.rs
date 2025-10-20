@@ -278,7 +278,7 @@ fn parse_diff(
             '+' | '-' | ' ' => {
                 current_file_content.push('\n');
                 current_file_content.push(origin);
-                current_file_content.push_str(&content.trim_end_matches('\n'));
+                current_file_content.push_str(content.trim_end_matches('\n'));
 
                 // Update stats
                 if let Some(ref mut file) = current_file {

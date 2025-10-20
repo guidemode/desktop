@@ -1,12 +1,13 @@
+import type { AgentSession } from '@guideai-dev/types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
-import type { AgentSession } from '@guideai-dev/types'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 interface SessionWithMetrics extends AgentSession {
   filePath: string | null
   syncedToServer?: boolean
   syncFailedReason?: string | null
+  cwd?: string | null
   metrics?: {
     // Performance
     response_latency_ms?: number

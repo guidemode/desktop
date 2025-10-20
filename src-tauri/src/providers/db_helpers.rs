@@ -3,6 +3,12 @@ use crate::logging::{log_debug, log_info, log_warn};
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 
+/// Type alias for timing data tuple returned from JSONL parsing
+type TimingResult = Result<
+    (Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>),
+    Box<dyn std::error::Error + Send + Sync>,
+>;
+
 /// Insert or update a session in the local database immediately (called by all provider watchers)
 pub fn insert_session_immediately(
     provider_id: &str,
@@ -188,13 +194,7 @@ pub fn insert_session_immediately(
 /// Extract session timing from JSONL file (works for all providers)
 /// Extract timing information from session file (start time, end time, duration)
 /// All providers now use JSONL format (including github-copilot snapshots)
-fn extract_session_timing(
-    _provider_id: &str,
-    file_path: &PathBuf,
-) -> Result<
-    (Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>),
-    Box<dyn std::error::Error + Send + Sync>,
-> {
+fn extract_session_timing(_provider_id: &str, file_path: &PathBuf) -> TimingResult {
     use std::fs;
 
     // Read JSONL and extract timestamps

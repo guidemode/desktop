@@ -94,7 +94,7 @@ impl GeminiProjectRegistry {
     fn get_registry_path() -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
         let config_dir = crate::config::get_providers_dir()
             .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                Box::new(std::io::Error::other(e.to_string()))
             })?;
         Ok(config_dir.join("gemini-code-projects.json"))
     }

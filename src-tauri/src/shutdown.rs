@@ -3,11 +3,16 @@ use tokio::sync::broadcast;
 /// Coordinates graceful shutdown across event handlers and watchers
 ///
 /// Usage:
-/// ```
+/// ```no_run
+/// use guideai_desktop::shutdown::ShutdownCoordinator;
+/// use tokio::sync::mpsc;
+///
+/// # async fn example() {
 /// let coordinator = ShutdownCoordinator::new();
 ///
 /// // In event handlers/watchers:
 /// let mut shutdown_rx = coordinator.subscribe();
+/// let (tx, mut event_rx) = mpsc::channel::<String>(10);
 /// loop {
 ///     tokio::select! {
 ///         event = event_rx.recv() => { /* handle event */ }
@@ -20,6 +25,7 @@ use tokio::sync::broadcast;
 ///
 /// // To trigger shutdown:
 /// coordinator.shutdown();
+/// # }
 /// ```
 pub struct ShutdownCoordinator {
     shutdown_tx: broadcast::Sender<()>,

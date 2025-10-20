@@ -71,7 +71,7 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
 
         let metadata_time = fs::metadata(path)
             .and_then(|metadata| metadata.modified())
-            .map(|time| DateTime::<Utc>::from(time))
+            .map(DateTime::<Utc>::from)
             .ok();
 
         let modified =

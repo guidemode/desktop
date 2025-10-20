@@ -124,7 +124,7 @@ function getPlatformDefault(agentId: string): string {
     os = 'darwin'
   }
 
-  return PLATFORM_DEFAULTS[agentId]?.[os] || PLATFORM_DEFAULTS[agentId]?.['linux'] || '~'
+  return PLATFORM_DEFAULTS[agentId]?.[os] || PLATFORM_DEFAULTS[agentId]?.linux || '~'
 }
 
 export const CODING_AGENTS: CodingAgent[] = [

@@ -1,5 +1,5 @@
-import { UserIcon, ServerIcon, KeyIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline'
-import { useAuth, type User } from '../hooks/useAuth'
+import { BuildingOfficeIcon, KeyIcon, ServerIcon, UserIcon } from '@heroicons/react/24/outline'
+import { type User, useAuth } from '../hooks/useAuth'
 
 interface UserInfoProps {
   user: User
@@ -66,7 +66,7 @@ export default function UserInfo({ user }: UserInfoProps) {
           >
             {isLoggingOut ? (
               <>
-                <span className="loading loading-spinner loading-sm"></span>
+                <span className="loading loading-spinner loading-sm" />
                 Signing Out...
               </>
             ) : (

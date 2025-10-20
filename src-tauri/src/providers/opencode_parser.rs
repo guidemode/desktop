@@ -221,8 +221,8 @@ impl OpenCodeParser {
                 .or(message.time.completed) // Messages use 'completed' not 'initialized/updated'
                 .or(message.time.initialized)
                 .or(message.time.updated)
-                .and_then(|ts| DateTime::from_timestamp_millis(ts))
-                .unwrap_or_else(|| Utc::now());
+                .and_then(DateTime::from_timestamp_millis)
+                .unwrap_or_else(Utc::now);
 
             for part in parts {
                 match part.part_type.as_str() {
@@ -247,7 +247,7 @@ impl OpenCodeParser {
                                 .time
                                 .as_ref()
                                 .and_then(|t| t.start)
-                                .and_then(|ts| DateTime::from_timestamp_millis(ts))
+                                .and_then(DateTime::from_timestamp_millis)
                                 .unwrap_or(base_timestamp);
 
                             // Create separate entry for tool use
@@ -277,7 +277,7 @@ impl OpenCodeParser {
                                     .time
                                     .as_ref()
                                     .and_then(|t| t.end)
-                                    .and_then(|ts| DateTime::from_timestamp_millis(ts))
+                                    .and_then(DateTime::from_timestamp_millis)
                                     .unwrap_or_else(|| {
                                         part_timestamp + chrono::Duration::milliseconds(1)
                                     });

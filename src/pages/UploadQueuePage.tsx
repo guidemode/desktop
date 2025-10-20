@@ -1,23 +1,23 @@
+import {
+  ArrowPathIcon,
+  ChevronLeftIcon,
+  ClipboardDocumentIcon,
+  DocumentTextIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import LogViewer from '../components/LogViewer'
+import { useAuth } from '../hooks/useAuth'
 import {
-  useUploadQueueItems,
-  useUploadQueueStatus,
-  useRetryUpload,
+  type UploadItem,
+  useClearAllFailed,
   useRemoveQueueItem,
   useRetryAllFailed,
-  useClearAllFailed,
-  type UploadItem,
+  useRetryUpload,
+  useUploadQueueItems,
+  useUploadQueueStatus,
 } from '../hooks/useUploadQueue'
-import { useAuth } from '../hooks/useAuth'
-import LogViewer from '../components/LogViewer'
-import {
-  ClipboardDocumentIcon,
-  ArrowPathIcon,
-  XMarkIcon,
-  DocumentTextIcon,
-  ChevronLeftIcon,
-} from '@heroicons/react/24/outline'
 
 function UploadQueuePage() {
   const { user } = useAuth()
@@ -245,7 +245,7 @@ function UploadQueuePage() {
         <div className="card-body">
           <div className="flex items-center gap-2 mb-4">
             <h2 className="text-lg font-semibold">Queue Items</h2>
-            {itemsLoading && <span className="loading loading-spinner loading-sm"></span>}
+            {itemsLoading && <span className="loading loading-spinner loading-sm" />}
           </div>
 
           {!queueItems || (queueItems.pending.length === 0 && queueItems.failed.length === 0) ? (

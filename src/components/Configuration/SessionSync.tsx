@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   ArrowPathIcon,
   CloudArrowUpIcon,
@@ -6,10 +5,11 @@ import {
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid'
 import { formatDistanceToNow } from 'date-fns'
-import { useSessionSync } from '../../hooks/useSessionSync'
+import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useProviderConfig } from '../../hooks/useProviderConfig'
-import { CodingAgent } from '../../types/providers'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useSessionSync } from '../../hooks/useSessionSync'
+import type { CodingAgent } from '../../types/providers'
 
 interface SessionSyncProps {
   agent: CodingAgent
@@ -127,7 +127,7 @@ function SessionSync({ agent }: SessionSyncProps) {
             {/* Current Status */}
             {(isScanning || isSyncing || isUploading) && (
               <div className="flex items-center gap-2 mt-2">
-                <span className="loading loading-spinner loading-xs"></span>
+                <span className="loading loading-spinner loading-xs" />
                 <span className="text-sm">
                   {isScanning && `Scanning ${progress.current_provider}...`}
                   {isSyncing &&
@@ -214,7 +214,7 @@ function SessionSync({ agent }: SessionSyncProps) {
             >
               {isScanning ? (
                 <>
-                  <span className="loading loading-spinner loading-sm"></span>
+                  <span className="loading loading-spinner loading-sm" />
                   Scanning...
                 </>
               ) : (
@@ -233,7 +233,7 @@ function SessionSync({ agent }: SessionSyncProps) {
               >
                 {isSyncing || isUploading ? (
                   <>
-                    <span className="loading loading-spinner loading-sm"></span>
+                    <span className="loading loading-spinner loading-sm" />
                     {isSyncing ? 'Queueing...' : 'Uploading...'}
                   </>
                 ) : (

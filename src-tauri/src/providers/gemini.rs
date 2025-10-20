@@ -175,12 +175,10 @@ pub fn extract_candidate_paths_from_content(content: &str) -> Vec<String> {
             // Extract all absolute paths from the line
             let parts: Vec<&str> = search_text.split_whitespace().collect();
             for part in parts {
-                // Unix paths
-                if part.starts_with('/') {
-                    paths.push(part.to_string());
-                }
-                // Windows paths
-                else if part.len() > 3 && part.chars().nth(1) == Some(':') && part.chars().nth(2) == Some('\\') {
+                // Unix paths or Windows paths
+                if part.starts_with('/')
+                    || (part.len() > 3 && part.chars().nth(1) == Some(':') && part.chars().nth(2) == Some('\\'))
+                {
                     paths.push(part.to_string());
                 }
             }

@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
+import { useCallback, useState } from 'react'
 
 export interface SessionInfo {
   provider: string
@@ -83,7 +83,7 @@ export function useSessionSync(providerId: string) {
     setError(null)
     try {
       await scanMutation.mutateAsync()
-    } catch (err) {
+    } catch (_err) {
       // Error handling is done in mutation callbacks
     }
   }, [scanMutation])
@@ -92,7 +92,7 @@ export function useSessionSync(providerId: string) {
     setError(null)
     try {
       await syncMutation.mutateAsync()
-    } catch (err) {
+    } catch (_err) {
       // Error handling is done in mutation callbacks
     }
   }, [syncMutation])
@@ -101,7 +101,7 @@ export function useSessionSync(providerId: string) {
     setError(null)
     try {
       await resetMutation.mutateAsync()
-    } catch (err) {
+    } catch (_err) {
       // Error handling is done in mutation callbacks
     }
   }, [resetMutation])

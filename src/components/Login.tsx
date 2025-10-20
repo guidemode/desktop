@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
 import { Cog6ToothIcon } from '@heroicons/react/24/outline'
+import type React from 'react'
+import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
 const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL?.trim() || 'https://be.guideai.dev'
@@ -57,7 +58,7 @@ export default function Login() {
             <button type="submit" className="btn btn-primary" disabled={isLoggingIn || !serverUrl}>
               {isLoggingIn ? (
                 <>
-                  <span className="loading loading-spinner loading-sm"></span>
+                  <span className="loading loading-spinner loading-sm" />
                   Signing In...
                 </>
               ) : (

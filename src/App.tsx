@@ -1,24 +1,24 @@
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
+import { listen } from '@tauri-apps/api/event'
+import { useEffect } from 'react'
+import { Route, BrowserRouter as Router, Routes, useNavigate } from 'react-router-dom'
+import AppLayout from './components/Layout/AppLayout'
+import { OnboardingTour } from './components/Onboarding/OnboardingTour'
+import { ToastContainer } from './components/ToastContainer'
 import { useAuth } from './hooks/useAuth'
 import { useDatabase } from './hooks/useDatabase'
-import { useSessionIngest } from './hooks/useSessionIngest'
 import { useDebouncedCoreMetrics } from './hooks/useDebouncedCoreMetrics'
 import { useDelayedAiProcessing } from './hooks/useDelayedAiProcessing'
 import { useOnboarding } from './hooks/useOnboarding'
-import AppLayout from './components/Layout/AppLayout'
+import { useSessionIngest } from './hooks/useSessionIngest'
 import DashboardPage from './pages/DashboardPage'
+import LogsPage from './pages/LogsPage'
 import OverviewPage from './pages/OverviewPage'
-import ProviderPage from './pages/ProviderPage'
-import SessionsPage from './pages/SessionsPage'
-import SessionDetailPage from './pages/SessionDetailPage'
 import ProjectsPage from './pages/ProjectsPage'
+import ProviderPage from './pages/ProviderPage'
+import SessionDetailPage from './pages/SessionDetailPage'
+import SessionsPage from './pages/SessionsPage'
 import SettingsPage from './pages/SettingsPage'
 import UploadQueuePage from './pages/UploadQueuePage'
-import LogsPage from './pages/LogsPage'
-import { ToastContainer } from './components/ToastContainer'
-import { OnboardingTour } from './components/Onboarding/OnboardingTour'
-import { listen } from '@tauri-apps/api/event'
-import { useEffect } from 'react'
 
 function AppContent() {
   const navigate = useNavigate()
@@ -88,7 +88,7 @@ function App() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-base-100" data-theme={theme}>
         <div className="text-center">
-          <span className="loading loading-spinner loading-lg"></span>
+          <span className="loading loading-spinner loading-lg" />
           {!isDbReady && (
             <p className="mt-4 text-sm text-base-content/70">Initializing database...</p>
           )}

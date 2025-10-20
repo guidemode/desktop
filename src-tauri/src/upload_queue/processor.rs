@@ -35,6 +35,7 @@ pub struct UploadProcessor {
 
 impl UploadProcessor {
     /// Create a new processor with all required state
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue: Arc<Mutex<VecDeque<UploadItem>>>,
         processing: Arc<Mutex<usize>>,
@@ -388,7 +389,7 @@ async fn handle_upload_failure(
     let error_type = classify_error(&error);
 
     match error_type {
-        ErrorType::ClientError => {
+        ErrorType::Client => {
             // Don't retry client errors (400, invalid input)
             move_to_failed(&item, failed_items);
             mark_session_as_failed(&item, &error, app_handle).await;
@@ -402,7 +403,7 @@ async fn handle_upload_failure(
             )
             .unwrap_or_default();
         }
-        ErrorType::ServerError | ErrorType::NetworkError => {
+        ErrorType::Server | ErrorType::Network => {
             // Retry with backoff
             item.retry_count += 1;
 

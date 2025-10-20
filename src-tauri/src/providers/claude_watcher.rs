@@ -123,13 +123,11 @@ impl ClaudeWatcher {
                 ) {
                     eprintln!("Logging error: {}", e);
                 }
-            } else {
-                if let Err(e) = log_warn(
-                    PROVIDER_ID,
-                    &format!("⚠ Project directory not found: {}", project_path.display()),
-                ) {
-                    eprintln!("Logging error: {}", e);
-                }
+            } else if let Err(e) = log_warn(
+                PROVIDER_ID,
+                &format!("⚠ Project directory not found: {}", project_path.display()),
+            ) {
+                eprintln!("Logging error: {}", e);
             }
         }
 

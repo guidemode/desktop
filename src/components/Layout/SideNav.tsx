@@ -1,10 +1,10 @@
+import { open } from '@tauri-apps/plugin-shell'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
+import { useDirectoryExists } from '../../hooks/useDirectoryExists'
+import { useProviderConfig } from '../../hooks/useProviderConfig'
 import { CODING_AGENTS } from '../../types/providers'
 import ProviderIcon from '../icons/ProviderIcon'
-import { useAuth } from '../../hooks/useAuth'
-import { useProviderConfig } from '../../hooks/useProviderConfig'
-import { useDirectoryExists } from '../../hooks/useDirectoryExists'
-import { open } from '@tauri-apps/plugin-shell'
 
 interface NavItem {
   path: string

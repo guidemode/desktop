@@ -1,17 +1,17 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
-import { useLocalSessions } from '../hooks/useLocalSessions'
 import { SessionCard } from '@guideai-dev/session-processing/ui'
+import { Link, useNavigate } from 'react-router-dom'
+import ProviderStatusIndicator from '../components/ProviderStatusIndicator'
 import ProviderIcon from '../components/icons/ProviderIcon'
+import { useAuth } from '../hooks/useAuth'
+import { useClaudeWatcherStatus } from '../hooks/useClaudeWatcher'
+import { useCodexWatcherStatus } from '../hooks/useCodexWatcher'
+import { useCopilotWatcherStatus } from '../hooks/useCopilotWatcher'
+import { useGeminiWatcherStatus } from '../hooks/useGeminiWatcher'
+import { useLocalSessions } from '../hooks/useLocalSessions'
+import { useOpenCodeWatcherStatus } from '../hooks/useOpenCodeWatcher'
+import { useProviderStatus } from '../hooks/useProviderStatus'
 import { useSessionActivity } from '../hooks/useSessionActivity'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'
-import { useClaudeWatcherStatus } from '../hooks/useClaudeWatcher'
-import { useCopilotWatcherStatus } from '../hooks/useCopilotWatcher'
-import { useOpenCodeWatcherStatus } from '../hooks/useOpenCodeWatcher'
-import { useCodexWatcherStatus } from '../hooks/useCodexWatcher'
-import { useGeminiWatcherStatus } from '../hooks/useGeminiWatcher'
-import { useProviderStatus } from '../hooks/useProviderStatus'
-import ProviderStatusIndicator from '../components/ProviderStatusIndicator'
 
 function DashboardPage() {
   const navigate = useNavigate()
@@ -48,11 +48,11 @@ function DashboardPage() {
 
     if (days > 0) {
       return { value: days, unit: 'days', subValue: hours % 24, subUnit: 'hrs' }
-    } else if (hours > 0) {
-      return { value: hours, unit: 'hours', subValue: minutes % 60, subUnit: 'min' }
-    } else {
-      return { value: minutes, unit: 'minutes', subValue: null, subUnit: null }
     }
+    if (hours > 0) {
+      return { value: hours, unit: 'hours', subValue: minutes % 60, subUnit: 'min' }
+    }
+    return { value: minutes, unit: 'minutes', subValue: null, subUnit: null }
   }
 
   const duration = formatDuration(totalDurationMs)
@@ -86,7 +86,7 @@ function DashboardPage() {
           <div className="card-body">
             <h2 className="card-title text-base">Total Sessions</h2>
             <p className="text-3xl font-bold">{sessions.length}</p>
-            <div className="divider my-2"></div>
+            <div className="divider my-2" />
             <div className="text-sm text-base-content/70 mb-1">Total Duration</div>
             {totalDurationMs > 0 ? (
               <div className="flex items-baseline gap-2">

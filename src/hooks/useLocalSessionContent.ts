@@ -1,11 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { invoke } from '@tauri-apps/api/core'
 import {
-  sessionRegistry,
-  messageProcessorRegistry,
   type BaseSessionMessage,
   type ProcessedTimeline,
+  messageProcessorRegistry,
+  sessionRegistry,
 } from '@guideai-dev/session-processing/ui'
+import { useQuery } from '@tanstack/react-query'
+import { invoke } from '@tauri-apps/api/core'
 
 interface UseLocalSessionContentResult {
   messages: BaseSessionMessage[]

@@ -1,24 +1,24 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { flushSync } from 'react-dom'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { SessionCard, DateFilter } from '@guideai-dev/session-processing/ui'
+import { DateFilter, SessionCard } from '@guideai-dev/session-processing/ui'
 import type { SessionRating } from '@guideai-dev/session-processing/ui'
-import ProviderIcon from '../components/icons/ProviderIcon'
-import { useLocalSessions, useInvalidateSessions } from '../hooks/useLocalSessions'
-import { useAiProcessing } from '../hooks/useAiProcessing'
-import { useSessionProcessing } from '../hooks/useSessionProcessing'
-import { useAuth } from '../hooks/useAuth'
-import { useToast } from '../hooks/useToast'
 import type { DateFilterValue } from '@guideai-dev/session-processing/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useSessionActivity } from '../hooks/useSessionActivity'
-import { useSessionActivityStore } from '../stores/sessionActivityStore'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ActiveSessionCard } from '../components/ActiveSessionCard'
 import ConfirmDialog from '../components/ConfirmDialog'
 import ProcessingModeDialog from '../components/ProcessingModeDialog'
+import ProviderIcon from '../components/icons/ProviderIcon'
+import { useAiProcessing } from '../hooks/useAiProcessing'
+import { useAuth } from '../hooks/useAuth'
 import { useLocalProjects } from '../hooks/useLocalProjects'
+import { useInvalidateSessions, useLocalSessions } from '../hooks/useLocalSessions'
 import { useQuickRating } from '../hooks/useQuickRating'
-import { ActiveSessionCard } from '../components/ActiveSessionCard'
+import { useSessionActivity } from '../hooks/useSessionActivity'
+import { useSessionProcessing } from '../hooks/useSessionProcessing'
+import { useToast } from '../hooks/useToast'
+import { useSessionActivityStore } from '../stores/sessionActivityStore'
 
 const SESSIONS_PER_PAGE = 50
 const PROVIDER_FILTER_KEY = 'sessions.providerFilter'
@@ -93,9 +93,7 @@ export default function SessionsPage() {
   const hasActiveSessions = activeSessions.length > 0
 
   // Filter sessions by active status if enabled AND there are active sessions
-  const filteredSessions = showActiveOnly && hasActiveSessions
-    ? activeSessions
-    : sessions
+  const filteredSessions = showActiveOnly && hasActiveSessions ? activeSessions : sessions
 
   // Initialize project filter from URL parameter
   useEffect(() => {
@@ -206,7 +204,7 @@ export default function SessionsPage() {
         throw new Error(`No processor found for provider: ${provider}`)
       }
 
-      const parsedSession = processor.parseSession(content)
+      const parsedSession = processor.parseSession(content, provider)
 
       // Step 1: Calculate metrics (always)
       await processMetrics(sessionId, provider, content, 'local')
@@ -231,7 +229,7 @@ export default function SessionsPage() {
     } catch (err) {
       console.error('Failed to process session:', err)
       if (!silent) {
-        toast.error('Failed to process session: ' + (err as Error).message)
+        toast.error(`Failed to process session: ${(err as Error).message}`)
       }
     } finally {
       setProcessingSessionId(null)
@@ -442,10 +440,9 @@ export default function SessionsPage() {
             return prev
           }
           return [...prev, sessionId]
-        } else {
-          // Remove if present
-          return prev.filter(id => id !== sessionId)
         }
+        // Remove if present
+        return prev.filter(id => id !== sessionId)
       })
     })
   }
@@ -505,7 +502,7 @@ export default function SessionsPage() {
       refresh()
     } catch (err) {
       console.error('Failed to queue session for upload:', err)
-      toast.error('Failed to queue session: ' + (err as Error).message)
+      toast.error(`Failed to queue session: ${(err as Error).message}`)
     }
   }
 
@@ -519,7 +516,7 @@ export default function SessionsPage() {
       toast.success('Rating saved!')
     } catch (err) {
       console.error('Failed to rate session:', err)
-      toast.error('Failed to save rating: ' + (err as Error).message)
+      toast.error(`Failed to save rating: ${(err as Error).message}`)
     }
   }
 
@@ -594,7 +591,7 @@ export default function SessionsPage() {
       }
     } catch (err) {
       console.error('Error during rescan:', err)
-      toast.error('Failed to rescan: ' + String(err))
+      toast.error(`Failed to rescan: ${String(err)}`)
       setRescanning(false)
       setTrackingEnabled(true) // Re-enable on error
     }
@@ -675,7 +672,7 @@ export default function SessionsPage() {
       }
     } catch (err) {
       console.error('Error during clear and rescan:', err)
-      toast.error('Failed to clear and rescan: ' + String(err))
+      toast.error(`Failed to clear and rescan: ${String(err)}`)
       setClearing(false)
       setTrackingEnabled(true) // Re-enable on error
     }
@@ -740,7 +737,7 @@ export default function SessionsPage() {
           >
             {rescanning ? (
               <>
-                <span className="loading loading-spinner loading-xs"></span>
+                <span className="loading loading-spinner loading-xs" />
                 Rescanning...
               </>
             ) : (
@@ -764,7 +761,7 @@ export default function SessionsPage() {
           >
             {clearing ? (
               <>
-                <span className="loading loading-spinner loading-xs"></span>
+                <span className="loading loading-spinner loading-xs" />
                 Clearing...
               </>
             ) : (
@@ -787,10 +784,12 @@ export default function SessionsPage() {
       {/* Filters - Always visible */}
       <div className="flex items-center gap-3 mb-4">
         {/* Spacer to push filters to the right */}
-        <div className="flex-1"></div>
+        <div className="flex-1" />
 
         {/* Right side: Filters */}
-        <label className={`label gap-2 ${!hasActiveSessions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+        <label
+          className={`label gap-2 ${!hasActiveSessions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+        >
           <span className="label-text text-sm">Active Only</span>
           <input
             type="checkbox"
@@ -888,7 +887,7 @@ export default function SessionsPage() {
           )}
 
           {/* Spacer */}
-          <div className="flex-1"></div>
+          <div className="flex-1" />
 
           {/* Action Buttons (in selection mode) */}
           {selectionMode && (
@@ -900,7 +899,7 @@ export default function SessionsPage() {
               >
                 {bulkProcessing ? (
                   <>
-                    <span className="loading loading-spinner loading-xs"></span>
+                    <span className="loading loading-spinner loading-xs" />
                     Processing ({bulkProgress.current}/{bulkProgress.total})
                   </>
                 ) : (
@@ -945,7 +944,7 @@ export default function SessionsPage() {
           <p className="text-base-content/70">
             {showActiveOnly && sessions.length > 0
               ? 'No active sessions match the current filters'
-              : 'Sessions will appear here as they\'re detected by the file watchers'}
+              : "Sessions will appear here as they're detected by the file watchers"}
           </p>
         </div>
       ) : (
@@ -979,11 +978,13 @@ export default function SessionsPage() {
                       processingStatus: session.processingStatus,
                       assessmentStatus: session.assessmentStatus,
                       assessmentRating: session.assessmentRating,
-                      syncedToServer: session.syncedToServer === 1,
+                      syncedToServer: session.syncedToServer,
                       syncFailedReason: session.syncFailedReason,
                     }}
                     isActive={isActive}
-                    isProcessing={processingSessionId === session.sessionId || (bulkProcessing && isSelected)}
+                    isProcessing={
+                      processingSessionId === session.sessionId || (bulkProcessing && isSelected)
+                    }
                     onViewSession={() => handleViewSession(session.sessionId as string)}
                     onProcessSession={
                       isCompleted
@@ -1052,11 +1053,12 @@ export default function SessionsPage() {
           )}
 
           {/* Show completion message */}
-          {displayCount >= filteredSessions.length && filteredSessions.length > SESSIONS_PER_PAGE && (
-            <div className="text-center py-4 text-sm text-base-content/70">
-              All {filteredSessions.length} sessions loaded
-            </div>
-          )}
+          {displayCount >= filteredSessions.length &&
+            filteredSessions.length > SESSIONS_PER_PAGE && (
+              <div className="text-center py-4 text-sm text-base-content/70">
+                All {filteredSessions.length} sessions loaded
+              </div>
+            )}
         </>
       )}
 

@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from 'react'
-import { check, Update } from '@tauri-apps/plugin-updater'
-import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
+import { relaunch } from '@tauri-apps/plugin-process'
+import { type Update, check } from '@tauri-apps/plugin-updater'
+import { useCallback, useEffect, useState } from 'react'
 
 // Helper function to log updater events to persistent storage
 async function logUpdaterEvent(level: string, message: string, details?: Record<string, unknown>) {
