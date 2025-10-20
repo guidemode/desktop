@@ -3,8 +3,7 @@ import {
   PhaseTimeline,
   SessionDetailHeader,
   type SessionPhaseAnalysis,
-  TimelineGroup,
-  TimelineMessage,
+  VirtualizedMessageList,
   isTimelineGroup,
 } from '@guideai-dev/session-processing/ui'
 import type { SessionRating } from '@guideai-dev/session-processing/ui'
@@ -20,7 +19,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AiProcessingProgress } from '../components/AiProcessingProgress'
 import { SessionChangesTab } from '../components/SessionChangesTab'
@@ -120,10 +119,20 @@ export default function SessionDetailPage() {
   const { progress, updateProgress, reset: resetProgress } = useAiProcessingProgress()
   const toast = useToast()
   const quickRatingMutation = useQuickRating()
+  const [scrollParent, setScrollParent] = useState<HTMLElement | undefined>(undefined)
 
   // Track session activity from file watchers
   useSessionActivity()
   const isSessionActive = useSessionActivityStore(state => state.isSessionActive)
+
+  // Find the main scroll container (AppLayout's <main> element)
+  useEffect(() => {
+    // Find the main element that has overflow-auto
+    const main = document.querySelector('main.overflow-auto') as HTMLElement
+    if (main) {
+      setScrollParent(main)
+    }
+  }, [])
 
   // Tab state - default to transcript
   const [activeTab, setActiveTab] = useState<
@@ -397,37 +406,6 @@ export default function SessionDetailPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  const renderTimeline = () => {
-    if (!timeline) return null
-
-    // Filter out meta messages if setting is disabled
-    let filteredItems = timeline.items
-    if (!showMetaMessages) {
-      filteredItems = filteredItems.filter(item => {
-        if (isTimelineGroup(item)) {
-          // Keep group if neither message is meta
-          return item.messages.every(msg => msg.originalMessage.type !== 'meta')
-        }
-        // Keep single message if not meta
-        return item.originalMessage.type !== 'meta'
-      })
-    }
-
-    // Apply reverse order if requested
-    const orderedItems = reverseOrder ? [...filteredItems].reverse() : filteredItems
-
-    return (
-      <div>
-        {orderedItems.map(item => {
-          if (isTimelineGroup(item)) {
-            return <TimelineGroup key={item.id} group={item} />
-          }
-          return <TimelineMessage key={item.id} message={item} />
-        })}
-      </div>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -459,6 +437,22 @@ export default function SessionDetailPage() {
 
   const messages = timeline?.items.filter(item => !isTimelineGroup(item)) || []
   const messageCount = messages.length
+
+  // Filter out meta messages if setting is disabled
+  let filteredItems = timeline?.items || []
+  if (!showMetaMessages && timeline) {
+    filteredItems = filteredItems.filter(item => {
+      if (isTimelineGroup(item)) {
+        // Keep group if neither message is meta
+        return item.messages.every(msg => msg.originalMessage.type !== 'meta')
+      }
+      // Keep single message if not meta
+      return item.originalMessage.type !== 'meta'
+    })
+  }
+
+  // Apply reverse order if requested
+  const orderedItems = reverseOrder ? [...filteredItems].reverse() : filteredItems
 
   return (
     <div className="space-y-4">
@@ -726,7 +720,10 @@ export default function SessionDetailPage() {
                 <span>Failed to load session content: {contentError}</span>
               </div>
             ) : (
-              <div className="overflow-auto">{renderTimeline()}</div>
+              <VirtualizedMessageList
+                items={orderedItems}
+                customScrollParent={scrollParent}
+              />
             )}
           </>
         )}
