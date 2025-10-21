@@ -186,6 +186,13 @@ pub async fn upload_v2(
             })
         };
 
+        // Helper to parse comma-separated step numbers into array of integers
+        let parse_compact_steps = |s: &Option<String>| -> Option<Vec<i64>> {
+            s.as_ref().and_then(|str_val| {
+                serde_json::from_str::<Vec<i64>>(str_val).ok()
+            })
+        };
+
         upload_request["metrics"] = serde_json::json!({
             "sessionId": m.session_id,
             "provider": m.provider,
@@ -234,6 +241,19 @@ pub async fn upload_v2(
             "gitLinesChangedPerMinute": m.git_lines_changed_per_minute,
             "gitLinesChangedPerToolUse": m.git_lines_changed_per_tool_use,
             "totalLinesRead": m.total_lines_read,
+            // Context management metrics (Claude Code - token tracking and compaction)
+            "totalInputTokens": m.total_input_tokens,
+            "totalOutputTokens": m.total_output_tokens,
+            "totalCacheCreated": m.total_cache_created,
+            "totalCacheRead": m.total_cache_read,
+            "contextLength": m.context_length,
+            "contextWindowSize": m.context_window_size,
+            "contextUtilizationPercent": m.context_utilization_percent,
+            "compactEventCount": m.compact_event_count,
+            "compactEventSteps": parse_compact_steps(&m.compact_event_steps),
+            "avgTokensPerMessage": m.avg_tokens_per_message,
+            "messagesUntilFirstCompact": m.messages_until_first_compact,
+            "contextImprovementTips": parse_array(&m.context_improvement_tips),
             // Custom metrics
             "customMetrics": m.custom_metrics.as_ref().and_then(|s| serde_json::from_str::<Value>(s).ok()),
         });

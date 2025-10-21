@@ -109,6 +109,27 @@ async function fetchSessionMetrics(sessionId: string): Promise<SessionMetricsUI 
               : [],
           }
         : undefined,
+    context:
+      row.total_input_tokens !== null
+        ? {
+            totalInputTokens: row.total_input_tokens,
+            totalOutputTokens: row.total_output_tokens,
+            totalCacheCreated: row.total_cache_created,
+            totalCacheRead: row.total_cache_read,
+            contextLength: row.context_length,
+            contextWindowSize: row.context_window_size,
+            contextUtilizationPercent: row.context_utilization_percent,
+            compactEventCount: row.compact_event_count,
+            compactEventSteps: row.compact_event_steps
+              ? JSON.parse(row.compact_event_steps)
+              : [],
+            avgTokensPerMessage: row.avg_tokens_per_message,
+            messagesUntilFirstCompact: row.messages_until_first_compact,
+            improvementTips: row.context_improvement_tips
+              ? JSON.parse(row.context_improvement_tips)
+              : [],
+          }
+        : undefined,
   }
 
   return metricsData

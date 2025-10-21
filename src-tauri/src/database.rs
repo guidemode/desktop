@@ -1039,6 +1039,19 @@ pub struct SessionMetrics {
     pub git_lines_changed_per_minute: Option<f64>,
     pub git_lines_changed_per_tool_use: Option<f64>,
     pub total_lines_read: Option<i64>,
+    // Context management metrics
+    pub total_input_tokens: Option<i64>,
+    pub total_output_tokens: Option<i64>,
+    pub total_cache_created: Option<i64>,
+    pub total_cache_read: Option<i64>,
+    pub context_length: Option<i64>,
+    pub context_window_size: Option<i64>,
+    pub context_utilization_percent: Option<f64>,
+    pub compact_event_count: Option<i64>,
+    pub compact_event_steps: Option<String>,       // JSON array
+    pub messages_until_first_compact: Option<i64>,
+    pub avg_tokens_per_message: Option<f64>,
+    pub context_improvement_tips: Option<String>,  // JSON array
 }
 
 /// Clear all failed sessions from the database
@@ -1137,7 +1150,11 @@ pub fn get_session_metrics(session_id: &str) -> Result<Option<SessionMetrics>> {
                     over_top_affirmations_phrases, improvement_tips, custom_metrics,
                     git_total_files_changed, git_lines_added, git_lines_removed, git_lines_modified,
                     git_net_lines_changed, git_lines_read_per_line_changed, git_reads_per_file_changed,
-                    git_lines_changed_per_minute, git_lines_changed_per_tool_use, total_lines_read
+                    git_lines_changed_per_minute, git_lines_changed_per_tool_use, total_lines_read,
+                    total_input_tokens, total_output_tokens, total_cache_created, total_cache_read,
+                    context_length, context_window_size, context_utilization_percent,
+                    compact_event_count, compact_event_steps, messages_until_first_compact,
+                    avg_tokens_per_message, context_improvement_tips
              FROM session_metrics
              WHERE session_id = ?
              ORDER BY created_at DESC
@@ -1187,6 +1204,18 @@ pub fn get_session_metrics(session_id: &str) -> Result<Option<SessionMetrics>> {
                     git_lines_changed_per_minute: row.get(39)?,
                     git_lines_changed_per_tool_use: row.get(40)?,
                     total_lines_read: row.get(41)?,
+                    total_input_tokens: row.get(42)?,
+                    total_output_tokens: row.get(43)?,
+                    total_cache_created: row.get(44)?,
+                    total_cache_read: row.get(45)?,
+                    context_length: row.get(46)?,
+                    context_window_size: row.get(47)?,
+                    context_utilization_percent: row.get(48)?,
+                    compact_event_count: row.get(49)?,
+                    compact_event_steps: row.get(50)?,
+                    messages_until_first_compact: row.get(51)?,
+                    avg_tokens_per_message: row.get(52)?,
+                    context_improvement_tips: row.get(53)?,
                 })
             },
         )

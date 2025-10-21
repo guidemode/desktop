@@ -132,6 +132,30 @@ fn main() {
                             sql: include_str!("../migrations/016_add_git_diff_improvement_tips.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 17,
+                            description: "add_context_management_metrics",
+                            sql: include_str!("../migrations/017_add_context_management_metrics.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 18,
+                            description: "update_context_metrics_structure",
+                            sql: include_str!("../migrations/018_update_context_metrics_structure.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 19,
+                            description: "remove_per_message_tokens",
+                            sql: include_str!("../migrations/019_remove_per_message_tokens.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 20,
+                            description: "remove_peak_context_tokens",
+                            sql: include_str!("../migrations/020_remove_peak_context_tokens.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

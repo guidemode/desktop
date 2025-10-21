@@ -209,6 +209,20 @@ describe('useSessionProcessing', () => {
       null,
       null,
       null,
+      null, // git_diff_improvement_tips (11th git metric)
+      // Context management metrics (added in migrations 017-020)
+      null, // total_input_tokens
+      null, // total_output_tokens
+      null, // total_cache_created
+      null, // total_cache_read
+      null, // context_length
+      null, // context_window_size
+      null, // context_utilization_percent
+      null, // compact_event_count
+      null, // compact_event_steps
+      null, // avg_tokens_per_message
+      null, // messages_until_first_compact
+      null, // context_improvement_tips
       FIXED_TIME.getTime(),
     ])
 

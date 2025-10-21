@@ -446,16 +446,32 @@ export default function SessionDetailPage() {
   const messages = timeline?.items.filter(item => !isTimelineGroup(item)) || []
   const messageCount = messages.length
 
-  // Filter out meta messages if setting is disabled
+  // Filter out meta messages and empty assistant messages
   let filteredItems = timeline?.items || []
-  if (!showMetaMessages && timeline) {
+  if (timeline) {
     filteredItems = filteredItems.filter(item => {
       if (isTimelineGroup(item)) {
-        // Keep group if neither message is meta
-        return item.messages.every(msg => msg.originalMessage.type !== 'meta')
+        // Keep group if messages are not meta and not empty assistant responses
+        return item.messages.every(msg => {
+          const isMetaMessage = msg.originalMessage.type === 'meta'
+          const isEmptyAssistant =
+            msg.originalMessage.type === 'assistant_response' &&
+            typeof msg.originalMessage.content === 'string' &&
+            msg.originalMessage.content.trim() === ''
+
+          // Filter out meta (if disabled) and always filter empty assistant messages
+          return (!showMetaMessages ? !isMetaMessage : true) && !isEmptyAssistant
+        })
       }
-      // Keep single message if not meta
-      return item.originalMessage.type !== 'meta'
+      // For single messages
+      const isMetaMessage = item.originalMessage.type === 'meta'
+      const isEmptyAssistant =
+        item.originalMessage.type === 'assistant_response' &&
+        typeof item.originalMessage.content === 'string' &&
+        item.originalMessage.content.trim() === ''
+
+      // Filter out meta (if disabled) and always filter empty assistant messages
+      return (!showMetaMessages ? !isMetaMessage : true) && !isEmptyAssistant
     })
   }
 

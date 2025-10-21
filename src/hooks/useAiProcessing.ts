@@ -55,6 +55,18 @@ export function useAiProcessing() {
       setError(null)
 
       try {
+        // Normalize message types for AI tasks
+        // Claude Code parser uses 'user_input' and 'assistant_response', but AI tasks expect 'user' and 'assistant'
+        const normalizedSession: ParsedSession = {
+          ...parsedSession,
+          messages: parsedSession.messages.map(msg => ({
+            ...msg,
+            type: msg.type === 'user_input' ? ('user' as const) :
+                  msg.type === 'assistant_response' ? ('assistant' as const) :
+                  msg.type
+          }))
+        }
+
         // Check for available API keys
         const claudeKey = getAiApiKey('claude')
         const geminiKey = getAiApiKey('gemini')
@@ -86,8 +98,8 @@ export function useAiProcessing() {
             sessionId,
             tenantId: user?.tenantId || 'local',
             userId: user?.username || 'local',
-            provider: parsedSession.provider,
-            session: parsedSession,
+            provider: normalizedSession.provider,
+            session: normalizedSession,
             user: user
               ? {
                   name: user.name || user.username,
@@ -154,12 +166,13 @@ export function useAiProcessing() {
         // Run Intent Extraction task
         try {
           const intentTask = new IntentExtractionTask()
+
           const intentResult = await adapter.executeTask(intentTask, {
             sessionId,
             tenantId: user?.tenantId || 'local',
             userId: user?.username || 'local',
-            provider: parsedSession.provider,
-            session: parsedSession,
+            provider: normalizedSession.provider,
+            session: normalizedSession,
             user: user
               ? {
                   name: user.name || user.username,
@@ -224,8 +237,8 @@ export function useAiProcessing() {
             sessionId,
             tenantId: user?.tenantId || 'local',
             userId: user?.username || 'local',
-            provider: parsedSession.provider,
-            session: parsedSession,
+            provider: normalizedSession.provider,
+            session: normalizedSession,
             user: user
               ? {
                   name: user.name || user.username,
@@ -298,8 +311,8 @@ export function useAiProcessing() {
             sessionId,
             tenantId: user?.tenantId || 'local',
             userId: user?.username || 'local',
-            provider: parsedSession.provider,
-            session: parsedSession,
+            provider: normalizedSession.provider,
+            session: normalizedSession,
             user: user
               ? {
                   name: user.name || user.username,

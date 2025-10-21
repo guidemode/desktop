@@ -1,5 +1,6 @@
 import type { ProcessorContext, ProcessorResult } from '@guideai-dev/session-processing/processors'
 import type {
+  ContextManagementMetrics,
   EngagementMetrics,
   ErrorMetrics,
   GitDiffMetrics,
@@ -67,6 +68,19 @@ interface SessionMetricsRow {
   git_lines_changed_per_tool_use?: number
   total_lines_read?: number
   git_diff_improvement_tips?: string
+  // Context management metrics
+  total_input_tokens?: number
+  total_output_tokens?: number
+  total_cache_created?: number
+  total_cache_read?: number
+  context_length?: number
+  context_window_size?: number
+  context_utilization_percent?: number
+  compact_event_count?: number
+  compact_event_steps?: string // JSON array
+  avg_tokens_per_message?: number
+  messages_until_first_compact?: number
+  context_improvement_tips?: string // JSON array
   // Custom metrics
   custom_metrics?: string
   created_at: number
@@ -264,6 +278,23 @@ function mapResultsToRow(
         row.git_diff_improvement_tips = gitDiff.metadata?.improvement_tips?.join('\n')
         break
       }
+
+      case 'context-management': {
+        const context = metrics as ContextManagementMetrics
+        row.total_input_tokens = context.total_input_tokens
+        row.total_output_tokens = context.total_output_tokens
+        row.total_cache_created = context.total_cache_created
+        row.total_cache_read = context.total_cache_read
+        row.context_length = context.context_length
+        row.context_window_size = context.context_window_size
+        row.context_utilization_percent = context.context_utilization_percent
+        row.compact_event_count = context.compact_event_count
+        row.compact_event_steps = context.compact_event_steps // Already JSON string
+        row.avg_tokens_per_message = context.avg_tokens_per_message
+        row.messages_until_first_compact = context.messages_until_first_compact ?? undefined
+        row.context_improvement_tips = context.context_improvement_tips // Already JSON string
+        break
+      }
     }
   }
 
@@ -280,9 +311,7 @@ async function storeMetrics(
 ): Promise<void> {
   const row = mapResultsToRow(sessionId, provider, results)
 
-  // Use Tauri SQL plugin to insert or replace metrics (upsert based on session_id unique constraint)
-  await invoke('execute_sql', {
-    sql: `
+  const sql = `
       INSERT OR REPLACE INTO session_metrics (
         id, session_id, provider, timestamp,
         response_latency_ms, task_completion_time_ms, performance_total_responses,
@@ -295,10 +324,15 @@ async function storeMetrics(
         over_top_affirmations_phrases,
         usage_improvement_tips, error_improvement_tips, engagement_improvement_tips,
         quality_improvement_tips, performance_improvement_tips, improvement_tips,
+        custom_metrics,
         git_total_files_changed, git_lines_added, git_lines_removed, git_lines_modified,
         git_net_lines_changed, git_lines_read_per_line_changed, git_reads_per_file_changed,
         git_lines_changed_per_minute, git_lines_changed_per_tool_use, total_lines_read,
         git_diff_improvement_tips,
+        total_input_tokens, total_output_tokens, total_cache_created, total_cache_read,
+        context_length, context_window_size, context_utilization_percent,
+        compact_event_count, compact_event_steps, avg_tokens_per_message,
+        messages_until_first_compact, context_improvement_tips,
         created_at
       ) VALUES (
         ?, ?, ?, ?,
@@ -312,14 +346,20 @@ async function storeMetrics(
         ?,
         ?, ?, ?,
         ?, ?, ?,
+        ?,
         ?, ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?,
         ?,
+        ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?,
         ?
       )
-    `,
-    params: [
+    `
+
+  const params = [
       row.id,
       row.session_id,
       row.provider,
@@ -358,6 +398,7 @@ async function storeMetrics(
       row.quality_improvement_tips ?? null,
       row.performance_improvement_tips ?? null,
       row.improvement_tips ?? null,
+      row.custom_metrics ?? null,
       row.git_total_files_changed ?? null,
       row.git_lines_added ?? null,
       row.git_lines_removed ?? null,
@@ -369,8 +410,37 @@ async function storeMetrics(
       row.git_lines_changed_per_tool_use ?? null,
       row.total_lines_read ?? null,
       row.git_diff_improvement_tips ?? null,
+      row.total_input_tokens ?? null,
+      row.total_output_tokens ?? null,
+      row.total_cache_created ?? null,
+      row.total_cache_read ?? null,
+      row.context_length ?? null,
+      row.context_window_size ?? null,
+      row.context_utilization_percent ?? null,
+      row.compact_event_count ?? null,
+      row.compact_event_steps ?? null,
+      row.avg_tokens_per_message ?? null,
+      row.messages_until_first_compact ?? null,
+      row.context_improvement_tips ?? null,
       row.created_at,
-    ],
+    ]
+
+  // Debug logging
+  const columnMatches = sql.match(/INSERT OR REPLACE INTO session_metrics \(([\s\S]*?)\) VALUES/)
+  if (columnMatches) {
+    const columns = columnMatches[1].split(',').map(s => s.trim()).filter(Boolean)
+    console.log('[DEBUG] Column count:', columns.length)
+    console.log('[DEBUG] Param count:', params.length)
+    if (columns.length !== params.length) {
+      console.error('[ERROR] Column/param mismatch!')
+      console.error('[ERROR] Columns:', columns)
+    }
+  }
+
+  // Use Tauri SQL plugin to insert or replace metrics (upsert based on session_id unique constraint)
+  await invoke('execute_sql', {
+    sql,
+    params,
   })
 
   // Update the core_metrics_status in agent_sessions table and reset sync flag to trigger upload
