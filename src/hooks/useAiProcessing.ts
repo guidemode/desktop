@@ -9,6 +9,7 @@ import type { ParsedSession } from '@guideai-dev/session-processing/processors'
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useState } from 'react'
 import { useConfigStore } from '../stores/configStore'
+import { useAuth } from './useAuth'
 import type { AiProcessingStep } from './useAiProcessingProgress'
 
 interface AiProcessingResult {
@@ -42,6 +43,7 @@ export function useAiProcessing() {
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { getAiApiKey } = useConfigStore()
+  const { user } = useAuth()
 
   const processSessionWithAi = useCallback(
     async (
@@ -82,10 +84,17 @@ export function useAiProcessing() {
           const summaryTask = new SessionSummaryTask()
           const summaryResult = await adapter.executeTask(summaryTask, {
             sessionId,
-            tenantId: 'local',
-            userId: 'local',
+            tenantId: user?.tenantId || 'local',
+            userId: user?.username || 'local',
             provider: parsedSession.provider,
             session: parsedSession,
+            user: user
+              ? {
+                  name: user.name || user.username,
+                  username: user.username,
+                  email: undefined,
+                }
+              : undefined,
           })
 
           if (summaryResult.success && summaryResult.output) {
@@ -147,10 +156,17 @@ export function useAiProcessing() {
           const intentTask = new IntentExtractionTask()
           const intentResult = await adapter.executeTask(intentTask, {
             sessionId,
-            tenantId: 'local',
-            userId: 'local',
+            tenantId: user?.tenantId || 'local',
+            userId: user?.username || 'local',
             provider: parsedSession.provider,
             session: parsedSession,
+            user: user
+              ? {
+                  name: user.name || user.username,
+                  username: user.username,
+                  email: undefined,
+                }
+              : undefined,
           })
 
           if (intentResult.success && intentResult.output) {
@@ -206,10 +222,17 @@ export function useAiProcessing() {
           const qualityTask = new QualityAssessmentTask()
           const qualityResult = await adapter.executeTask(qualityTask, {
             sessionId,
-            tenantId: 'local',
-            userId: 'local',
+            tenantId: user?.tenantId || 'local',
+            userId: user?.username || 'local',
             provider: parsedSession.provider,
             session: parsedSession,
+            user: user
+              ? {
+                  name: user.name || user.username,
+                  username: user.username,
+                  email: undefined,
+                }
+              : undefined,
           })
 
           if (qualityResult.success && qualityResult.output) {
@@ -273,10 +296,17 @@ export function useAiProcessing() {
           const phaseAnalysisTask = new SessionPhaseAnalysisTask()
           const phaseAnalysisResult = await adapter.executeTask(phaseAnalysisTask, {
             sessionId,
-            tenantId: 'local',
-            userId: 'local',
+            tenantId: user?.tenantId || 'local',
+            userId: user?.username || 'local',
             provider: parsedSession.provider,
             session: parsedSession,
+            user: user
+              ? {
+                  name: user.name || user.username,
+                  username: user.username,
+                  email: undefined,
+                }
+              : undefined,
           })
 
           if (phaseAnalysisResult.success && phaseAnalysisResult.output) {
@@ -368,7 +398,7 @@ export function useAiProcessing() {
         setProcessing(false)
       }
     },
-    [getAiApiKey]
+    [getAiApiKey, user]
   )
 
   return {
