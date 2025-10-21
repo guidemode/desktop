@@ -465,7 +465,7 @@ export default function SessionDetailPage() {
   return (
     <div className="space-y-4">
       {/* Page Header */}
-      <div>
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Session Detail</h1>
           {sessionId &&
@@ -480,7 +480,7 @@ export default function SessionDetailPage() {
               </span>
             )}
         </div>
-        <button onClick={() => navigate('/sessions')} className="btn btn-sm btn-ghost mt-3 pl-0">
+        <button onClick={() => navigate('/sessions')} className="btn btn-sm btn-ghost">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -513,6 +513,7 @@ export default function SessionDetailPage() {
                     cwd: undefined,
                   }
                 : undefined,
+              aiModelSummary: (session as any).ai_model_summary || undefined,
               gitBranch: session.git_branch || undefined,
               firstCommitHash: session.first_commit_hash || undefined,
               latestCommitHash: session.latest_commit_hash || undefined,
