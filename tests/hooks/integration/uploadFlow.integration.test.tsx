@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSessionSync } from '../useSessionSync'
-import { useUploadQueueStatus } from '../useUploadQueue'
+import { useSessionSync } from '../../../src/../src/hooks/useSessionSync'
+import { useUploadQueueStatus } from '../../../src/../src/hooks/useUploadQueue'
 
 const invoke = vi.fn()
 

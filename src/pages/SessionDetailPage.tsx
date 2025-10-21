@@ -119,21 +119,11 @@ export default function SessionDetailPage() {
   const { progress, updateProgress, reset: resetProgress } = useAiProcessingProgress()
   const toast = useToast()
   const quickRatingMutation = useQuickRating()
-  const [scrollParent, setScrollParent] = useState<HTMLElement | undefined>(undefined)
   const [hasPendingChanges, setHasPendingChanges] = useState(false)
 
   // Track session activity from file watchers
   useSessionActivity()
   const isSessionActive = useSessionActivityStore(state => state.isSessionActive)
-
-  // Find the main scroll container (AppLayout's <main> element)
-  useEffect(() => {
-    // Find the main element that has overflow-auto
-    const main = document.querySelector('main.overflow-auto') as HTMLElement
-    if (main) {
-      setScrollParent(main)
-    }
-  }, [])
 
   // Tab state - default to transcript
   const [activeTab, setActiveTab] = useState<
@@ -503,7 +493,7 @@ export default function SessionDetailPage() {
         </button>
       </div>
 
-      {/* Session Detail Header - Shared across all tabs */}
+      {/* Session Detail Header */}
       {session && (
         <>
           <SessionDetailHeader
@@ -753,11 +743,7 @@ export default function SessionDetailPage() {
                 <span>Failed to load session content: {contentError}</span>
               </div>
             ) : (
-              <VirtualizedMessageList
-                items={orderedItems}
-                customScrollParent={scrollParent}
-                reverseOrder={reverseOrder}
-              />
+              <VirtualizedMessageList items={orderedItems} />
             )}
           </>
         )}

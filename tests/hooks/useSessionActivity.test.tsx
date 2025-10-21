@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSessionActivity } from './useSessionActivity'
-import { useSessionActivityStore } from '../stores/sessionActivityStore'
+import { useSessionActivity } from '../../src/hooks/useSessionActivity'
+import { useSessionActivityStore } from '../../src/stores/sessionActivityStore'
 
 const listen = vi.fn()
 

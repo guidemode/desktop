@@ -2,7 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { useLocalSessionContent } from './useLocalSessionContent'
+import { useLocalSessionContent } from '../../src/hooks/useLocalSessionContent'
 
 const invoke = vi.fn()
 const getParser = vi.fn()

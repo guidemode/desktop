@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSessionProcessing } from './useSessionProcessing'
+import { useSessionProcessing } from '../../src/hooks/useSessionProcessing'
 
 const mockInvoke = vi.fn()
 const mockGetProcessor = vi.fn()

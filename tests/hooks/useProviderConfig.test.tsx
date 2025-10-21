@@ -7,7 +7,7 @@ import {
   useProviderConfig,
   useSaveProviderConfig,
   useScanProjects,
-} from './useProviderConfig'
+} from '../../src/hooks/useProviderConfig'
 
 const invoke = vi.fn()
 

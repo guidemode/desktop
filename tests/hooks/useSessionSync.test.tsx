@@ -1,8 +1,8 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSessionSync } from './useSessionSync'
-import type { SessionSyncProgress } from './useSessionSync'
+import { useSessionSync } from '../../src/hooks/useSessionSync'
+import type { SessionSyncProgress } from '../../src/hooks/useSessionSync'
 
 const mockInvoke = vi.fn()
 
@@ -89,7 +89,9 @@ describe('useSessionSync', () => {
 
       await waitFor(() => expect(result.current.progress).toEqual(initialProgress))
 
-      await result.current.scanSessions()
+      await act(async () => {
+        await result.current.scanSessions()
+      })
 
       expect(mockInvoke).toHaveBeenCalledWith('scan_historical_sessions', {
         providerId: 'claude-code',
@@ -132,7 +134,9 @@ describe('useSessionSync', () => {
 
       await waitFor(() => expect(result.current.progress).toEqual(initialProgress))
 
-      await result.current.syncSessions()
+      await act(async () => {
+        await result.current.syncSessions()
+      })
 
       expect(mockInvoke).toHaveBeenCalledWith('sync_historical_sessions', {
         providerId: 'claude-code',
@@ -168,7 +172,9 @@ describe('useSessionSync', () => {
 
       await waitFor(() => expect(result.current.progress).toBeDefined())
 
-      await result.current.resetProgress()
+      await act(async () => {
+        await result.current.resetProgress()
+      })
 
       await waitFor(() => expect(result.current.error).toBe('reset failed'))
     } finally {

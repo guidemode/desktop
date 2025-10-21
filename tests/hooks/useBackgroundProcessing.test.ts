@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useBackgroundProcessing } from './useBackgroundProcessing'
+import { useBackgroundProcessing } from '../../src/hooks/useBackgroundProcessing'
 
 const invoke = vi.fn()
 const processSession = vi.fn()
@@ -9,7 +9,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => invoke(...args),
 }))
 
-vi.mock('./useSessionProcessing', () => ({
+vi.mock('../../src/hooks/useSessionProcessing', () => ({
   useSessionProcessing: () => ({
     processSession: (...args: unknown[]) => processSession(...args),
   }),
@@ -129,13 +129,19 @@ describe('useBackgroundProcessing', () => {
 
     const { result } = renderHook(() => useBackgroundProcessing())
 
-    const firstCall = result.current.processNow()
+    let firstCall: Promise<void>
+    await act(async () => {
+      firstCall = result.current.processNow()
+    })
     await act(async () => {
       await Promise.resolve()
     })
     expect(processSession).toHaveBeenCalledTimes(1)
 
-    const secondCall = result.current.processNow()
+    let secondCall: Promise<void>
+    await act(async () => {
+      secondCall = result.current.processNow()
+    })
     await act(async () => {
       await Promise.resolve()
     })
@@ -146,8 +152,10 @@ describe('useBackgroundProcessing', () => {
       await Promise.resolve()
     })
 
-    await firstCall
-    await secondCall
+    await act(async () => {
+      await firstCall!
+      await secondCall!
+    })
     await act(async () => {
       await Promise.resolve()
     })

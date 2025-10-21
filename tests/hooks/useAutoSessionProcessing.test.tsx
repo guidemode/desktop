@@ -1,6 +1,6 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAutoSessionProcessing } from './useAutoSessionProcessing'
+import { useAutoSessionProcessing } from '../../src/hooks/useAutoSessionProcessing'
 
 const listen = vi.fn()
 const invoke = vi.fn()
@@ -14,7 +14,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => invoke(...args),
 }))
 
-vi.mock('./useSessionProcessing', () => ({
+vi.mock('../../src/hooks/useSessionProcessing', () => ({
   useSessionProcessing: () => ({
     processSession: (...args: unknown[]) => processSession(...args),
   }),
@@ -88,7 +88,9 @@ describe('useAutoSessionProcessing', () => {
     await waitFor(() => expect(listen).toHaveBeenCalledWith('session-completed', expect.any(Function)))
     expect(eventHandler).toBeTruthy()
 
-    await eventHandler?.({ payload: 'session-1' })
+    await act(async () => {
+      await eventHandler?.({ payload: 'session-1' })
+    })
 
     expect(processSession).toHaveBeenCalledWith('session-1', 'claude-code', 'session-content', 'local')
 
@@ -120,14 +122,21 @@ describe('useAutoSessionProcessing', () => {
     await waitFor(() => expect(eventHandler).toBeTruthy())
 
     const handler = eventHandler!
-    const processPromise = handler({ payload: 'session-2' })
+    let processPromise: Promise<void>
+    await act(async () => {
+      processPromise = handler({ payload: 'session-2' })
+    })
     await waitFor(() => expect(processSession).toHaveBeenCalledTimes(1))
 
-    await handler({ payload: 'session-2' })
+    await act(async () => {
+      await handler({ payload: 'session-2' })
+    })
     expect(processSession).toHaveBeenCalledTimes(1)
 
-    deferred.resolve()
-    await processPromise
+    await act(async () => {
+      deferred.resolve()
+      await processPromise!
+    })
   })
 
   it('logs when session is missing and does not invoke processor', async () => {
@@ -143,7 +152,9 @@ describe('useAutoSessionProcessing', () => {
     renderHook(() => useAutoSessionProcessing())
     await waitFor(() => expect(eventHandler).toBeTruthy())
 
-    await eventHandler?.({ payload: 'missing-session' })
+    await act(async () => {
+      await eventHandler?.({ payload: 'missing-session' })
+    })
 
     expect(processSession).not.toHaveBeenCalled()
     expect(consoleSpy).toHaveBeenCalledWith('Session missing-session not found in database')

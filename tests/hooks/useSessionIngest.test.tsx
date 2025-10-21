@@ -1,12 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSessionIngest } from './useSessionIngest'
+import { useSessionIngest } from '../../src/hooks/useSessionIngest'
 
 const sessionExists = vi.fn()
 const insertSession = vi.fn()
 const listen = vi.fn()
 
-vi.mock('../services/sessionIngestion', () => ({
+vi.mock('../../src/services/sessionIngestion', () => ({
   sessionExists: (...args: unknown[]) => sessionExists(...args),
   insertSession: (...args: unknown[]) => insertSession(...args),
 }))

@@ -7,22 +7,22 @@ import {
   useStartClaudeWatcher,
   useStopClaudeWatcher,
   useProviderLogs,
-} from './useClaudeWatcher'
+} from '../../src/hooks/useClaudeWatcher'
 import {
   useCodexWatcherStatus,
   useStartCodexWatcher,
   useStopCodexWatcher,
-} from './useCodexWatcher'
+} from '../../src/hooks/useCodexWatcher'
 import {
   useCopilotWatcherStatus,
   useStartCopilotWatcher,
   useStopCopilotWatcher,
-} from './useCopilotWatcher'
+} from '../../src/hooks/useCopilotWatcher'
 import {
   useOpenCodeWatcherStatus,
   useStartOpenCodeWatcher,
   useStopOpenCodeWatcher,
-} from './useOpenCodeWatcher'
+} from '../../src/hooks/useOpenCodeWatcher'
 
 const invoke = vi.fn()
 

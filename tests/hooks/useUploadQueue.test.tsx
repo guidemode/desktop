@@ -9,7 +9,7 @@ import {
   useRetryUpload,
   useUploadQueueItems,
   useUploadQueueStatus,
-} from './useUploadQueue'
+} from '../../src/hooks/useUploadQueue'
 
 const invoke = vi.fn()
 
