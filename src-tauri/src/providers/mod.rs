@@ -12,9 +12,10 @@ mod copilot_parser;
 mod copilot_snapshot;
 mod copilot_watcher;
 pub mod db_helpers;
-pub mod gemini; // Made public for test access to CWD extraction functions
+pub mod gemini; // Gemini converter (public for canonical format migration)
 pub mod gemini_parser; // Made public for test access
 pub mod gemini_registry; // Registry for hash->CWD mappings
+pub mod gemini_utils; // Made public for test access to CWD extraction functions
 mod gemini_watcher;
 mod opencode;
 mod opencode_parser;
@@ -34,7 +35,7 @@ pub fn scan_projects(provider_id: &str, home_directory: &str) -> Result<Vec<Proj
         "github-copilot" => copilot::scan_projects(home_directory),
         "opencode" => opencode::scan_projects(home_directory),
         "codex" => codex::scan_projects(home_directory),
-        "gemini-code" => gemini::scan_projects(home_directory),
+        "gemini-code" => gemini_utils::scan_projects(home_directory),
         other => Err(format!("Unsupported provider: {}", other)),
     }
 }

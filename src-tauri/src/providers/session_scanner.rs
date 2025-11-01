@@ -820,7 +820,7 @@ fn parse_gemini_session(file_path: &Path) -> Result<SessionInfo, String> {
 fn extract_cwd_from_gemini_session(
     session: &super::gemini_parser::GeminiSession,
 ) -> Option<String> {
-    use super::gemini::infer_cwd_from_session;
+    use super::gemini_utils::infer_cwd_from_session;
     infer_cwd_from_session(session, &session.project_hash)
 }
 
