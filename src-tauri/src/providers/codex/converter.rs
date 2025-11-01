@@ -149,16 +149,30 @@ impl ToCanonical for CodexMessage {
                 })
             }
             CodexPayload::TurnContext(_) => {
-                // Turn context is metadata, skip for now
-                Ok(CanonicalMessage::new_text_message(
+                // Turn context is metadata - preserve full payload
+                Ok(CanonicalMessage {
                     uuid,
-                    self.timestamp.clone(),
-                    MessageType::Meta,
+                    timestamp: self.timestamp.clone(),
+                    message_type: MessageType::Meta,
                     session_id,
-                    self.provider_name().to_string(),
-                    "assistant".to_string(),
-                    "".to_string(),
-                ))
+                    provider: self.provider_name().to_string(),
+                    cwd: self.extract_cwd(),
+                    git_branch: None,
+                    version: None,
+                    parent_uuid: None,
+                    is_sidechain: None,
+                    user_type: Some("external".to_string()),
+                    message: MessageContent {
+                        role: "assistant".to_string(),
+                        content: ContentValue::Text("".to_string()),
+                        model: None,
+                        usage: None,
+                    },
+                    provider_metadata: Some(serde_json::to_value(&self.payload)?),
+                    is_meta: Some(true),
+                    request_id: None,
+                    tool_use_result: None,
+                })
             }
         }
     }
@@ -232,8 +246,7 @@ impl CodexMessage {
                         usage: None,
                     },
                     provider_metadata: Some(serde_json::json!({
-                        "provider": "codex",
-                        "original_type": "response_item",
+                        "codex_type": "response_item",
                         "item_type": "message",
                     })),
                     is_meta: None,
@@ -261,15 +274,32 @@ impl CodexMessage {
                     input,
                 };
 
-                Ok(CanonicalMessage::new_structured_message(
-                    uuid.to_string(),
-                    self.timestamp.clone(),
-                    MessageType::Assistant,
-                    session_id.to_string(),
-                    self.provider_name().to_string(),
-                    "assistant".to_string(),
-                    vec![block],
-                ))
+                Ok(CanonicalMessage {
+                    uuid: uuid.to_string(),
+                    timestamp: self.timestamp.clone(),
+                    message_type: MessageType::Assistant,
+                    session_id: session_id.to_string(),
+                    provider: self.provider_name().to_string(),
+                    cwd: self.extract_cwd(),
+                    git_branch: self.extract_git_branch(),
+                    version: None,
+                    parent_uuid: None,
+                    is_sidechain: None,
+                    user_type: Some("external".to_string()),
+                    message: MessageContent {
+                        role: "assistant".to_string(),
+                        content: ContentValue::Structured(vec![block]),
+                        model: None,
+                        usage: None,
+                    },
+                    provider_metadata: Some(serde_json::json!({
+                        "codex_type": "response_item",
+                        "item_type": "function_call",
+                    })),
+                    is_meta: None,
+                    request_id: None,
+                    tool_use_result: None,
+                })
             }
             "function_call_output" => {
                 let call_id = item.data["call_id"].as_str().unwrap_or(uuid);
@@ -281,15 +311,32 @@ impl CodexMessage {
                     is_error: Some(false),
                 };
 
-                Ok(CanonicalMessage::new_structured_message(
-                    uuid.to_string(),
-                    self.timestamp.clone(),
-                    MessageType::Assistant,
-                    session_id.to_string(),
-                    self.provider_name().to_string(),
-                    "assistant".to_string(),
-                    vec![block],
-                ))
+                Ok(CanonicalMessage {
+                    uuid: uuid.to_string(),
+                    timestamp: self.timestamp.clone(),
+                    message_type: MessageType::Assistant,
+                    session_id: session_id.to_string(),
+                    provider: self.provider_name().to_string(),
+                    cwd: self.extract_cwd(),
+                    git_branch: self.extract_git_branch(),
+                    version: None,
+                    parent_uuid: None,
+                    is_sidechain: None,
+                    user_type: Some("external".to_string()),
+                    message: MessageContent {
+                        role: "assistant".to_string(),
+                        content: ContentValue::Structured(vec![block]),
+                        model: None,
+                        usage: None,
+                    },
+                    provider_metadata: Some(serde_json::json!({
+                        "codex_type": "response_item",
+                        "item_type": "function_call_output",
+                    })),
+                    is_meta: None,
+                    request_id: None,
+                    tool_use_result: None,
+                })
             }
             "reasoning" => {
                 // Codex reasoning becomes text content
@@ -306,27 +353,62 @@ impl CodexMessage {
                     String::new()
                 };
 
-                Ok(CanonicalMessage::new_text_message(
-                    uuid.to_string(),
-                    self.timestamp.clone(),
-                    MessageType::Assistant,
-                    session_id.to_string(),
-                    self.provider_name().to_string(),
-                    "assistant".to_string(),
-                    text,
-                ))
+                Ok(CanonicalMessage {
+                    uuid: uuid.to_string(),
+                    timestamp: self.timestamp.clone(),
+                    message_type: MessageType::Assistant,
+                    session_id: session_id.to_string(),
+                    provider: self.provider_name().to_string(),
+                    cwd: self.extract_cwd(),
+                    git_branch: self.extract_git_branch(),
+                    version: None,
+                    parent_uuid: None,
+                    is_sidechain: None,
+                    user_type: Some("external".to_string()),
+                    message: MessageContent {
+                        role: "assistant".to_string(),
+                        content: ContentValue::Text(text),
+                        model: None,
+                        usage: None,
+                    },
+                    provider_metadata: Some(serde_json::json!({
+                        "codex_type": "response_item",
+                        "item_type": "reasoning",
+                    })),
+                    is_meta: None,
+                    request_id: None,
+                    tool_use_result: None,
+                })
             }
             _ => {
-                // Unknown type, create empty message
-                Ok(CanonicalMessage::new_text_message(
-                    uuid.to_string(),
-                    self.timestamp.clone(),
-                    MessageType::Assistant,
-                    session_id.to_string(),
-                    self.provider_name().to_string(),
-                    "assistant".to_string(),
-                    String::new(),
-                ))
+                // Unknown type, preserve full payload for future analysis
+                Ok(CanonicalMessage {
+                    uuid: uuid.to_string(),
+                    timestamp: self.timestamp.clone(),
+                    message_type: MessageType::Assistant,
+                    session_id: session_id.to_string(),
+                    provider: self.provider_name().to_string(),
+                    cwd: self.extract_cwd(),
+                    git_branch: self.extract_git_branch(),
+                    version: None,
+                    parent_uuid: None,
+                    is_sidechain: None,
+                    user_type: Some("external".to_string()),
+                    message: MessageContent {
+                        role: "assistant".to_string(),
+                        content: ContentValue::Text(String::new()),
+                        model: None,
+                        usage: None,
+                    },
+                    provider_metadata: Some(serde_json::json!({
+                        "codex_type": "response_item",
+                        "item_type": item.item_type,
+                        "warning": "unknown response_item type",
+                    })),
+                    is_meta: None,
+                    request_id: None,
+                    tool_use_result: None,
+                })
             }
         }
     }
@@ -373,7 +455,10 @@ impl CodexMessage {
                         model: None,
                         usage,
                     },
-                    provider_metadata: Some(serde_json::to_value(event)?),
+                    provider_metadata: Some(serde_json::json!({
+                        "codex_type": "event_msg",
+                        "event_type": "token_count",
+                    })),
                     is_meta: Some(true),
                     request_id: None,
                     tool_use_result: None,
@@ -387,19 +472,36 @@ impl CodexMessage {
                     "assistant"
                 };
 
-                Ok(CanonicalMessage::new_text_message(
-                    uuid.to_string(),
-                    self.timestamp.clone(),
-                    if role == "user" {
+                Ok(CanonicalMessage {
+                    uuid: uuid.to_string(),
+                    timestamp: self.timestamp.clone(),
+                    message_type: if role == "user" {
                         MessageType::User
                     } else {
                         MessageType::Assistant
                     },
-                    session_id.to_string(),
-                    self.provider_name().to_string(),
-                    role.to_string(),
-                    message_text.to_string(),
-                ))
+                    session_id: session_id.to_string(),
+                    provider: self.provider_name().to_string(),
+                    cwd: self.extract_cwd(),
+                    git_branch: self.extract_git_branch(),
+                    version: None,
+                    parent_uuid: None,
+                    is_sidechain: None,
+                    user_type: Some("external".to_string()),
+                    message: MessageContent {
+                        role: role.to_string(),
+                        content: ContentValue::Text(message_text.to_string()),
+                        model: None,
+                        usage: None,
+                    },
+                    provider_metadata: Some(serde_json::json!({
+                        "codex_type": "event_msg",
+                        "event_type": event.event_type,
+                    })),
+                    is_meta: None,
+                    request_id: None,
+                    tool_use_result: None,
+                })
             }
             "agent_reasoning" => {
                 let text = event.data["text"].as_str().unwrap_or("");
@@ -423,8 +525,8 @@ impl CodexMessage {
                         usage: None,
                     },
                     provider_metadata: Some(serde_json::json!({
-                        "provider": "codex",
-                        "reasoning": true,
+                        "codex_type": "event_msg",
+                        "event_type": "agent_reasoning",
                     })),
                     is_meta: None,
                     request_id: None,
@@ -432,16 +534,34 @@ impl CodexMessage {
                 })
             }
             _ => {
-                // Unknown event type
-                Ok(CanonicalMessage::new_text_message(
-                    uuid.to_string(),
-                    self.timestamp.clone(),
-                    MessageType::Meta,
-                    session_id.to_string(),
-                    self.provider_name().to_string(),
-                    "assistant".to_string(),
-                    String::new(),
-                ))
+                // Unknown event type - preserve type for debugging
+                Ok(CanonicalMessage {
+                    uuid: uuid.to_string(),
+                    timestamp: self.timestamp.clone(),
+                    message_type: MessageType::Meta,
+                    session_id: session_id.to_string(),
+                    provider: self.provider_name().to_string(),
+                    cwd: self.extract_cwd(),
+                    git_branch: None,
+                    version: None,
+                    parent_uuid: None,
+                    is_sidechain: None,
+                    user_type: Some("external".to_string()),
+                    message: MessageContent {
+                        role: "assistant".to_string(),
+                        content: ContentValue::Text(String::new()),
+                        model: None,
+                        usage: None,
+                    },
+                    provider_metadata: Some(serde_json::json!({
+                        "codex_type": "event_msg",
+                        "event_type": event.event_type,
+                        "warning": "unknown event_msg type",
+                    })),
+                    is_meta: Some(true),
+                    request_id: None,
+                    tool_use_result: None,
+                })
             }
         }
     }
