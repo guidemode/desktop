@@ -1723,6 +1723,14 @@ pub async fn scan_context_files(
     crate::context_files::scan_context_files(&cwd)
 }
 
+/// Scan .claude directory for commands, skills, and config files
+#[tauri::command]
+pub async fn scan_claude_files(
+    cwd: String,
+) -> Result<Vec<crate::claude_files::ClaudeFile>, String> {
+    crate::claude_files::scan_claude_files(&cwd)
+}
+
 /// Log updater events from the frontend
 #[tauri::command]
 pub async fn log_updater_event_command(

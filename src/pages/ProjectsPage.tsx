@@ -92,7 +92,7 @@ export default function ProjectsPage() {
           {projects.map(project => (
             <Link
               key={project.id}
-              to={`/sessions?project=${encodeURIComponent(project.id)}`}
+              to={`/projects/${encodeURIComponent(project.id)}`}
               className="card bg-base-100 border border-base-300 hover:shadow-lg hover:border-primary/50 transition-all"
             >
               <div className="card-body">

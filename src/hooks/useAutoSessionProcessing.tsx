@@ -3,6 +3,13 @@ import { listen } from '@tauri-apps/api/event'
 import { useEffect } from 'react'
 import { useSessionProcessing } from './useSessionProcessing'
 
+// SQL result type for session query
+interface SessionRow {
+  provider: string
+  file_path: string
+  session_id: string
+}
+
 /**
  * Hook that listens for session-completed events from Rust and automatically processes metrics
  * This enables "Metrics Only" mode to work correctly by ensuring metrics are generated
@@ -27,8 +34,8 @@ export function useAutoSessionProcessing() {
         processingQueue.add(sessionId)
 
         try {
-          // Fetch session details from database
-          const sessionResult: any[] = await invoke('execute_sql', {
+          // Fetch session details from database (returns snake_case SQL column names)
+          const sessionResult = await invoke<SessionRow[]>('execute_sql', {
             sql: `SELECT provider, file_path, session_id
                   FROM agent_sessions
                   WHERE session_id = ?
@@ -41,17 +48,17 @@ export function useAutoSessionProcessing() {
             return
           }
 
-          const session = sessionResult[0]
+          const sessionRow = sessionResult[0]
 
           // Get session content using provider-specific logic
           const content: string = await invoke('get_session_content', {
-            provider: session.provider,
-            filePath: session.file_path,
-            sessionId: session.session_id,
+            provider: sessionRow.provider,
+            filePath: sessionRow.file_path,
+            sessionId: sessionRow.session_id,
           })
 
           // Process metrics
-          await processSession(session.session_id, session.provider, content, 'local')
+          await processSession(sessionRow.session_id, sessionRow.provider, content, 'local')
         } catch (error) {
           console.error(`Failed to auto-process session ${sessionId}:`, error)
         } finally {

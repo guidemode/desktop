@@ -40,43 +40,75 @@ import { useSessionActivity } from '../hooks/useSessionActivity'
 import { useSessionProcessing } from '../hooks/useSessionProcessing'
 import { useToast } from '../hooks/useToast'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'
+import {
+  type AgentSessionRow,
+  type LocalProject,
+  type ProjectRow,
+  mapAgentSessionRow,
+  mapProjectRow,
+} from '../utils/dbMappers'
 
-interface AgentSession {
-  id: string
-  provider: string
-  project_name: string
-  session_id: string
-  file_name: string
-  file_path: string
-  file_size: number
-  session_start_time: number | null
-  session_end_time: number | null
-  duration_ms: number | null
-  processing_status: string
+// SQL result types
+interface AgentSessionWithRating extends AgentSessionRow {
+  assessment_rating: string | null
   synced_to_server: number
   synced_at: number | null
   server_session_id: string | null
-  created_at: number
   uploaded_at: number | null
-  cwd: string | null
   sync_failed_reason: string | null
   ai_model_phase_analysis: string | null
   git_branch: string | null
-  first_commit_hash: string | null
   latest_commit_hash: string | null
+  ai_model_summary: string | null
+  ai_model_quality_score: number | null
+  ai_model_metadata: string | null
 }
 
-interface LocalProject {
-  id: string
-  name: string
+interface ProjectRowExtended extends ProjectRow {
   github_repo: string | null
   cwd: string
   type: string
 }
 
+// Desktop-specific session type (similar to AgentSession but with desktop schema)
+interface DesktopSession {
+  id: string
+  provider: string
+  projectName: string
+  projectId: string | null
+  sessionId: string
+  fileName: string | null
+  filePath: string | null
+  fileSize: number | null
+  sessionStartTime: string | null
+  sessionEndTime: string | null
+  durationMs: number | null
+  processingStatus: 'pending' | 'completed' | 'failed'
+  createdAt: string
+  cwd?: string | null
+  firstCommitHash: string | null
+  gitBranch?: string | null
+  // Desktop-specific fields
+  updatedAt?: string
+  lastCommitHash?: string | null
+  syncedToServer?: boolean
+  syncedAt?: string | null
+  serverSessionId?: string | null
+  uploadedAt?: string | null
+  syncFailedReason?: string | null
+  aiModelPhaseAnalysis?: string | null
+  latestCommitHash?: string | null
+  assessmentRating?: SessionRating | null
+  aiModelSummary?: string | null
+  aiModelQualityScore?: number | null
+  aiModelMetadata?: string | null
+  errorMessage?: string | null
+  coreMetricsStatus?: string | null
+}
+
 // Fetch function for session metadata
-async function fetchSessionMetadata(sessionId: string): Promise<AgentSession | null> {
-  const result = await invoke<any[]>('execute_sql', {
+async function fetchSessionMetadata(sessionId: string): Promise<DesktopSession | null> {
+  const result = await invoke<AgentSessionWithRating[]>('execute_sql', {
     sql: `SELECT s.*, a.rating as assessment_rating
           FROM agent_sessions s
           LEFT JOIN session_assessments a ON s.session_id = a.session_id
@@ -88,12 +120,42 @@ async function fetchSessionMetadata(sessionId: string): Promise<AgentSession | n
     throw new Error('Session not found')
   }
 
-  return result[0]
+  // Map snake_case SQL result to camelCase TypeScript type
+  const row = result[0]
+  const session = mapAgentSessionRow(row)
+
+  // Helper to safely convert timestamp (milliseconds) to ISO string
+  const toISOString = (timestamp: number | null): string | null => {
+    if (!timestamp) return null
+    try {
+      return new Date(timestamp).toISOString()
+    } catch {
+      return null
+    }
+  }
+
+  // Add additional fields not in base AgentSessionRow
+  return {
+    ...session,
+    cwd: row.cwd ?? undefined,
+    syncedToServer: row.synced_to_server === 1,
+    syncedAt: toISOString(row.synced_at),
+    serverSessionId: row.server_session_id,
+    uploadedAt: toISOString(row.uploaded_at),
+    syncFailedReason: row.sync_failed_reason,
+    aiModelPhaseAnalysis: row.ai_model_phase_analysis,
+    gitBranch: row.git_branch,
+    latestCommitHash: row.latest_commit_hash,
+    assessmentRating: row.assessment_rating as SessionRating | null,
+    aiModelSummary: row.ai_model_summary,
+    aiModelQualityScore: row.ai_model_quality_score,
+    aiModelMetadata: row.ai_model_metadata,
+  }
 }
 
 // Fetch project for session
 async function fetchSessionProject(sessionId: string): Promise<LocalProject | null> {
-  const result = await invoke<any[]>('execute_sql', {
+  const result = await invoke<ProjectRowExtended[]>('execute_sql', {
     sql: `SELECT p.* FROM projects p
           JOIN agent_sessions s ON p.id = s.project_id
           WHERE s.session_id = ? LIMIT 1`,
@@ -104,7 +166,17 @@ async function fetchSessionProject(sessionId: string): Promise<LocalProject | nu
     return null
   }
 
-  return result[0]
+  // Map snake_case SQL result to camelCase TypeScript type
+  const row = result[0]
+  const project = mapProjectRow(row)
+
+  // Add additional fields (cast to any to allow extra desktop-specific fields)
+  return {
+    ...project,
+    githubRepo: row.github_repo,
+    cwd: row.cwd,
+    type: row.type,
+  } as LocalProject & { githubRepo: string | null }
 }
 
 export default function SessionDetailPage() {
@@ -202,22 +274,23 @@ export default function SessionDetailPage() {
   })
 
   // Parse phase analysis if available
-  const phaseAnalysis: SessionPhaseAnalysis | null = session?.ai_model_phase_analysis
-    ? JSON.parse(session.ai_model_phase_analysis)
+  const phaseAnalysis: SessionPhaseAnalysis | null = (session as any)?.aiModelPhaseAnalysis
+    ? JSON.parse((session as any).aiModelPhaseAnalysis)
     : null
 
   // Helper to check if we should show unstaged changes
   // Shows unstaged if: no commits during session AND session ended within 48 hours
-  const shouldShowUnstaged = (session: AgentSession | null | undefined): boolean => {
+  const shouldShowUnstaged = (session: DesktopSession | null | undefined): boolean => {
     if (!session) return false
 
-    const noCommitsDuringSession = session.first_commit_hash === session.latest_commit_hash
+    const noCommitsDuringSession = session.firstCommitHash === session.latestCommitHash
     if (!noCommitsDuringSession) return false
 
-    if (!session.session_end_time) return false
+    if (!session.sessionEndTime) return false
 
     const now = Date.now()
-    const timeSinceEnd = now - session.session_end_time
+    const sessionEndMs = new Date(session.sessionEndTime).getTime()
+    const timeSinceEnd = now - sessionEndMs
     const fortyEightHours = 48 * 60 * 60 * 1000
 
     return timeSinceEnd < fortyEightHours && timeSinceEnd >= 0
@@ -227,13 +300,13 @@ export default function SessionDetailPage() {
   const { data: gitDiffStats } = useQuery({
     queryKey: ['session-git-diff-stats', sessionId, shouldShowUnstaged(session)],
     queryFn: async () => {
-      if (!session?.cwd || !session?.first_commit_hash) {
+      if (!session?.cwd || !session?.firstCommitHash) {
         return null
       }
       const diffs = await invoke<any[]>('get_session_git_diff', {
         cwd: session.cwd,
-        firstCommitHash: session.first_commit_hash,
-        latestCommitHash: session.latest_commit_hash || null,
+        firstCommitHash: session.firstCommitHash,
+        latestCommitHash: (session as any).latestCommitHash || null,
         isActive: shouldShowUnstaged(session),
       })
       const stats = diffs.reduce(
@@ -245,7 +318,7 @@ export default function SessionDetailPage() {
       )
       return stats
     },
-    enabled: !!session?.cwd && !!session?.first_commit_hash && activeTab !== 'changes',
+    enabled: !!session?.cwd && !!session?.firstCommitHash && activeTab !== 'changes',
   })
 
   // Fetch context file stats for tab badge (only when Context tab is NOT active)
@@ -366,10 +439,16 @@ export default function SessionDetailPage() {
     fileContent,
     loading: contentLoading,
     error: contentError,
-  } = useLocalSessionContent(session?.session_id, session?.provider, session?.file_path)
+  } = useLocalSessionContent(
+    session?.sessionId ?? undefined,
+    session?.provider,
+    session?.filePath ?? undefined
+  )
 
   // Load local metrics if available
-  const { metrics, loading: metricsLoading } = useLocalSessionMetrics(session?.session_id)
+  const { metrics, loading: metricsLoading } = useLocalSessionMetrics(
+    session?.sessionId ?? undefined
+  )
 
   // Handle AI processing
   const handleProcessWithAi = async () => {
@@ -390,8 +469,8 @@ export default function SessionDetailPage() {
 
       const content = await invoke<string>('get_session_content', {
         provider: session.provider,
-        filePath: (session as any).file_path,
-        sessionId: session.session_id,
+        filePath: session.filePath,
+        sessionId: session.sessionId,
       })
       const parsedSession = processor.parseSession(content, session.provider)
 
@@ -401,11 +480,11 @@ export default function SessionDetailPage() {
         description: 'Analyzing session performance and quality metrics',
         percentage: 0,
       })
-      await processMetrics(session.session_id, session.provider, content, 'local')
+      await processMetrics(session.sessionId, session.provider, content, 'local')
 
       // Step 2: Process with AI if API key available
       if (hasApiKey()) {
-        await processSessionWithAi(session.session_id, parsedSession, updateProgress)
+        await processSessionWithAi(session.sessionId, parsedSession, updateProgress)
       }
 
       // Reload session to show AI results
@@ -547,8 +626,8 @@ export default function SessionDetailPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Session Detail</h1>
           {sessionId &&
-            session?.session_end_time &&
-            isSessionActive(sessionId, new Date(session.session_end_time).toISOString()) && (
+            session?.sessionEndTime &&
+            isSessionActive(sessionId, session.sessionEndTime) && (
               <span className="badge badge-success gap-1.5 animate-pulse">
                 <span className="relative flex h-2 w-2 items-center justify-center">
                   <span className="animate-ping absolute h-full w-full rounded-full bg-white opacity-75" />
@@ -577,30 +656,28 @@ export default function SessionDetailPage() {
           <SessionDetailHeader
             session={{
               provider: session.provider,
-              projectName: session.project_name,
-              sessionStartTime: session.session_start_time
-                ? new Date(session.session_start_time).toISOString()
-                : null,
-              durationMs: session.duration_ms,
-              fileSize: session.file_size,
-              cwd: session.cwd || undefined,
+              projectName: session.projectName,
+              sessionStartTime: session.sessionStartTime,
+              durationMs: session.durationMs ?? null,
+              fileSize: session.fileSize ?? undefined,
+              cwd: session.cwd ?? undefined,
               project: project
                 ? {
                     name: project.name,
-                    gitRemoteUrl: project.github_repo || undefined,
+                    gitRemoteUrl: (project as any).githubRepo ?? undefined,
                     cwd: undefined,
                   }
                 : undefined,
-              aiModelSummary: (session as any).ai_model_summary || undefined,
-              gitBranch: session.git_branch || undefined,
-              firstCommitHash: session.first_commit_hash || undefined,
-              latestCommitHash: session.latest_commit_hash || undefined,
+              aiModelSummary: session.aiModelSummary ?? undefined,
+              gitBranch: session.gitBranch ?? undefined,
+              firstCommitHash: session.firstCommitHash ?? undefined,
+              latestCommitHash: session.latestCommitHash ?? undefined,
             }}
             messageCount={messageCount}
-            rating={((session as any).assessment_rating as SessionRating) || null}
+            rating={(session.assessmentRating as SessionRating) ?? null}
             onRate={handleQuickRate}
             onProcessSession={handleProcessWithAi}
-            processingStatus={(session as any).ai_model_summary ? 'completed' : 'pending'}
+            processingStatus={session.aiModelSummary ? 'completed' : 'pending'}
             isProcessing={processingAi}
             processingProgress={
               progress.currentStep
@@ -611,11 +688,14 @@ export default function SessionDetailPage() {
                 : null
             }
             onCwdClick={session.cwd ? handleCwdClick : undefined}
-            onViewDiff={session.first_commit_hash ? handleViewDiff : undefined}
+            onViewDiff={session.firstCommitHash ? handleViewDiff : undefined}
+            onProjectClick={
+              session.projectId ? () => navigate(`/projects/${session.projectId}`) : undefined
+            }
             syncStatus={{
-              synced: session.synced_to_server === 1,
-              failed: !!session.sync_failed_reason,
-              reason: session.sync_failed_reason || undefined,
+              synced: session.syncedToServer === true,
+              failed: !!session.syncFailedReason,
+              reason: session.syncFailedReason ?? undefined,
               onSync: handleSyncSession,
               onShowError: error => toast.error(error, 10000),
             }}
@@ -709,7 +789,7 @@ export default function SessionDetailPage() {
                 <span className="hidden md:inline">Todos</span>
               </button>
             )}
-            {session.cwd && session.first_commit_hash && (
+            {session.cwd && session.firstCommitHash && (
               <button
                 className={`tab tab-lg gap-2 ${
                   activeTab === 'changes'
@@ -854,34 +934,36 @@ export default function SessionDetailPage() {
         )}
         {activeTab === 'metrics' && (
           <MetricsOverview
-            sessionId={session.session_id}
+            sessionId={session.sessionId ?? ''}
             metrics={metrics}
             isLoading={metricsLoading}
             error={null}
             onProcessSession={
-              (session as any).ai_model_summary || (session as any).ai_model_quality_score
+              session.aiModelSummary || session.aiModelQualityScore
                 ? undefined
                 : handleProcessWithAi
             }
             isProcessing={processingAi}
-            aiModelSummary={(session as any).ai_model_summary}
-            aiModelQualityScore={(session as any).ai_model_quality_score}
+            aiModelSummary={session.aiModelSummary}
+            aiModelQualityScore={session.aiModelQualityScore}
             aiModelMetadata={
-              (session as any).ai_model_metadata
-                ? JSON.parse((session as any).ai_model_metadata)
-                : undefined
+              session.aiModelMetadata ? JSON.parse(session.aiModelMetadata) : undefined
             }
           />
         )}
-        {activeTab === 'changes' && session.cwd && session.first_commit_hash && (
+        {activeTab === 'changes' && session.cwd && session.firstCommitHash && (
           <SessionChangesTab
             session={{
-              sessionId: session.session_id,
+              sessionId: session.sessionId ?? '',
               cwd: session.cwd,
-              first_commit_hash: session.first_commit_hash,
-              latest_commit_hash: session.latest_commit_hash || null,
-              session_start_time: session.session_start_time,
-              session_end_time: session.session_end_time,
+              first_commit_hash: session.firstCommitHash,
+              latest_commit_hash: session.latestCommitHash ?? null,
+              session_start_time: session.sessionStartTime
+                ? new Date(session.sessionStartTime).getTime()
+                : null,
+              session_end_time: session.sessionEndTime
+                ? new Date(session.sessionEndTime).getTime()
+                : null,
             }}
             hasPendingChanges={hasPendingChanges}
             onRefresh={handleClearPendingChanges}
@@ -890,7 +972,7 @@ export default function SessionDetailPage() {
         {activeTab === 'context' && session.cwd && (
           <SessionContextTab
             session={{
-              sessionId: session.session_id,
+              sessionId: session.sessionId ?? '',
               cwd: session.cwd,
             }}
             fileContent={fileContent}
@@ -899,7 +981,7 @@ export default function SessionDetailPage() {
         {activeTab === 'todos' && (
           <SessionTodosTab
             session={{
-              sessionId: session.session_id,
+              sessionId: session.sessionId ?? '',
             }}
             fileContent={fileContent}
           />

@@ -38,6 +38,7 @@ interface SessionChangesTabProps {
   }
   hasPendingChanges?: boolean
   onRefresh?: () => void
+  hideSessionInfo?: boolean // Hide session-specific info alerts (for project detail page)
 }
 
 async function fetchGitDiff(
@@ -97,6 +98,7 @@ export function SessionChangesTab({
   session,
   hasPendingChanges = false,
   onRefresh,
+  hideSessionInfo = false,
 }: SessionChangesTabProps) {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('split')
@@ -206,37 +208,38 @@ export function SessionChangesTab({
   return (
     <div className="space-y-4">
       {/* Info Alert for Active Sessions or Uncommitted Changes */}
-      {(isActive || session.first_commit_hash === session.latest_commit_hash) && (
-        <div className="alert bg-info/10 border border-info/20">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            className="stroke-info shrink-0 w-6 h-6 opacity-60"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <div>
-            <h3 className="font-semibold text-info">
-              {isActive
-                ? 'Live Session - Showing All Changes'
-                : 'Showing Changes from Session Period'}
-            </h3>
-            <div className="text-sm opacity-70">
-              {isActive
-                ? 'This is an active session. Displaying both committed and uncommitted changes (staged, unstaged, and untracked files) made during the session.'
-                : session.first_commit_hash === session.latest_commit_hash
-                  ? 'No commits were made during this session. Displaying uncommitted changes from the session time period.'
-                  : 'Displaying changes from commits and work done during the session time period.'}
+      {!hideSessionInfo &&
+        (isActive || session.first_commit_hash === session.latest_commit_hash) && (
+          <div className="alert bg-info/10 border border-info/20">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              className="stroke-info shrink-0 w-6 h-6 opacity-60"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <h3 className="font-semibold text-info">
+                {isActive
+                  ? 'Live Session - Showing All Changes'
+                  : 'Showing Changes from Session Period'}
+              </h3>
+              <div className="text-sm opacity-70">
+                {isActive
+                  ? 'This is an active session. Displaying both committed and uncommitted changes (staged, unstaged, and untracked files) made during the session.'
+                  : session.first_commit_hash === session.latest_commit_hash
+                    ? 'No commits were made during this session. Displaying uncommitted changes from the session time period.'
+                    : 'Displaying changes from commits and work done during the session time period.'}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Header with stats and controls */}
       <div className="card bg-base-200 border border-base-300">

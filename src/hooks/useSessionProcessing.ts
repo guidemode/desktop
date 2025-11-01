@@ -10,24 +10,17 @@ import type {
 } from '@guideai-dev/types'
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useState } from 'react'
+import type { SessionMetricsRow } from '../utils/dbMappers'
 
-interface SessionMetricsRow {
-  id: string
-  session_id: string
-  provider: string
-  timestamp: number
+// Extended session metrics row with additional desktop-specific fields
+interface ExtendedSessionMetricsRow extends Partial<SessionMetricsRow> {
   // Performance metrics
-  response_latency_ms?: number
-  task_completion_time_ms?: number
   performance_total_responses?: number
   // Usage metrics
-  read_write_ratio?: number
-  input_clarity_score?: number
   read_operations?: number
   write_operations?: number
   total_user_messages?: number
   // Error metrics
-  error_count?: number
   error_types?: string
   last_error_message?: string
   recovery_attempts?: number
@@ -83,7 +76,6 @@ interface SessionMetricsRow {
   context_improvement_tips?: string // JSON array
   // Custom metrics
   custom_metrics?: string
-  created_at: number
 }
 
 export function useSessionProcessing() {
@@ -189,8 +181,8 @@ function mapResultsToRow(
   sessionId: string,
   provider: string,
   results: ProcessorResult[]
-): SessionMetricsRow {
-  const row: SessionMetricsRow = {
+): ExtendedSessionMetricsRow {
+  const row: ExtendedSessionMetricsRow = {
     id: crypto.randomUUID(),
     session_id: sessionId,
     provider,

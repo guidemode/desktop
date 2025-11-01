@@ -2,6 +2,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionProcessing } from './useSessionProcessing'
 
+// SQL result type for unprocessed sessions query
+interface UnprocessedSessionRow {
+  session_id: string
+  provider: string
+  file_path: string
+}
+
 /**
  * Background processing hook that can process sessions on demand
  * Does NOT run automatically - must be enabled explicitly
@@ -22,8 +29,8 @@ export function useBackgroundProcessing() {
       processingRef.current = true
       setIsProcessing(true)
 
-      // Find sessions without metrics
-      const unprocessedSessions: any[] = await invoke('execute_sql', {
+      // Find sessions without metrics (returns snake_case SQL column names)
+      const unprocessedSessions = await invoke<UnprocessedSessionRow[]>('execute_sql', {
         sql: `
           SELECT s.session_id, s.provider, s.file_path
           FROM agent_sessions s
@@ -38,18 +45,18 @@ export function useBackgroundProcessing() {
       if (unprocessedSessions.length > 0) {
         console.log(`Processing ${unprocessedSessions.length} unprocessed sessions...`)
 
-        for (const session of unprocessedSessions) {
+        for (const sessionRow of unprocessedSessions) {
           try {
             // Get content using provider-specific logic
             const content: string = await invoke('get_session_content', {
-              provider: session.provider,
-              filePath: session.file_path,
-              sessionId: session.session_id,
+              provider: sessionRow.provider,
+              filePath: sessionRow.file_path,
+              sessionId: sessionRow.session_id,
             })
-            await processSession(session.session_id, session.provider, content, 'local')
-            console.log(`✓ Processed session ${session.session_id}`)
+            await processSession(sessionRow.session_id, sessionRow.provider, content, 'local')
+            console.log(`✓ Processed session ${sessionRow.session_id}`)
           } catch (err) {
-            console.error(`Failed to process session ${session.session_id}:`, err)
+            console.error(`Failed to process session ${sessionRow.session_id}:`, err)
           }
         }
       }

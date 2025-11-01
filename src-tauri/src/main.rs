@@ -3,6 +3,7 @@
 #![recursion_limit = "256"]
 
 mod auth_server;
+mod claude_files;
 mod commands;
 mod config;
 mod context_files;
@@ -283,6 +284,7 @@ fn main() {
             commands::get_session_rating,
             commands::get_session_git_diff,
             commands::scan_context_files,
+            commands::scan_claude_files,
             commands::log_updater_event_command
         ])
         .run(tauri::generate_context!())

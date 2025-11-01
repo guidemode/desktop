@@ -30,6 +30,7 @@ interface SessionContextTabProps {
     cwd: string
   }
   fileContent: string | null
+  hideInfoBanner?: boolean // Hide the info banner (for project detail page)
 }
 
 async function fetchContextFiles(cwd: string): Promise<ContextFile[]> {
@@ -45,7 +46,11 @@ async function fetchContextFiles(cwd: string): Promise<ContextFile[]> {
   }))
 }
 
-export function SessionContextTab({ session, fileContent }: SessionContextTabProps) {
+export function SessionContextTab({
+  session,
+  fileContent,
+  hideInfoBanner = false,
+}: SessionContextTabProps) {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
 
   // Fetch context files with React Query (1 minute cache)
@@ -133,31 +138,33 @@ export function SessionContextTab({ session, fileContent }: SessionContextTabPro
   return (
     <div className="space-y-4">
       {/* Info Alert */}
-      <div className="alert bg-info/10 border border-info/20">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          className="stroke-info shrink-0 w-6 h-6 opacity-60"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        <div>
-          <h3 className="font-semibold text-info">Context Files Detected</h3>
-          <div className="text-sm opacity-70">
-            These files provide instructions and context for AI coding agents. Files in .gitignore
-            are automatically excluded.
-            <br />
-            Files marked with a badge show how many times they were accessed via Read tool calls in
-            this session.
+      {!hideInfoBanner && (
+        <div className="alert bg-info/10 border border-info/20">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            className="stroke-info shrink-0 w-6 h-6 opacity-60"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <div>
+            <h3 className="font-semibold text-info">Context Files Detected</h3>
+            <div className="text-sm opacity-70">
+              These files provide instructions and context for AI coding agents. Files in .gitignore
+              are automatically excluded.
+              <br />
+              Files marked with a badge show how many times they were accessed via Read tool calls
+              in this session.
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Header with stats and controls */}
       <div className="card bg-base-200 border border-base-300">

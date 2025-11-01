@@ -13,6 +13,7 @@ import { useSessionIngest } from './hooks/useSessionIngest'
 import DashboardPage from './pages/DashboardPage'
 import LogsPage from './pages/LogsPage'
 import OverviewPage from './pages/OverviewPage'
+import ProjectDetailPage from './pages/ProjectDetailPage'
 import ProjectsPage from './pages/ProjectsPage'
 import ProviderPage from './pages/ProviderPage'
 import SessionDetailPage from './pages/SessionDetailPage'
@@ -70,6 +71,7 @@ function AppContent() {
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/upload-queue" element={<UploadQueuePage />} />
         <Route path="/logs" element={<LogsPage />} />
