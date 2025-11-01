@@ -72,6 +72,8 @@ tauri-plugin-http = "2"
 indexmap = "2.0"
 # Gitignore-aware directory traversal (same as ripgrep)
 ignore = "0.4"
+# Directory traversal for migration
+walkdir = "2.0"
 
 # macOS specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

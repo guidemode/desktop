@@ -1740,3 +1740,193 @@ pub async fn log_updater_event_command(
 ) -> Result<(), String> {
     crate::logging::log_updater_event(&level, &message, details).map_err(|e| e.to_string())
 }
+
+/// Migration report for canonical format migration
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MigrationReport {
+    pub provider: String,
+    pub total_sessions: usize,
+    pub successful: usize,
+    pub failed: usize,
+    pub errors: Vec<String>,
+    pub dry_run: bool,
+}
+
+/// Migrate provider sessions to canonical format
+///
+/// This command converts existing provider sessions to the unified canonical JSONL format.
+/// Supports dry-run mode for validation before actual migration.
+///
+/// # Arguments
+/// * `provider` - Provider name ("codex", "gemini-code", "github-copilot", "opencode")
+/// * `dry_run` - If true, validates conversion without writing files
+#[tauri::command]
+pub async fn migrate_to_canonical_command(
+    provider: String,
+    dry_run: bool,
+) -> Result<MigrationReport, String> {
+    use tracing::info;
+
+    info!(
+        provider = %provider,
+        dry_run = dry_run,
+        "Starting migration to canonical format"
+    );
+
+    match provider.as_str() {
+        "codex" => migrate_codex(dry_run).await,
+        "gemini-code" | "github-copilot" | "opencode" => {
+            Err(format!("Provider '{}' migration not yet implemented. Coming in Phase 1.", provider))
+        }
+        other => Err(format!("Unsupported provider: {}", other)),
+    }
+}
+
+async fn migrate_codex(dry_run: bool) -> Result<MigrationReport, String> {
+    use std::path::PathBuf;
+    use tracing::{error, info};
+
+    let home = std::env::var("HOME").map_err(|_| "HOME environment variable not set")?;
+    let sessions_dir = PathBuf::from(&home).join(".codex/sessions");
+    let cache_dir = PathBuf::from(&home).join(".guideai/cache/canonical/codex");
+
+    if !sessions_dir.exists() {
+        return Err(format!(
+            "Codex sessions directory not found: {}",
+            sessions_dir.display()
+        ));
+    }
+
+    // Create cache directory if not in dry-run mode
+    if !dry_run {
+        fs::create_dir_all(&cache_dir).map_err(|e| {
+            format!(
+                "Failed to create canonical cache directory: {}",
+                e
+            )
+        })?;
+        info!(path = %cache_dir.display(), "Created canonical cache directory");
+    }
+
+    let mut report = MigrationReport {
+        provider: "codex".to_string(),
+        total_sessions: 0,
+        successful: 0,
+        failed: 0,
+        errors: Vec::new(),
+        dry_run,
+    };
+
+    // Find all Codex JSONL files recursively
+    let walker = walkdir::WalkDir::new(&sessions_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path()
+                .extension()
+                .and_then(|s| s.to_str())
+                == Some("jsonl")
+        });
+
+    for entry in walker {
+        let path = entry.path();
+        report.total_sessions += 1;
+
+        match convert_codex_session(path, &cache_dir, dry_run) {
+            Ok(session_id) => {
+                report.successful += 1;
+                info!(
+                    session_id = %session_id,
+                    path = %path.display(),
+                    "Successfully converted session"
+                );
+            }
+            Err(e) => {
+                report.failed += 1;
+                let error_msg = format!("{}: {}", path.display(), e);
+                report.errors.push(error_msg.clone());
+                error!(error = %e, path = %path.display(), "Failed to convert session");
+            }
+        }
+    }
+
+    info!(
+        total = report.total_sessions,
+        successful = report.successful,
+        failed = report.failed,
+        dry_run = report.dry_run,
+        "Migration completed"
+    );
+
+    Ok(report)
+}
+
+fn convert_codex_session(
+    source: &std::path::Path,
+    cache_dir: &std::path::Path,
+    dry_run: bool,
+) -> Result<String, String> {
+    use crate::providers::canonical::converter::ToCanonical;
+    use crate::providers::codex::CodexMessage;
+
+    // Read source file
+    let content = fs::read_to_string(source)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+
+    if content.trim().is_empty() {
+        return Err("Empty session file".to_string());
+    }
+
+    // Parse and convert each line
+    let mut canonical_lines = Vec::new();
+    let mut session_id = String::new();
+
+    for (line_num, line) in content.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        // Parse Codex message
+        let codex_msg: CodexMessage = serde_json::from_str(line).map_err(|e| {
+            format!("Failed to parse line {}: {}", line_num + 1, e)
+        })?;
+
+        // Extract session ID from first session_meta message
+        if session_id.is_empty() {
+            if let Some(id) = codex_msg.get_session_id() {
+                session_id = id;
+            }
+        }
+
+        // Convert to canonical format
+        let canonical = codex_msg
+            .to_canonical()
+            .map_err(|e| format!("Failed to convert line {}: {}", line_num + 1, e))?;
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&canonical)
+            .map_err(|e| format!("Failed to serialize line {}: {}", line_num + 1, e))?;
+
+        canonical_lines.push(json);
+    }
+
+    // Use session ID from content, or derive from filename
+    if session_id.is_empty() {
+        session_id = source
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or("Invalid filename")?
+            .to_string();
+    }
+
+    // Write canonical JSONL if not dry-run
+    if !dry_run {
+        let target = cache_dir.join(format!("{}.jsonl", session_id));
+        let canonical_content = canonical_lines.join("\n");
+
+        fs::write(&target, canonical_content)
+            .map_err(|e| format!("Failed to write canonical file: {}", e))?;
+    }
+
+    Ok(session_id)
+}

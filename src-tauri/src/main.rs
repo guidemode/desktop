@@ -285,7 +285,8 @@ fn main() {
             commands::get_session_git_diff,
             commands::scan_context_files,
             commands::scan_claude_files,
-            commands::log_updater_event_command
+            commands::log_updater_event_command,
+            commands::migrate_to_canonical_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
