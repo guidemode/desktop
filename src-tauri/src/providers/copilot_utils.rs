@@ -74,9 +74,9 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     // If no trusted folders found or no projects added, fall back to generic "copilot-sessions"
     if projects.is_empty() {
         // GitHub Copilot doesn't have a traditional projects structure
-        // Sessions are stored in history-session-state directory
+        // Sessions are stored in session-state directory
         // We'll create a synthetic "copilot-sessions" project
-        let session_dir = base_path.join("history-session-state");
+        let session_dir = base_path.join("session-state");
         if !session_dir.exists() {
             return Ok(Vec::new());
         }

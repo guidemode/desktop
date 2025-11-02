@@ -213,6 +213,24 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
         eprintln!("Logging error: {}", e);
     }
 
+    // Copy to canonical cache for consistency (Claude is already canonical format)
+    let cache_base = dirs::home_dir()
+        .ok_or("Failed to get home directory")?
+        .join(".guideai")
+        .join("cache")
+        .join("canonical")
+        .join("claude-code");
+
+    fs::create_dir_all(&cache_base)
+        .map_err(|e| format!("Failed to create canonical cache directory: {}", e))?;
+
+    let cache_path = cache_base.join(format!("{}.jsonl", session_id));
+    fs::copy(file_path, &cache_path)
+        .map_err(|e| format!("Failed to copy to canonical cache: {}", e))?;
+
+    // Update file size from cache file
+    let file_size = fs::metadata(&cache_path).map(|m| m.len()).unwrap_or(0);
+
     // IMPORTANT: Always use the Claude Code folder name for filtering
     // The real project name will be derived from CWD later during upload
     // This ensures filtering works correctly with user-selected projects
@@ -221,7 +239,7 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
         provider: "claude-code".to_string(),
         project_name: project_name.to_string(), // Use Claude Code folder name for filtering
         session_id,
-        file_path: file_path.to_path_buf(),
+        file_path: cache_path, // Use canonical cache path
         file_name,
         session_start_time,
         session_end_time,
@@ -387,8 +405,8 @@ fn scan_codex_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
 }
 
 fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
-    // Copilot uses ~/.copilot/history-session-state/session_{uuid}_{timestamp}.json
-    let session_dir = base_path.join("history-session-state");
+    // Copilot uses ~/.copilot/session-state/{uuid}.jsonl
+    let session_dir = base_path.join("session-state");
     if !session_dir.exists() {
         return Ok(Vec::new());
     }
@@ -400,25 +418,26 @@ fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     for entry in entries.flatten() {
         let file_path = entry.path();
 
-        // Only process session files (start with "session_" and end with ".json")
-        if let Some(file_name) = file_path.file_name().and_then(|n| n.to_str()) {
-            if file_name.starts_with("session_")
-                && file_path.extension().and_then(|ext| ext.to_str()) == Some("json")
-            {
-                match parse_copilot_session(&file_path) {
-                    Ok(session_info) => {
-                        sessions.push(session_info);
-                    }
-                    Err(e) => {
-                        if let Err(log_err) = log_warn(
-                            "github-copilot",
-                            &format!(
-                                "Failed to parse Copilot session {}: {}",
-                                file_path.display(),
-                                e
-                            ),
-                        ) {
-                            eprintln!("Logging error: {}", log_err);
+        // Only process JSONL session files (end with ".jsonl")
+        if file_path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
+            if let Some(file_name) = file_path.file_name().and_then(|n| n.to_str()) {
+                // Skip hidden files
+                if !file_name.starts_with('.') {
+                    match parse_copilot_session(&file_path) {
+                        Ok(session_info) => {
+                            sessions.push(session_info);
+                        }
+                        Err(e) => {
+                            if let Err(log_err) = log_warn(
+                                "github-copilot",
+                                &format!(
+                                    "Failed to parse Copilot session {}: {}",
+                                    file_path.display(),
+                                    e
+                                ),
+                            ) {
+                                eprintln!("Logging error: {}", log_err);
+                            }
                         }
                     }
                 }
@@ -513,92 +532,52 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
 }
 
 fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
-    use super::copilot_parser::{
-        detect_project_and_cwd_from_timeline, load_copilot_config, CopilotSession,
-    };
-    use super::copilot_snapshot::SnapshotManager;
+    use super::copilot_parser::CopilotParser;
 
-    // Read and parse the SOURCE Copilot JSON file
-    let content =
-        fs::read_to_string(file_path).map_err(|e| format!("Failed to read file: {}", e))?;
+    // Use CopilotParser to parse the new JSONL event format
+    let storage_path = file_path
+        .parent()
+        .and_then(|p| p.parent())
+        .ok_or("Invalid file path")?;
 
-    // Parse the Copilot session JSON (with timeline)
-    let copilot_session: CopilotSession = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse Copilot session JSON: {}", e))?;
+    let parser = CopilotParser::new(storage_path.to_path_buf());
+    let parsed = parser.parse_session(file_path)?;
 
-    let timeline = &copilot_session.timeline;
+    // Write canonical format to cache (like Codex/Gemini do)
+    let cache_base = dirs::home_dir()
+        .ok_or("Failed to get home directory")?
+        .join(".guideai")
+        .join("cache")
+        .join("canonical")
+        .join("github-copilot");
 
-    // Skip if timeline is empty
-    if timeline.is_empty() {
-        return Err("Session has empty timeline".to_string());
-    }
+    fs::create_dir_all(&cache_base)
+        .map_err(|e| format!("Failed to create canonical cache directory: {}", e))?;
 
-    // Detect project name and cwd from timeline entries (same as watcher)
-    let (project_name, project_cwd) = match load_copilot_config() {
-        Ok(config) => {
-            if !config.trusted_folders.is_empty() {
-                if let Some((name, cwd)) =
-                    detect_project_and_cwd_from_timeline(timeline, &config.trusted_folders)
-                {
-                    (name, Some(cwd))
-                } else {
-                    ("copilot-sessions".to_string(), None)
-                }
-            } else {
-                ("copilot-sessions".to_string(), None)
-            }
-        }
-        Err(_) => ("copilot-sessions".to_string(), None),
-    };
+    let cache_path = cache_base.join(format!("{}.jsonl", parsed.session_id));
+    fs::write(&cache_path, &parsed.jsonl_content)
+        .map_err(|e| format!("Failed to write canonical cache file: {}", e))?;
 
-    // Create snapshot manager (same as watcher)
-    let snapshot_manager =
-        SnapshotManager::new().map_err(|e| format!("Failed to create snapshot manager: {}", e))?;
-
-    // Load metadata (with file lock)
-    let (mut metadata, lock_file) = snapshot_manager
-        .load_metadata_locked()
-        .map_err(|e| format!("Failed to load metadata: {}", e))?;
-
-    // Get or create snapshot (same logic as watcher)
-    let snapshot_id = snapshot_manager
-        .get_or_create_session(
-            &mut metadata,
-            file_path,
-            &copilot_session.session_id,
-            &copilot_session.start_time,
-            timeline,
-            project_cwd.as_deref(),
-        )
-        .map_err(|e| format!("Failed to create snapshot: {}", e))?;
-
-    // Save metadata
-    snapshot_manager
-        .save_metadata_atomic(&metadata, lock_file)
-        .map_err(|e| format!("Failed to save metadata: {}", e))?;
-
-    // Get snapshot path
-    let snapshot_path = snapshot_manager.get_snapshot_path(snapshot_id);
-    let file_size = fs::metadata(&snapshot_path).map(|m| m.len()).unwrap_or(0);
-
-    let file_name = format!("{}.jsonl", snapshot_id);
-
-    // Extract timing from the snapshot JSONL (same as db_helpers does)
-    let (session_start_time, session_end_time, duration_ms) =
-        extract_timing_from_jsonl(&snapshot_path)?;
+    // Get file size of canonical cache file
+    let file_size = fs::metadata(&cache_path).map(|m| m.len()).unwrap_or(0);
+    let file_name = cache_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_string();
 
     Ok(SessionInfo {
         provider: "github-copilot".to_string(),
-        project_name,
-        session_id: snapshot_id.to_string(), // Use snapshot UUID, not source session ID
-        file_path: snapshot_path,            // Use snapshot path, not source path
+        project_name: parsed.project_name,
+        session_id: parsed.session_id,
+        file_path: cache_path, // Use canonical cache path, not source path
         file_name,
-        session_start_time,
-        session_end_time,
-        duration_ms,
+        session_start_time: parsed.session_start_time,
+        session_end_time: parsed.session_end_time,
+        duration_ms: parsed.duration_ms,
         file_size,
         content: None,
-        cwd: project_cwd,
+        cwd: parsed.cwd,
         project_hash: None,
     })
 }

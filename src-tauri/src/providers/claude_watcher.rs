@@ -282,6 +282,32 @@ impl ClaudeWatcher {
         }
     }
 
+    fn convert_to_canonical_file(
+        claude_file: &Path,
+        session_id: &str,
+    ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+        use std::fs;
+
+        // Get canonical cache directory
+        let cache_base = dirs::home_dir()
+            .ok_or("Failed to get home directory")?
+            .join(".guideai")
+            .join("cache")
+            .join("canonical")
+            .join(PROVIDER_ID);
+
+        // Create cache directory if it doesn't exist
+        fs::create_dir_all(&cache_base)?;
+
+        // Create canonical cache file path (session_id.jsonl)
+        let cache_path = cache_base.join(format!("{}.jsonl", session_id));
+
+        // Claude files are already in canonical format, so just copy
+        fs::copy(claude_file, &cache_path)?;
+
+        Ok(cache_path)
+    }
+
     fn process_file_event(event: &Event, projects_path: &Path) -> Option<FileChangeEvent> {
         // Only process write events for .jsonl files
         match &event.kind {
@@ -299,15 +325,31 @@ impl ClaudeWatcher {
 
                     // Extract project name from path
                     if let Some(project_name) = Self::extract_project_name(path, projects_path) {
-                        // Get file size and session ID
-                        let file_size = get_file_size(path).unwrap_or(0);
+                        // Extract session ID
                         let session_id = extract_session_id_from_filename(path);
 
+                        // Copy to canonical cache for consistency
+                        let canonical_path = match Self::convert_to_canonical_file(path, &session_id) {
+                            Ok(cache_path) => cache_path,
+                            Err(e) => {
+                                if let Err(log_err) = log_error(
+                                    PROVIDER_ID,
+                                    &format!("Failed to copy to canonical cache: {}", e),
+                                ) {
+                                    eprintln!("Logging error: {}", log_err);
+                                }
+                                continue;
+                            }
+                        };
+
+                        // Get file size of canonical cache file
+                        let file_size = get_file_size(&canonical_path).unwrap_or(0);
+
                         return Some(FileChangeEvent {
-                            path: path.clone(),
+                            path: canonical_path, // Use canonical cache path
                             project_name,
                             file_size,
-                            session_id: session_id.clone(),
+                            session_id,
                         });
                     }
                 }

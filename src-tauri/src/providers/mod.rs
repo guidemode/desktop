@@ -9,7 +9,6 @@ mod codex_watcher;
 pub mod common;
 pub mod copilot; // Copilot converter (public for canonical format migration)
 mod copilot_parser;
-mod copilot_snapshot;
 mod copilot_utils;
 mod copilot_watcher;
 pub mod db_helpers;

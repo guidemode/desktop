@@ -11,45 +11,36 @@ pub struct CopilotConfig {
     pub trusted_folders: Vec<String>,
 }
 
-/// GitHub Copilot session format
+/// GitHub Copilot event-based session format (new)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CopilotEvent {
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub data: serde_json::Value,
+    pub id: String,
+    pub timestamp: String,
+    #[serde(rename = "parentId")]
+    pub parent_id: Option<String>,
+}
+
+/// Session start event data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CopilotSession {
+pub struct SessionStartData {
     pub session_id: String,
+    pub version: u32,
+    pub producer: String,
+    pub copilot_version: String,
     pub start_time: String,
-    pub chat_messages: Vec<CopilotChatMessage>,
-    #[serde(default)]
-    pub timeline: Vec<TimelineEntry>,
 }
 
+/// Tool execution arguments
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TimelineEntry {
-    #[serde(default)]
-    pub timestamp: Option<String>,
+pub struct ToolArguments {
+    pub command: Option<String>,
+    pub path: Option<String>,
     #[serde(flatten)]
-    pub data: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CopilotChatMessage {
-    pub role: String,
-    pub content: Option<String>,
-    #[serde(default)]
-    pub tool_calls: Vec<CopilotToolCall>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CopilotToolCall {
-    pub function: CopilotFunction,
-    pub id: String,
-    #[serde(rename = "type")]
-    pub tool_type: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CopilotFunction {
-    pub name: String,
-    pub arguments: String,
+    pub other: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -89,35 +80,35 @@ pub fn load_copilot_config() -> Result<CopilotConfig, String> {
     Ok(config)
 }
 
-/// Detect project name AND cwd path from timeline entries by matching against trusted folders
+/// Detect project name AND cwd path from events by matching against trusted folders
 /// Returns (project_name, cwd_path)
-/// Scans ALL timeline entries and returns on first match with a trusted folder
-pub fn detect_project_and_cwd_from_timeline(
-    timeline: &[TimelineEntry],
+/// Scans ALL events and returns on first match with a trusted folder
+pub fn detect_project_and_cwd_from_events(
+    events: &[CopilotEvent],
     trusted_folders: &[String],
 ) -> Option<(String, String)> {
-    // Scan timeline entries to find one with an "arguments" property containing a "path"
-    for entry in timeline {
-        if let Some(args) = entry.data.get("arguments") {
-            // Check if arguments is a string (might be JSON string)
-            if let Some(args_str) = args.as_str() {
-                // Try to parse as JSON
-                if let Ok(args_json) = serde_json::from_str::<serde_json::Value>(args_str) {
-                    if let Some(path) = args_json.get("path").and_then(|p| p.as_str()) {
-                        // Match against trusted folders (partial match from the front)
-                        if let Some((project, cwd)) =
-                            match_trusted_folder_with_cwd(path, trusted_folders)
-                        {
-                            return Some((project, cwd));
-                        }
+    // Scan events to find tool.execution_start events with path in arguments
+    for event in events {
+        if event.event_type == "tool.execution_start" {
+            if let Some(args) = event.data.get("arguments") {
+                // Try to extract path from arguments
+                if let Some(path) = args.get("path").and_then(|p| p.as_str()) {
+                    // Match against trusted folders
+                    if let Some((project, cwd)) = match_trusted_folder_with_cwd(path, trusted_folders) {
+                        return Some((project, cwd));
                     }
                 }
-            }
-            // Check if arguments is already an object
-            else if let Some(path) = args.get("path").and_then(|p| p.as_str()) {
-                // Match against trusted folders (partial match from the front)
-                if let Some((project, cwd)) = match_trusted_folder_with_cwd(path, trusted_folders) {
-                    return Some((project, cwd));
+
+                // Also check if command contains a path (for bash commands like cd /path)
+                if let Some(command) = args.get("command").and_then(|c| c.as_str()) {
+                    // Try to extract paths from common commands
+                    for word in command.split_whitespace() {
+                        if word.starts_with('/') || word.starts_with('~') {
+                            if let Some((project, cwd)) = match_trusted_folder_with_cwd(word, trusted_folders) {
+                                return Some((project, cwd));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -161,77 +152,46 @@ impl CopilotParser {
 
     #[allow(dead_code)]
     pub fn parse_session(&self, session_file_path: &Path) -> Result<ParsedSession, String> {
-        // Read the session file
+        // Read the JSONL file
         let content = fs::read_to_string(session_file_path)
             .map_err(|e| format!("Failed to read session file: {}", e))?;
 
-        // Parse the Copilot session format
-        let copilot_session: CopilotSession = serde_json::from_str(&content)
-            .map_err(|e| format!("Failed to parse Copilot session JSON: {}", e))?;
+        // Parse JSONL - one event per line
+        let mut events = Vec::new();
+        for line in content.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
 
-        // Extract start and end times from timeline
-        let (session_start_time, session_end_time) = if !copilot_session.timeline.is_empty() {
-            // Find first entry with a timestamp
-            let start = copilot_session.timeline.iter().find_map(|entry| {
-                entry.timestamp.as_ref().and_then(|ts| {
-                    DateTime::parse_from_rfc3339(ts)
-                        .ok()
-                        .map(|dt| dt.with_timezone(&Utc))
-                })
-            });
+            let event: CopilotEvent = serde_json::from_str(line)
+                .map_err(|e| format!("Failed to parse event line: {}", e))?;
+            events.push(event);
+        }
 
-            // Find last entry with a timestamp
-            let end = copilot_session.timeline.iter().rev().find_map(|entry| {
-                entry.timestamp.as_ref().and_then(|ts| {
-                    DateTime::parse_from_rfc3339(ts)
-                        .ok()
-                        .map(|dt| dt.with_timezone(&Utc))
-                })
-            });
+        if events.is_empty() {
+            return Err("No events found in session file".to_string());
+        }
 
-            (start, end)
-        } else {
-            // Fallback to start_time from session if timeline is empty
-            let start = DateTime::parse_from_rfc3339(&copilot_session.start_time)
+        // Extract session metadata from session.start event
+        let session_start_event = events
+            .iter()
+            .find(|e| e.event_type == "session.start")
+            .ok_or("No session.start event found")?;
+
+        let session_start_data: SessionStartData = serde_json::from_value(session_start_event.data.clone())
+            .map_err(|e| format!("Failed to parse session.start data: {}", e))?;
+
+        // Get start and end times
+        let session_start_time = DateTime::parse_from_rfc3339(&session_start_data.start_time)
+            .ok()
+            .map(|dt| dt.with_timezone(&Utc));
+
+        // Last event timestamp is the end time
+        let session_end_time = events.last().and_then(|e| {
+            DateTime::parse_from_rfc3339(&e.timestamp)
                 .ok()
-                .map(|dt| dt.with_timezone(&Utc));
-            (start, None)
-        };
-
-        // Convert timeline to JSONL format - minimal conversion
-        // Each timeline entry becomes one JSONL line with no interpretation
-        let jsonl_content = if !copilot_session.timeline.is_empty() {
-            copilot_session
-                .timeline
-                .iter()
-                .filter_map(|entry| {
-                    // Create a simple JSON object combining timestamp and all data fields
-                    let mut json_obj = serde_json::Map::new();
-
-                    // Add timestamp if present
-                    if let Some(ref ts) = entry.timestamp {
-                        json_obj.insert(
-                            "timestamp".to_string(),
-                            serde_json::Value::String(ts.clone()),
-                        );
-                    }
-
-                    // Add all other fields from the data
-                    if let serde_json::Value::Object(data_map) = &entry.data {
-                        for (key, value) in data_map {
-                            json_obj.insert(key.clone(), value.clone());
-                        }
-                    }
-
-                    // Serialize to JSON string (one line per entry)
-                    serde_json::to_string(&json_obj).ok()
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        } else {
-            // No timeline available
-            String::new()
-        };
+                .map(|dt| dt.with_timezone(&Utc))
+        });
 
         // Calculate duration
         let duration_ms = match (session_start_time, session_end_time) {
@@ -239,30 +199,58 @@ impl CopilotParser {
             _ => None,
         };
 
-        // Extract session ID from filename or use from JSON
+        // Detect project and cwd from events
+        let (project_name, cwd) = match load_copilot_config() {
+            Ok(config) if !config.trusted_folders.is_empty() => {
+                detect_project_and_cwd_from_events(&events, &config.trusted_folders)
+                    .map(|(name, cwd)| (name, Some(cwd)))
+                    .unwrap_or_else(|| ("copilot-sessions".to_string(), None))
+            }
+            _ => ("copilot-sessions".to_string(), None),
+        };
+
+        // Extract session ID from filename (UUID)
         let session_id = session_file_path
             .file_stem()
             .and_then(|s| s.to_str())
-            .map(|s| {
-                // Remove "session_" prefix if present
-                s.strip_prefix("session_").unwrap_or(s).to_string()
-            })
-            .unwrap_or_else(|| copilot_session.session_id.clone());
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| session_start_data.session_id.clone());
+
+        // Convert events to canonical format
+        use crate::providers::copilot::converter::convert_event_to_canonical;
+
+        let mut canonical_messages = Vec::new();
+        for event in &events {
+            match convert_event_to_canonical(event, &session_id, cwd.as_deref()) {
+                Ok(mut messages) => canonical_messages.append(&mut messages),
+                Err(e) => {
+                    // Log error but continue processing other events
+                    eprintln!("Warning: Failed to convert event: {}", e);
+                }
+            }
+        }
+
+        // Convert canonical messages to JSONL
+        let jsonl_content = canonical_messages
+            .iter()
+            .filter_map(|msg| serde_json::to_string(msg).ok())
+            .collect::<Vec<_>>()
+            .join("\n");
 
         Ok(ParsedSession {
             session_id,
-            project_name: "copilot-sessions".to_string(),
+            project_name,
             session_start_time,
             session_end_time,
             duration_ms,
             jsonl_content,
-            cwd: None,
+            cwd,
         })
     }
 
     #[allow(dead_code)]
     pub fn get_all_sessions(&self) -> Result<Vec<PathBuf>, String> {
-        let session_dir = self.storage_path.join("history-session-state");
+        let session_dir = self.storage_path.join("session-state");
         if !session_dir.exists() {
             return Ok(Vec::new());
         }
@@ -273,10 +261,10 @@ impl CopilotParser {
         let mut session_files = Vec::new();
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|ext| ext.to_str()) == Some("json") {
-                // Check if it's a session file (starts with "session_")
+            if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
+                // Skip hidden files
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    if file_name.starts_with("session_") {
+                    if !file_name.starts_with('.') {
                         session_files.push(path);
                     }
                 }
@@ -310,64 +298,54 @@ mod tests {
     fn test_parse_copilot_session() {
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path();
-        let session_dir = storage_path.join("history-session-state");
+        let session_dir = storage_path.join("session-state");
         fs::create_dir_all(&session_dir).unwrap();
 
-        // Create a test session file
-        let session_content = r#"{
-            "sessionId": "test-session-123",
-            "startTime": "2025-01-01T10:00:00.000Z",
-            "chatMessages": [
-                {
-                    "role": "user",
-                    "content": "Hello, how can I help?"
-                },
-                {
-                    "role": "assistant",
-                    "content": "I can help you with coding tasks.",
-                    "tool_calls": []
-                }
-            ],
-            "timeline": [
-                {
-                    "timestamp": "2025-01-01T10:00:00.000Z",
-                    "type": "user_message",
-                    "content": "Hello"
-                },
-                {
-                    "timestamp": "2025-01-01T10:00:05.000Z",
-                    "type": "assistant_message",
-                    "content": "I can help you with coding tasks."
-                }
-            ]
-        }"#;
+        // Create a test session file in new JSONL event format
+        let session_content = r#"{"type":"session.start","data":{"sessionId":"test-session-123","version":1,"producer":"copilot-agent","copilotVersion":"0.0.348","startTime":"2025-01-01T10:00:00.000Z"},"id":"event-1","timestamp":"2025-01-01T10:00:00.000Z","parentId":null}
+{"type":"user.message","data":{"content":"Hello","attachments":[]},"id":"event-2","timestamp":"2025-01-01T10:00:05.000Z","parentId":"event-1"}
+{"type":"assistant.message","data":{"messageId":"msg-1","content":"I can help you with coding tasks.","toolRequests":[]},"id":"event-3","timestamp":"2025-01-01T10:00:10.000Z","parentId":"event-2"}"#;
 
-        let session_file = session_dir.join("session_test-session-123_1234567890.json");
+        let session_file = session_dir.join("test-session-123.jsonl");
         fs::write(&session_file, session_content).unwrap();
 
         // Parse the session
         let parser = CopilotParser::new(storage_path.to_path_buf());
         let result = parser.parse_session(&session_file).unwrap();
 
+        assert_eq!(result.session_id, "test-session-123");
         assert_eq!(result.project_name, "copilot-sessions");
         assert!(!result.jsonl_content.is_empty());
         assert!(result.session_start_time.is_some());
+        assert!(result.session_end_time.is_some());
+
+        // Verify it's canonical format (should have multiple lines, each a CanonicalMessage)
+        let lines: Vec<&str> = result.jsonl_content.lines().collect();
+        assert!(lines.len() >= 3, "Expected at least 3 canonical messages");
+
+        // Parse first line to verify it's canonical format (uses camelCase)
+        let first_msg: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        assert!(first_msg.get("uuid").is_some(), "Should have uuid field");
+        assert!(first_msg.get("timestamp").is_some(), "Should have timestamp field");
+        assert!(first_msg.get("type").is_some(), "Should have type field"); // message_type -> type
+        assert!(first_msg.get("sessionId").is_some(), "Should have sessionId field"); // camelCase
+        assert_eq!(first_msg.get("provider").and_then(|v| v.as_str()), Some("github-copilot"));
     }
 
     #[test]
     fn test_get_all_sessions() {
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path();
-        let session_dir = storage_path.join("history-session-state");
+        let session_dir = storage_path.join("session-state");
         fs::create_dir_all(&session_dir).unwrap();
 
-        // Create multiple session files
+        // Create multiple session files (UUID-based naming)
         for i in 1..=3 {
-            let session_file = session_dir.join(format!("session_test-{}_1234567890.json", i));
+            let session_file = session_dir.join(format!("test-session-{}.jsonl", i));
             fs::write(&session_file, "{}").unwrap();
         }
 
-        // Create a non-session file (should be ignored)
+        // Create a non-JSONL file (should be ignored)
         fs::write(session_dir.join("config.json"), "{}").unwrap();
 
         let parser = CopilotParser::new(storage_path.to_path_buf());

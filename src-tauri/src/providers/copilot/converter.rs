@@ -1,59 +1,85 @@
 use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
 };
-use crate::providers::copilot_parser::TimelineEntry;
+use crate::providers::copilot_parser::CopilotEvent;
 use anyhow::{Context, Result};
 use serde_json::Value;
 use uuid::Uuid;
 
-/// Convert a timeline entry to one or more canonical messages
+/// Convert a Copilot event to one or more canonical messages
 ///
-/// Some timeline entries (like tool_call_completed) need to be split into multiple messages:
-/// - tool_call_completed → tool_use + tool_result (2 messages)
-/// - All others → single message
-pub fn convert_timeline_entry_to_canonical(
-    entry: &TimelineEntry,
+/// Maps new event types to canonical format:
+/// - session.start → meta message
+/// - user.message → user message
+/// - assistant.message → assistant message with optional tool requests
+/// - tool.execution_start → tool_use
+/// - tool.execution_complete → tool_result
+pub fn convert_event_to_canonical(
+    event: &CopilotEvent,
     session_id: &str,
     cwd: Option<&str>,
 ) -> Result<Vec<CanonicalMessage>> {
-    // Extract type from the data object
-    let entry_type = entry
-        .data
-        .get("type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
-
-    match entry_type {
-        "user" => Ok(vec![convert_user_message(entry, session_id, cwd)?]),
-        "copilot" => Ok(vec![convert_assistant_message(entry, session_id, cwd)?]),
-        "info" => Ok(vec![convert_info_message(entry, session_id, cwd)?]),
-        "tool_call_requested" => Ok(vec![convert_tool_use(entry, session_id, cwd)?]),
-        "tool_call_completed" => {
-            // Split into tool_use + tool_result
-            let tool_use = convert_tool_use(entry, session_id, cwd)?;
-            let tool_result = convert_tool_result(entry, session_id, cwd)?;
-            Ok(vec![tool_use, tool_result])
-        }
+    match event.event_type.as_str() {
+        "session.start" => Ok(vec![convert_session_start(event, session_id, cwd)?]),
+        "user.message" => Ok(vec![convert_user_message(event, session_id, cwd)?]),
+        "assistant.message" => Ok(vec![convert_assistant_message(event, session_id, cwd)?]),
+        "tool.execution_start" => Ok(vec![convert_tool_use(event, session_id, cwd)?]),
+        "tool.execution_complete" => Ok(vec![convert_tool_result(event, session_id, cwd)?]),
+        "session.info" => Ok(vec![convert_info_message(event, session_id, cwd)?]),
         _ => {
             // Unknown type - create a meta message
-            Ok(vec![convert_unknown_message(entry, session_id, cwd)?])
+            Ok(vec![convert_unknown_message(event, session_id, cwd)?])
         }
     }
 }
 
-/// Convert user message timeline entry
-fn convert_user_message(
-    entry: &TimelineEntry,
+/// Convert session.start event
+fn convert_session_start(
+    event: &CopilotEvent,
     session_id: &str,
     cwd: Option<&str>,
 ) -> Result<CanonicalMessage> {
-    let id = extract_id(entry);
-    let timestamp = extract_timestamp(entry)?;
-    let text = extract_text(entry);
+    Ok(CanonicalMessage {
+        uuid: event.id.clone(),
+        timestamp: event.timestamp.clone(),
+        message_type: MessageType::Meta,
+        session_id: session_id.to_string(),
+        provider: "github-copilot".to_string(),
+        cwd: cwd.map(String::from),
+        git_branch: None,
+        version: None,
+        parent_uuid: event.parent_id.clone(),
+        is_sidechain: None,
+        user_type: None,
+        message: MessageContent {
+            role: "meta".to_string(),
+            content: ContentValue::Text("Session started".to_string()),
+            model: None,
+            usage: None,
+        },
+        provider_metadata: Some(event.data.clone()),
+        is_meta: Some(true),
+        request_id: None,
+        tool_use_result: None,
+    })
+}
+
+/// Convert user.message event
+fn convert_user_message(
+    event: &CopilotEvent,
+    session_id: &str,
+    cwd: Option<&str>,
+) -> Result<CanonicalMessage> {
+    let text = event
+        .data
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
 
     Ok(CanonicalMessage {
-        uuid: id,
-        timestamp,
+        uuid: event.id.clone(),
+        timestamp: event.timestamp.clone(),
         message_type: MessageType::User,
         session_id: session_id.to_string(),
         provider: "github-copilot".to_string(),
@@ -78,18 +104,18 @@ fn convert_user_message(
     })
 }
 
-/// Convert assistant (copilot) message timeline entry
+/// Convert assistant.message event
 fn convert_assistant_message(
-    entry: &TimelineEntry,
+    event: &CopilotEvent,
     session_id: &str,
     cwd: Option<&str>,
 ) -> Result<CanonicalMessage> {
-    let id = extract_id(entry);
-    let timestamp = extract_timestamp(entry)?;
-    let text = extract_text(entry);
+    let id = extract_id(event);
+    let timestamp = extract_timestamp(event)?;
+    let text = extract_text(event);
 
     // Check for intention summary
-    let intention = entry
+    let intention = event
         .data
         .get("intentionSummary")
         .and_then(|v| v.as_str())
@@ -125,13 +151,13 @@ fn convert_assistant_message(
 
 /// Convert info message timeline entry
 fn convert_info_message(
-    entry: &TimelineEntry,
+    event: &CopilotEvent,
     session_id: &str,
     cwd: Option<&str>,
 ) -> Result<CanonicalMessage> {
-    let id = extract_id(entry);
-    let timestamp = extract_timestamp(entry)?;
-    let text = extract_text(entry);
+    let id = extract_id(event);
+    let timestamp = extract_timestamp(event)?;
+    let text = extract_text(event);
 
     Ok(CanonicalMessage {
         uuid: id,
@@ -162,22 +188,22 @@ fn convert_info_message(
 
 /// Convert tool_call_requested or tool_call_completed to tool_use message
 fn convert_tool_use(
-    entry: &TimelineEntry,
+    event: &CopilotEvent,
     session_id: &str,
     cwd: Option<&str>,
 ) -> Result<CanonicalMessage> {
-    let id = extract_id(entry);
-    let timestamp = extract_timestamp(entry)?;
+    let id = extract_id(event);
+    let timestamp = extract_timestamp(event)?;
 
     // Extract tool call details
-    let call_id = entry
+    let call_id = event
         .data
         .get("callId")
         .and_then(|v| v.as_str())
         .unwrap_or(&id)
         .to_string();
 
-    let tool_name = entry
+    let tool_name = event
         .data
         .get("name")
         .and_then(|v| v.as_str())
@@ -185,7 +211,7 @@ fn convert_tool_use(
         .to_string();
 
     // Parse arguments (can be a JSON string or object)
-    let arguments = if let Some(args) = entry.data.get("arguments") {
+    let arguments = if let Some(args) = event.data.get("arguments") {
         if let Some(args_str) = args.as_str() {
             // Try to parse JSON string
             serde_json::from_str(args_str).unwrap_or(Value::String(args_str.to_string()))
@@ -204,12 +230,12 @@ fn convert_tool_use(
     };
 
     // Check for intention summary and tool title
-    let intention = entry
+    let intention = event
         .data
         .get("intentionSummary")
         .and_then(|v| v.as_str())
         .map(String::from);
-    let tool_title = entry
+    let tool_title = event
         .data
         .get("toolTitle")
         .and_then(|v| v.as_str())
@@ -246,15 +272,15 @@ fn convert_tool_use(
 
 /// Convert tool_call_completed to tool_result message
 fn convert_tool_result(
-    entry: &TimelineEntry,
+    event: &CopilotEvent,
     session_id: &str,
     cwd: Option<&str>,
 ) -> Result<CanonicalMessage> {
-    let id = extract_id(entry);
-    let timestamp = extract_timestamp(entry)?;
+    let id = extract_id(event);
+    let timestamp = extract_timestamp(event)?;
 
     // Extract call ID
-    let call_id = entry
+    let call_id = event
         .data
         .get("callId")
         .and_then(|v| v.as_str())
@@ -262,7 +288,7 @@ fn convert_tool_result(
         .to_string();
 
     // Extract result
-    let result_content = if let Some(result) = entry.data.get("result") {
+    let result_content = if let Some(result) = event.data.get("result") {
         if result.is_string() {
             result.as_str().unwrap_or("").to_string()
         } else {
@@ -307,18 +333,14 @@ fn convert_tool_result(
 
 /// Convert unknown message type to meta message
 fn convert_unknown_message(
-    entry: &TimelineEntry,
+    event: &CopilotEvent,
     session_id: &str,
     cwd: Option<&str>,
 ) -> Result<CanonicalMessage> {
-    let id = extract_id(entry);
-    let timestamp = extract_timestamp(entry)?;
-    let text = extract_text(entry);
-    let entry_type = entry
-        .data
-        .get("type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
+    let id = extract_id(event);
+    let timestamp = extract_timestamp(event)?;
+    let text = extract_text(event);
+    let event_type = &event.event_type;
 
     Ok(CanonicalMessage {
         uuid: id,
@@ -339,7 +361,7 @@ fn convert_unknown_message(
             usage: None,
         },
         provider_metadata: Some(serde_json::json!({
-            "copilot_type": entry_type,
+            "copilot_type": event_type,
             "warning": "unknown_type",
         })),
         is_meta: Some(true),
@@ -349,32 +371,21 @@ fn convert_unknown_message(
 }
 
 /// Extract ID from timeline entry
-fn extract_id(entry: &TimelineEntry) -> String {
-    entry
-        .data
-        .get("id")
-        .and_then(|v| v.as_str())
-        .map(String::from)
-        .unwrap_or_else(|| Uuid::new_v4().to_string())
+fn extract_id(event: &CopilotEvent) -> String {
+    event.id.clone()
 }
 
-/// Extract timestamp from timeline entry
-fn extract_timestamp(entry: &TimelineEntry) -> Result<String> {
-    entry
-        .timestamp
-        .clone()
-        .or_else(|| {
-            // Fallback: use current time if no timestamp
-            Some(chrono::Utc::now().to_rfc3339())
-        })
-        .context("Missing timestamp")
+/// Extract timestamp from event
+fn extract_timestamp(event: &CopilotEvent) -> Result<String> {
+    Ok(event.timestamp.clone())
 }
 
-/// Extract text content from timeline entry
-fn extract_text(entry: &TimelineEntry) -> String {
-    entry
+/// Extract text content from event data
+fn extract_text(event: &CopilotEvent) -> String {
+    event
         .data
-        .get("text")
+        .get("content")
+        .or_else(|| event.data.get("text"))
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string()
@@ -385,21 +396,20 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn create_test_entry(entry_type: &str, data: Value) -> TimelineEntry {
-        let mut data_obj = data.as_object().unwrap().clone();
-        data_obj.insert("type".to_string(), json!(entry_type));
-        data_obj.insert("id".to_string(), json!("test-123"));
-
-        TimelineEntry {
-            timestamp: Some("2025-01-01T10:00:00.000Z".to_string()),
-            data: Value::Object(data_obj),
+    fn create_test_event(event_type: &str, data: Value) -> CopilotEvent {
+        CopilotEvent {
+            event_type: event_type.to_string(),
+            data,
+            id: "test-123".to_string(),
+            timestamp: "2025-01-01T10:00:00.000Z".to_string(),
+            parent_id: None,
         }
     }
 
     #[test]
     fn test_convert_user_message() {
-        let entry = create_test_entry("user", json!({ "text": "Hello" }));
-        let result = convert_timeline_entry_to_canonical(&entry, "session-1", Some("/test"))
+        let entry = create_test_event("user.message", json!({ "content": "Hello", "attachments": [] }));
+        let result = convert_event_to_canonical(&entry, "session-1", Some("/test"))
             .unwrap();
 
         assert_eq!(result.len(), 1);
@@ -416,8 +426,8 @@ mod tests {
 
     #[test]
     fn test_convert_assistant_message() {
-        let entry = create_test_entry("copilot", json!({ "text": "Hi there" }));
-        let result = convert_timeline_entry_to_canonical(&entry, "session-1", None).unwrap();
+        let entry = create_test_event("assistant.message", json!({ "content": "Hi there", "messageId": "msg-1", "toolRequests": [] }));
+        let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
 
         assert_eq!(result.len(), 1);
         let msg = &result[0];
@@ -430,16 +440,16 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_tool_call_requested() {
-        let entry = create_test_entry(
-            "tool_call_requested",
+    fn test_convert_tool_execution_start() {
+        let entry = create_test_event(
+            "tool.execution_start",
             json!({
-                "callId": "call-456",
-                "name": "read_file",
-                "arguments": r#"{"path": "/test/file.txt"}"#
+                "toolCallId": "call-456",
+                "toolName": "bash",
+                "arguments": {"command": "ls -la", "path": "/test"}
             }),
         );
-        let result = convert_timeline_entry_to_canonical(&entry, "session-1", None).unwrap();
+        let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
 
         assert_eq!(result.len(), 1);
         let msg = &result[0];
@@ -462,20 +472,19 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_tool_call_completed() {
-        let entry = create_test_entry(
-            "tool_call_completed",
+    fn test_convert_tool_execution_complete() {
+        let entry = create_test_event(
+            "tool.execution_complete",
             json!({
-                "callId": "call-789",
-                "name": "read_file",
-                "arguments": r#"{"path": "/test/file.txt"}"#,
-                "result": "File contents here"
+                "toolCallId": "call-789",
+                "success": true,
+                "result": {"content": "File contents here"}
             }),
         );
-        let result = convert_timeline_entry_to_canonical(&entry, "session-1", None).unwrap();
+        let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
 
-        // Should produce 2 messages: tool_use + tool_result
-        assert_eq!(result.len(), 2);
+        // Should produce 1 message: tool_result
+        assert_eq!(result.len(), 1);
 
         // First message: tool_use
         let tool_use = &result[0];
@@ -513,8 +522,8 @@ mod tests {
 
     #[test]
     fn test_convert_info_message() {
-        let entry = create_test_entry("info", json!({ "text": "Session started" }));
-        let result = convert_timeline_entry_to_canonical(&entry, "session-1", None).unwrap();
+        let entry = create_test_event("session.info", json!({ "infoType": "mcp", "message": "Connected to MCP" }));
+        let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
 
         assert_eq!(result.len(), 1);
         let msg = &result[0];
@@ -524,8 +533,8 @@ mod tests {
 
     #[test]
     fn test_convert_unknown_type() {
-        let entry = create_test_entry("weird_type", json!({ "text": "Unknown" }));
-        let result = convert_timeline_entry_to_canonical(&entry, "session-1", None).unwrap();
+        let entry = create_test_event("weird_type", json!({ "text": "Unknown" }));
+        let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
 
         assert_eq!(result.len(), 1);
         let msg = &result[0];
