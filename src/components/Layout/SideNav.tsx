@@ -23,7 +23,13 @@ interface ProviderNavItemProps {
   onSettingsClick?: () => void
 }
 
-function ProviderNavItem({ item, provider, isActive, onClick, onSettingsClick }: ProviderNavItemProps) {
+function ProviderNavItem({
+  item,
+  provider,
+  isActive,
+  onClick,
+  onSettingsClick,
+}: ProviderNavItemProps) {
   const location = useLocation()
 
   // Get provider config to check home directory and enabled status
@@ -74,14 +80,12 @@ function ProviderNavItem({ item, provider, isActive, onClick, onSettingsClick }:
       </button>
       {onSettingsClick && (
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation()
             onSettingsClick()
           }}
           className={`absolute right-2 inset-y-0 my-auto h-8 w-8 rounded-md transition-all flex items-center justify-center ${
-            isOnSettingsPage
-              ? 'opacity-100'
-              : 'opacity-0 group-hover:opacity-100'
+            isOnSettingsPage ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           } ${
             isActive
               ? 'hover:bg-white/20 text-white'
@@ -161,9 +165,10 @@ function SideNav() {
             .filter(item => item.type === 'main')
             .map(item => {
               // For Sessions page, only highlight if there's no provider filter
-              const isActive = item.path === '/sessions'
-                ? location.pathname === '/sessions' && !location.search.includes('provider=')
-                : location.pathname === item.path
+              const isActive =
+                item.path === '/sessions'
+                  ? location.pathname === '/sessions' && !location.search.includes('provider=')
+                  : location.pathname === item.path
               const dataTour = item.path === '/sessions' ? 'sessions-nav' : undefined
 
               return (
@@ -202,9 +207,13 @@ function SideNav() {
               .map(item => {
                 // Check if current path matches either the sessions filter or settings page
                 const isActive =
-                  location.pathname === '/sessions' && location.search === `?provider=${item.path.split('=')[1]}` ||
+                  (location.pathname === '/sessions' &&
+                    location.search === `?provider=${item.path.split('=')[1]}`) ||
                   location.pathname === item.settingsPath
-                const provider = CODING_AGENTS.find(agent => item.settingsPath === `/provider/${agent.id}`)
+                const provider = CODING_AGENTS.find(
+                  agent => item.settingsPath === `/provider/${agent.id}`
+                )
+                const settingsPath = item.settingsPath
 
                 return (
                   <ProviderNavItem
@@ -213,7 +222,7 @@ function SideNav() {
                     provider={provider}
                     isActive={isActive}
                     onClick={() => handleNavClick(item.path)}
-                    onSettingsClick={item.settingsPath ? () => handleNavClick(item.settingsPath!) : undefined}
+                    onSettingsClick={settingsPath ? () => handleNavClick(settingsPath) : undefined}
                   />
                 )
               })}
