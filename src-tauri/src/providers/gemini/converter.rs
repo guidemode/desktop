@@ -2,9 +2,12 @@ use crate::providers::canonical::{
     converter::ToCanonical, CanonicalMessage, ContentBlock, ContentValue, MessageContent,
     MessageType, TokenUsage,
 };
+use crate::providers::common::get_canonical_path;
 use crate::providers::gemini_parser::{GeminiMessage, GeminiSession};
 use anyhow::{Context, Result};
 use serde_json::Value;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Implement ToCanonical for GeminiMessage
 ///
@@ -27,10 +30,31 @@ impl ToCanonical for GeminiMessage {
             "assistant"
         };
 
-        // Build content value
-        let content = if !self.content.is_empty() {
+        // Build content value - combine thoughts and text into structured content if needed
+        let content = if self.thoughts.is_some() && !self.thoughts.as_ref().unwrap().is_empty() {
+            // Message has thoughts - create structured content with thinking blocks
+            let mut blocks = Vec::new();
+
+            // Add thinking blocks for each thought
+            for thought in self.thoughts.as_ref().unwrap() {
+                blocks.push(ContentBlock::Thinking {
+                    thinking: format!("{}: {}", thought.subject, thought.description),
+                });
+            }
+
+            // Add text content if present
+            if !self.content.is_empty() {
+                blocks.push(ContentBlock::Text {
+                    text: self.content.clone(),
+                });
+            }
+
+            ContentValue::Structured(blocks)
+        } else if !self.content.is_empty() {
+            // No thoughts, just text
             ContentValue::Text(self.content.clone())
         } else {
+            // Empty message
             ContentValue::Text(String::new())
         };
 
@@ -159,6 +183,16 @@ pub fn convert_session_to_canonical(
                         serde_json::to_string(result)?
                     };
 
+                    // Validate we have required data for tool_result
+                    // Don't create empty tool_result blocks (causes parsing issues)
+                    if tool_call.id.is_empty() || content_str.is_empty() {
+                        return Err(anyhow::anyhow!(
+                            "Tool result missing required fields: id='{}', content length={}",
+                            tool_call.id,
+                            content_str.len()
+                        ));
+                    }
+
                     let tool_result_block = ContentBlock::ToolResult {
                         tool_use_id: tool_call.id.clone(),
                         content: content_str,
@@ -168,7 +202,7 @@ pub fn convert_session_to_canonical(
                     let tool_result_msg = CanonicalMessage {
                         uuid: format!("{}_result", tool_call.id),
                         timestamp: message.timestamp.clone(),
-                        message_type: MessageType::Assistant,
+                        message_type: MessageType::User,  // Tool results are USER messages
                         session_id: session.session_id.clone(),
                         provider: "gemini-code".to_string(),
                         cwd: cwd.clone(),
@@ -178,7 +212,7 @@ pub fn convert_session_to_canonical(
                         is_sidechain: None,
                         user_type: Some("external".to_string()),
                         message: MessageContent {
-                            role: "assistant".to_string(),
+                            role: "user".to_string(),  // Tool results have user role
                             content: ContentValue::Structured(vec![tool_result_block]),
                             model: message.model.clone(),
                             usage: None,
@@ -195,7 +229,8 @@ pub fn convert_session_to_canonical(
             }
         }
 
-        // Then, emit main message if it has content or thoughts
+        // Then, emit main message if it has content OR thoughts
+        // Tool messages are emitted separately above
         if !message.content.is_empty() || message.thoughts.is_some() {
             let mut canonical_msg = message.to_canonical()?;
 
@@ -221,6 +256,75 @@ pub fn convert_session_to_canonical(
     }
 
     Ok(canonical_messages)
+}
+
+/// Convert Gemini JSON file to canonical JSONL and cache it
+///
+/// This is the shared conversion function used by both the watcher and scanner.
+/// It ensures consistent behavior across live monitoring and historical rescans.
+///
+/// # Arguments
+/// * `json_file_path` - Path to the original Gemini session JSON file
+/// * `session_id` - Session identifier (from filename)
+///
+/// # Returns
+/// The path to the cached canonical JSONL file
+///
+/// # Errors
+/// Returns an error if:
+/// - File cannot be read
+/// - JSON parsing fails
+/// - Canonical conversion fails
+/// - File write fails
+pub fn convert_to_canonical_file(
+    json_file_path: &Path,
+    session_id: &str,
+) -> Result<PathBuf> {
+    const PROVIDER_ID: &str = "gemini-code";
+
+    // Read the original Gemini JSON file
+    let content = fs::read_to_string(json_file_path)
+        .context(format!("Failed to read Gemini JSON file: {:?}", json_file_path))?;
+
+    // Parse the Gemini session
+    let session = GeminiSession::from_json(&content)
+        .context("Failed to parse Gemini session JSON")?;
+
+    // Try to infer CWD from message content using shared utility
+    let cwd = infer_cwd_from_session(&session);
+
+    // Convert to canonical format
+    let canonical_messages = convert_session_to_canonical(&session, cwd.clone())?;
+
+    // Serialize each message to JSONL
+    let mut canonical_lines = Vec::new();
+    for (line_num, msg) in canonical_messages.iter().enumerate() {
+        let line = serde_json::to_string(msg)
+            .context(format!("Failed to serialize canonical message {} for session {}", line_num, session_id))?;
+        canonical_lines.push(line);
+    }
+
+    // Join canonical lines into content
+    let canonical_content = canonical_lines.join("\n");
+
+    // Get project-organized canonical path using inferred CWD
+    // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+    let canonical_path = get_canonical_path(PROVIDER_ID, cwd.as_deref(), session_id)
+        .map_err(|e| anyhow::anyhow!("Failed to get canonical path: {}", e))?;
+
+    // Write to project-organized path
+    fs::write(&canonical_path, canonical_content)
+        .context(format!("Failed to write canonical JSONL to {:?}", canonical_path))?;
+
+    Ok(canonical_path)
+}
+
+/// Infer working directory from Gemini session messages
+///
+/// Uses the shared CWD extraction function from gemini_utils.rs
+fn infer_cwd_from_session(session: &GeminiSession) -> Option<String> {
+    use crate::providers::gemini_utils::infer_cwd_from_session as shared_infer_cwd;
+    shared_infer_cwd(session, &session.project_hash)
 }
 
 #[cfg(test)]
@@ -368,16 +472,79 @@ mod tests {
     }
 
     #[test]
-    fn test_minimal_metadata() {
+    fn test_thoughts_converted_to_thinking_blocks() {
         let msg = GeminiMessage {
             id: "msg-1".to_string(),
             timestamp: "2025-01-01T00:00:00.000Z".to_string(),
-            message_type: "user".to_string(),
-            content: "Test".to_string(),
+            message_type: "gemini".to_string(),
+            content: "Let me analyze this.".to_string(),
+            tool_calls: None,
+            thoughts: Some(vec![
+                Thought {
+                    subject: "Analysis".to_string(),
+                    description: "Examining the code structure".to_string(),
+                    timestamp: "2025-01-01T00:00:00.000Z".to_string(),
+                },
+                Thought {
+                    subject: "Planning".to_string(),
+                    description: "Determining the best approach".to_string(),
+                    timestamp: "2025-01-01T00:00:01.000Z".to_string(),
+                },
+            ]),
+            tokens: None,
+            model: Some("gemini-2.5-pro".to_string()),
+        };
+
+        let canonical = msg.to_canonical().unwrap();
+
+        // Should have structured content with thinking blocks and text
+        match canonical.message.content {
+            ContentValue::Structured(blocks) => {
+                assert_eq!(blocks.len(), 3); // 2 thinking blocks + 1 text block
+
+                // First thinking block
+                match &blocks[0] {
+                    ContentBlock::Thinking { thinking } => {
+                        assert_eq!(thinking, "Analysis: Examining the code structure");
+                    }
+                    _ => panic!("Expected first block to be Thinking"),
+                }
+
+                // Second thinking block
+                match &blocks[1] {
+                    ContentBlock::Thinking { thinking } => {
+                        assert_eq!(thinking, "Planning: Determining the best approach");
+                    }
+                    _ => panic!("Expected second block to be Thinking"),
+                }
+
+                // Text block
+                match &blocks[2] {
+                    ContentBlock::Text { text } => {
+                        assert_eq!(text, "Let me analyze this.");
+                    }
+                    _ => panic!("Expected third block to be Text"),
+                }
+            }
+            _ => panic!("Expected structured content"),
+        }
+
+        // Metadata should still have has_thoughts flag
+        let metadata = canonical.provider_metadata.unwrap();
+        assert_eq!(metadata["has_thoughts"], true);
+    }
+
+    #[test]
+    fn test_thoughts_only_message() {
+        let msg = GeminiMessage {
+            id: "msg-2".to_string(),
+            timestamp: "2025-01-01T00:00:00.000Z".to_string(),
+            message_type: "gemini".to_string(),
+            content: String::new(), // No text content, only thoughts
             tool_calls: None,
             thoughts: Some(vec![Thought {
-                subject: "test".to_string(),
-                description: "testing".to_string(),
+                subject: "Thinking".to_string(),
+                description: "Considering the options".to_string(),
                 timestamp: "2025-01-01T00:00:00.000Z".to_string(),
             }]),
             tokens: None,
@@ -385,11 +552,20 @@ mod tests {
         };
 
         let canonical = msg.to_canonical().unwrap();
-        let metadata = canonical.provider_metadata.unwrap();
 
-        // Should only have minimal flags, not full data
-        assert_eq!(metadata["gemini_type"], "user");
-        assert_eq!(metadata["has_thoughts"], true);
-        assert!(metadata.get("thoughts").is_none()); // Full thoughts not in metadata
+        // Should have structured content with only thinking block (no text)
+        match canonical.message.content {
+            ContentValue::Structured(blocks) => {
+                assert_eq!(blocks.len(), 1);
+
+                match &blocks[0] {
+                    ContentBlock::Thinking { thinking } => {
+                        assert_eq!(thinking, "Thinking: Considering the options");
+                    }
+                    _ => panic!("Expected Thinking block"),
+                }
+            }
+            _ => panic!("Expected structured content"),
+        }
     }
 }

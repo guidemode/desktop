@@ -343,3 +343,99 @@ fn test_message_type_deserialization() {
         MessageType::Meta
     );
 }
+
+#[test]
+fn test_deserialize_thinking_block() {
+    let json = r#"{
+        "uuid": "msg-thinking",
+        "timestamp": "2025-01-01T00:03:00.000Z",
+        "type": "assistant",
+        "sessionId": "session-abc",
+        "provider": "gemini-code",
+        "message": {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "thinking",
+                    "thinking": "Analysis: Examining the code structure"
+                },
+                {
+                    "type": "text",
+                    "text": "Let me help you with that."
+                }
+            ],
+            "model": "gemini-2.5-pro"
+        }
+    }"#;
+
+    let msg: CanonicalMessage = serde_json::from_str(json).unwrap();
+
+    assert_eq!(msg.message_type, MessageType::Assistant);
+    assert_eq!(msg.provider, "gemini-code");
+
+    match msg.message.content {
+        ContentValue::Structured(blocks) => {
+            assert_eq!(blocks.len(), 2);
+
+            // First block should be thinking
+            match &blocks[0] {
+                ContentBlock::Thinking { thinking } => {
+                    assert_eq!(thinking, "Analysis: Examining the code structure");
+                }
+                _ => panic!("Expected thinking block"),
+            }
+
+            // Second block should be text
+            match &blocks[1] {
+                ContentBlock::Text { text } => {
+                    assert_eq!(text, "Let me help you with that.");
+                }
+                _ => panic!("Expected text block"),
+            }
+        }
+        _ => panic!("Expected structured content"),
+    }
+}
+
+#[test]
+fn test_serialize_thinking_block() {
+    let blocks = vec![
+        ContentBlock::Thinking {
+            thinking: "Planning: Determining the approach".to_string(),
+        },
+        ContentBlock::Text {
+            text: "I'll proceed with the implementation.".to_string(),
+        },
+    ];
+
+    let msg = CanonicalMessage::new_structured_message(
+        "uuid-thinking".to_string(),
+        "2025-01-01T00:00:00.000Z".to_string(),
+        MessageType::Assistant,
+        "session-1".to_string(),
+        "gemini-code".to_string(),
+        "assistant".to_string(),
+        blocks,
+    );
+
+    let json = serde_json::to_string(&msg).unwrap();
+
+    // Verify serialization includes thinking type
+    assert!(json.contains("\"type\":\"thinking\""));
+    assert!(json.contains("Planning: Determining the approach"));
+
+    // Verify round-trip
+    let deserialized: CanonicalMessage = serde_json::from_str(&json).unwrap();
+    match deserialized.message.content {
+        ContentValue::Structured(blocks) => {
+            assert_eq!(blocks.len(), 2);
+            match &blocks[0] {
+                ContentBlock::Thinking { thinking } => {
+                    assert_eq!(thinking, "Planning: Determining the approach");
+                }
+                _ => panic!("Expected thinking block"),
+            }
+        }
+        _ => panic!("Expected structured content"),
+    }
+}

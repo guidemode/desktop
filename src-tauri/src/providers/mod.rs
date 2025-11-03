@@ -17,8 +17,8 @@ pub mod gemini_parser; // Made public for test access
 pub mod gemini_registry; // Registry for hash->CWD mappings
 pub mod gemini_utils; // Made public for test access to CWD extraction functions
 mod gemini_watcher;
-mod opencode;
-mod opencode_parser;
+pub mod opencode; // OpenCode converter (public for canonical format migration)
+pub mod opencode_parser; // Made public for converter access
 mod opencode_watcher;
 mod session_scanner;
 

@@ -103,3 +103,53 @@ fn test_parse_codex_session_sample() {
         println!("No Codex sessions found - skipping test");
     }
 }
+
+#[test]
+fn test_message_aggregator_combines_same_timestamp() {
+    use guideai_desktop::providers::codex::converter::{CodexMessage, MessageAggregator};
+
+    // Create messages with same timestamp - reasoning + function_call
+    let timestamp = "2025-11-01T12:43:49.787Z";
+
+    let reasoning_json = r#"{
+        "timestamp": "2025-11-01T12:43:49.787Z",
+        "type": "response_item",
+        "payload": {
+            "type": "reasoning",
+            "summary": [{"text": "Let me check the lint status"}]
+        }
+    }"#;
+
+    let function_call_json = r#"{
+        "timestamp": "2025-11-01T12:43:49.787Z",
+        "type": "response_item",
+        "payload": {
+            "type": "function_call",
+            "name": "shell",
+            "call_id": "call_123",
+            "arguments": "{\"command\":\"pnpm lint\"}"
+        }
+    }"#;
+
+    let reasoning_msg: CodexMessage = serde_json::from_str(reasoning_json).unwrap();
+    let function_call_msg: CodexMessage = serde_json::from_str(function_call_json).unwrap();
+
+    let mut aggregator = MessageAggregator::new();
+
+    // Process reasoning - should not emit yet (buffered)
+    let result1 = aggregator.process(reasoning_msg).unwrap();
+    assert!(result1.is_none(), "First message should be buffered");
+
+    // Process function_call with same timestamp - should still not emit (still buffering)
+    let result2 = aggregator.process(function_call_msg).unwrap();
+    assert!(result2.is_none(), "Second message with same timestamp should be buffered");
+
+    // Flush should emit the combined message
+    let combined = aggregator.flush().unwrap();
+    assert!(combined.is_some(), "Flush should emit the combined message");
+
+    let canonical = combined.unwrap();
+    assert_eq!(canonical.timestamp, timestamp);
+
+    println!("✓ MessageAggregator correctly combines same-timestamp messages");
+}

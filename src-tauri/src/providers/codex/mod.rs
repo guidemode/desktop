@@ -11,7 +11,7 @@ use toml::Value;
 
 pub mod converter;
 
-pub use converter::CodexMessage;
+pub use converter::{CodexMessage, MessageAggregator};
 
 #[derive(Debug, Deserialize, Default)]
 struct CodexConfig {

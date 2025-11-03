@@ -36,6 +36,7 @@ pub struct SessionStartData {
 
 /// Tool execution arguments
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ToolArguments {
     pub command: Option<String>,
     pub path: Option<String>,

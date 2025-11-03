@@ -1,3 +1,4 @@
+use super::opencode::convert_opencode_jsonl_to_canonical;
 use super::opencode_parser::OpenCodeParser;
 use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
@@ -167,23 +168,28 @@ impl OpenCodeWatcher {
         session_id: &str,
         _project_id: &str,
     ) -> Result<(PathBuf, String), Box<dyn std::error::Error + Send + Sync>> {
-        // Create cache directory if it doesn't exist
-        let cache_dir = dirs::home_dir()
-            .ok_or("Could not find home directory")?
-            .join(".guideai")
-            .join("cache")
-            .join("opencode");
+        use crate::providers::common::{extract_cwd_from_canonical_content, get_canonical_path};
 
-        fs::create_dir_all(&cache_dir)?;
-
-        // Parse session to create virtual JSONL
+        // Parse session to create aggregated OpenCode JSONL
+        // This is the critical snapshot process that gathers all session, message, and part files
         let parsed_session = parser
             .parse_session(session_id)
             .map_err(|e| format!("Failed to parse OpenCode session {}: {}", session_id, e))?;
 
-        // Write virtual JSONL to cache
-        let jsonl_path = cache_dir.join(format!("{}.jsonl", session_id));
-        fs::write(&jsonl_path, &parsed_session.jsonl_content)?;
+        // Convert aggregated OpenCode JSONL to canonical format
+        let canonical_jsonl = convert_opencode_jsonl_to_canonical(&parsed_session.jsonl_content)
+            .map_err(|e| format!("Failed to convert OpenCode JSONL to canonical: {}", e))?;
+
+        // Extract CWD from canonical content for project organization
+        let cwd = extract_cwd_from_canonical_content(&canonical_jsonl);
+
+        // Get project-organized canonical path
+        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+        let jsonl_path = get_canonical_path(PROVIDER_ID, cwd.as_deref(), session_id)
+            .map_err(|e| format!("Failed to get canonical path: {}", e))?;
+
+        // Write canonical JSONL to project-organized path
+        fs::write(&jsonl_path, &canonical_jsonl)?;
 
         // Extract real project name from parsed session (not the GUID)
         let project_name = parsed_session.project_name.clone();
@@ -194,7 +200,7 @@ impl OpenCodeWatcher {
                 "📝 Aggregated session {} → {} ({} bytes, project: {})",
                 session_id,
                 jsonl_path.display(),
-                parsed_session.jsonl_content.len(),
+                canonical_jsonl.len(),
                 project_name
             ),
         ) {

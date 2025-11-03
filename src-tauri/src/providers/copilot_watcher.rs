@@ -2,8 +2,8 @@ use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_error, log_info};
 use crate::providers::common::{
-    extract_session_id_from_filename, get_file_size, has_extension, should_skip_file,
-    SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
+    extract_session_id_from_filename, get_canonical_path, get_file_size, has_extension,
+    should_skip_file, SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
     MIN_SIZE_CHANGE_BYTES,
 };
 use crate::upload_queue::UploadQueue;
@@ -243,20 +243,6 @@ impl CopilotWatcher {
         use crate::providers::copilot_parser::CopilotParser;
         use std::fs;
 
-        // Get canonical cache directory
-        let cache_base = dirs::home_dir()
-            .ok_or("Failed to get home directory")?
-            .join(".guideai")
-            .join("cache")
-            .join("canonical")
-            .join(PROVIDER_ID);
-
-        // Create cache directory if it doesn't exist
-        fs::create_dir_all(&cache_base)?;
-
-        // Create canonical cache file path (session_id.jsonl)
-        let cache_path = cache_base.join(format!("{}.jsonl", session_id));
-
         // Parse and convert to canonical format using the parser
         let storage_path = copilot_file
             .parent()
@@ -266,10 +252,14 @@ impl CopilotWatcher {
         let parser = CopilotParser::new(storage_path.to_path_buf());
         let parsed = parser.parse_session(copilot_file)?;
 
-        // Write canonical JSONL to cache
-        fs::write(&cache_path, parsed.jsonl_content)?;
+        // Get project-organized canonical path using CWD from parsed session
+        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+        let canonical_path = get_canonical_path(PROVIDER_ID, parsed.cwd.as_deref(), session_id)?;
 
-        Ok(cache_path)
+        // Write canonical JSONL to project-organized path
+        fs::write(&canonical_path, parsed.jsonl_content)?;
+
+        Ok(canonical_path)
     }
 
     fn process_file_event(event: &Event, session_dir: &Path) -> Option<FileChangeEvent> {

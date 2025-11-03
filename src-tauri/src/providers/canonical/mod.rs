@@ -131,6 +131,10 @@ pub enum ContentBlock {
         #[serde(skip_serializing_if = "Option::is_none")]
         is_error: Option<bool>,
     },
+    /// Thinking/reasoning block (extended thinking from Claude, thoughts from Gemini, etc.)
+    Thinking {
+        thinking: String,
+    },
 }
 
 /// Token usage statistics
@@ -155,6 +159,7 @@ pub struct TokenUsage {
 
 impl CanonicalMessage {
     /// Create a simple text message
+    #[allow(dead_code)]
     pub fn new_text_message(
         uuid: String,
         timestamp: String,
@@ -190,6 +195,7 @@ impl CanonicalMessage {
     }
 
     /// Create a structured message with content blocks
+    #[allow(dead_code)]
     pub fn new_structured_message(
         uuid: String,
         timestamp: String,

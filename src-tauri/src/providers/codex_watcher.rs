@@ -1,11 +1,11 @@
 use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_error, log_info};
-use crate::providers::canonical::converter::ToCanonical;
 use crate::providers::codex::converter::CodexMessage;
 use crate::providers::common::{
-    get_file_size, has_extension, should_skip_file, SessionStateManager, WatcherStatus,
-    EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL, MIN_SIZE_CHANGE_BYTES,
+    extract_cwd_from_canonical_content, get_canonical_path, get_file_size, has_extension,
+    should_skip_file, SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
+    MIN_SIZE_CHANGE_BYTES,
 };
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, PollWatcher, RecursiveMode, Watcher};
@@ -231,49 +231,51 @@ impl CodexWatcher {
         codex_file: &Path,
         session_id: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        // Get canonical cache directory
-        let cache_base = dirs::home_dir()
-            .ok_or("Failed to get home directory")?
-            .join(".guideai")
-            .join("cache")
-            .join("canonical")
-            .join(PROVIDER_ID);
-
-        // Create cache directory if it doesn't exist
-        fs::create_dir_all(&cache_base)?;
-
-        // Output file path
-        let cache_path = cache_base.join(format!("{}.jsonl", session_id));
+        use crate::providers::codex::converter::MessageAggregator;
 
         // Read original Codex JSONL
         let content = fs::read_to_string(codex_file)?;
 
-        // Parse and convert each line
+        // Create message aggregator to combine text + tool_use
+        let mut aggregator = MessageAggregator::new();
         let mut canonical_lines = Vec::new();
+
+        // Parse and convert each line through the aggregator
         for (line_num, line) in content.lines().enumerate() {
             if line.trim().is_empty() {
                 continue;
             }
 
             match serde_json::from_str::<CodexMessage>(line) {
-                Ok(codex_msg) => match codex_msg.to_canonical() {
-                    Ok(canonical_msg) => {
-                        canonical_lines.push(serde_json::to_string(&canonical_msg)?);
-                    }
-                    Err(e) => {
-                        if let Err(log_err) = log_error(
-                            PROVIDER_ID,
-                            &format!(
-                                "Failed to convert Codex message to canonical at line {}: {}",
-                                line_num + 1,
-                                e
-                            ),
-                        ) {
-                            eprintln!("Logging error: {}", log_err);
+                Ok(codex_msg) => {
+                    // Process through aggregator
+                    match aggregator.process(codex_msg) {
+                        Ok(Some(mut canonical_msg)) => {
+                            // Update session_id from the known session ID (from filename)
+                            // This ensures all messages have the correct session_id,
+                            // not just the session_meta message
+                            canonical_msg.session_id = session_id.to_string();
+
+                            canonical_lines.push(serde_json::to_string(&canonical_msg)?);
                         }
-                        // Continue processing other lines
+                        Ok(None) => {
+                            // Message buffered in aggregator, waiting for more items
+                        }
+                        Err(e) => {
+                            if let Err(log_err) = log_error(
+                                PROVIDER_ID,
+                                &format!(
+                                    "Failed to aggregate Codex message at line {}: {}",
+                                    line_num + 1,
+                                    e
+                                ),
+                            ) {
+                                eprintln!("Logging error: {}", log_err);
+                            }
+                            // Continue processing other lines
+                        }
                     }
-                },
+                }
                 Err(e) => {
                     if let Err(log_err) = log_error(
                         PROVIDER_ID,
@@ -290,10 +292,32 @@ impl CodexWatcher {
             }
         }
 
-        // Write to canonical cache
-        fs::write(&cache_path, canonical_lines.join("\n"))?;
+        // Flush any remaining buffered message from the aggregator
+        if let Ok(Some(mut final_msg)) = aggregator.flush() {
+            final_msg.session_id = session_id.to_string();
+            canonical_lines.push(serde_json::to_string(&final_msg)?);
+        }
 
-        Ok(cache_path)
+        // Also check for any pending message (e.g., a tool_result that was queued)
+        if let Some(mut pending_msg) = aggregator.take_pending() {
+            pending_msg.session_id = session_id.to_string();
+            canonical_lines.push(serde_json::to_string(&pending_msg)?);
+        }
+
+        // Join canonical lines into content
+        let canonical_content = canonical_lines.join("\n");
+
+        // Extract CWD from canonical content
+        let cwd = extract_cwd_from_canonical_content(&canonical_content);
+
+        // Get project-organized canonical path
+        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+        let canonical_path = get_canonical_path(PROVIDER_ID, cwd.as_deref(), session_id)?;
+
+        // Write to project-organized path
+        fs::write(&canonical_path, canonical_content)?;
+
+        Ok(canonical_path)
     }
 
     fn file_event_processor(

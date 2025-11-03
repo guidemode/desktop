@@ -1,10 +1,10 @@
 use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
-use crate::logging::{log_error, log_info, log_warn};
+use crate::logging::{log_debug, log_error, log_info, log_warn};
 use crate::providers::common::{
-    extract_session_id_from_filename, get_file_size, has_extension, should_skip_file,
-    SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
-    MIN_SIZE_CHANGE_BYTES,
+    extract_cwd_from_canonical_content, extract_session_id_from_filename, get_canonical_path,
+    get_file_size, has_extension, should_skip_file, SessionStateManager, WatcherStatus,
+    EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL, MIN_SIZE_CHANGE_BYTES,
 };
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -288,24 +288,27 @@ impl ClaudeWatcher {
     ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
         use std::fs;
 
-        // Get canonical cache directory
-        let cache_base = dirs::home_dir()
-            .ok_or("Failed to get home directory")?
-            .join(".guideai")
-            .join("cache")
-            .join("canonical")
-            .join(PROVIDER_ID);
+        // Read Claude file content (already in canonical format)
+        let content = fs::read_to_string(claude_file)?;
 
-        // Create cache directory if it doesn't exist
-        fs::create_dir_all(&cache_base)?;
+        // Extract CWD from canonical content (may not be in first line)
+        let cwd = extract_cwd_from_canonical_content(&content);
 
-        // Create canonical cache file path (session_id.jsonl)
-        let cache_path = cache_base.join(format!("{}.jsonl", session_id));
+        // Validate that CWD is present before processing
+        // This prevents race conditions with partial file writes where CWD hasn't been written yet
+        // If CWD is missing, return an error so we can retry on the next file modification event
+        let cwd_value = cwd.ok_or({
+            "CWD not found in session file - file may be incomplete, will retry on next event"
+        })?;
 
-        // Claude files are already in canonical format, so just copy
-        fs::copy(claude_file, &cache_path)?;
+        // Get project-organized canonical path
+        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+        let canonical_path = get_canonical_path(PROVIDER_ID, Some(&cwd_value), session_id)?;
 
-        Ok(cache_path)
+        // Copy Claude file to project-organized path
+        fs::copy(claude_file, &canonical_path)?;
+
+        Ok(canonical_path)
     }
 
     fn process_file_event(event: &Event, projects_path: &Path) -> Option<FileChangeEvent> {
@@ -332,11 +335,24 @@ impl ClaudeWatcher {
                         let canonical_path = match Self::convert_to_canonical_file(path, &session_id) {
                             Ok(cache_path) => cache_path,
                             Err(e) => {
-                                if let Err(log_err) = log_error(
-                                    PROVIDER_ID,
-                                    &format!("Failed to copy to canonical cache: {}", e),
-                                ) {
-                                    eprintln!("Logging error: {}", log_err);
+                                // Check if this is expected (partial file without CWD)
+                                let error_msg = e.to_string();
+                                if error_msg.contains("CWD not found") || error_msg.contains("file may be incomplete") {
+                                    // This is expected during partial file writes - use debug logging
+                                    if let Err(log_err) = log_debug(
+                                        PROVIDER_ID,
+                                        &format!("⏸ Skipping session {} - {}", session_id, e),
+                                    ) {
+                                        eprintln!("Logging error: {}", log_err);
+                                    }
+                                } else {
+                                    // Unexpected error - use error logging
+                                    if let Err(log_err) = log_error(
+                                        PROVIDER_ID,
+                                        &format!("Failed to copy to canonical cache: {}", e),
+                                    ) {
+                                        eprintln!("Logging error: {}", log_err);
+                                    }
                                 }
                                 continue;
                             }
@@ -459,11 +475,11 @@ mod tests {
 
         // Create a hidden file
         let hidden_file = project_path.join(".tmpABCDEF.jsonl");
-        fs::write(&hidden_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z"}"#).unwrap();
+        fs::write(&hidden_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path"}"#).unwrap();
 
         // Create a normal file
         let normal_file = project_path.join("session-123.jsonl");
-        fs::write(&normal_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z"}"#).unwrap();
+        fs::write(&normal_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path","type":"user"}"#).unwrap();
 
         // Test hidden file is ignored
         let hidden_event = Event {

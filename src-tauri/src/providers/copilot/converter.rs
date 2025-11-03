@@ -2,9 +2,8 @@ use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
 };
 use crate::providers::copilot_parser::CopilotEvent;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde_json::Value;
-use uuid::Uuid;
 
 /// Convert a Copilot event to one or more canonical messages
 ///
@@ -198,14 +197,16 @@ fn convert_tool_use(
     // Extract tool call details
     let call_id = event
         .data
-        .get("callId")
+        .get("toolCallId")
+        .or_else(|| event.data.get("callId"))  // Fallback to callId for compatibility
         .and_then(|v| v.as_str())
         .unwrap_or(&id)
         .to_string();
 
     let tool_name = event
         .data
-        .get("name")
+        .get("toolName")
+        .or_else(|| event.data.get("name"))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
@@ -282,7 +283,8 @@ fn convert_tool_result(
     // Extract call ID
     let call_id = event
         .data
-        .get("callId")
+        .get("toolCallId")
+        .or_else(|| event.data.get("callId"))  // Fallback to callId for compatibility
         .and_then(|v| v.as_str())
         .unwrap_or(&id)
         .to_string();
@@ -291,12 +293,29 @@ fn convert_tool_result(
     let result_content = if let Some(result) = event.data.get("result") {
         if result.is_string() {
             result.as_str().unwrap_or("").to_string()
+        } else if let Some(content) = result.get("content") {
+            // Copilot wraps result in {"content": "..."}
+            if content.is_string() {
+                content.as_str().unwrap_or("").to_string()
+            } else {
+                serde_json::to_string(content).unwrap_or_default()
+            }
         } else {
             serde_json::to_string(result).unwrap_or_default()
         }
     } else {
         String::new()
     };
+
+    // Validate we have required data for tool_result
+    // Don't create empty tool_result blocks (causes parsing issues)
+    if call_id.is_empty() || result_content.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Tool result missing required fields: call_id='{}', result_content length={}",
+            call_id,
+            result_content.len()
+        ));
+    }
 
     let tool_result_block = ContentBlock::ToolResult {
         tool_use_id: call_id.clone(),
@@ -307,7 +326,7 @@ fn convert_tool_result(
     Ok(CanonicalMessage {
         uuid: format!("{}_result", id),
         timestamp,
-        message_type: MessageType::Assistant,
+        message_type: MessageType::User,  // Tool results are USER messages
         session_id: session_id.to_string(),
         provider: "github-copilot".to_string(),
         cwd: cwd.map(String::from),
@@ -317,7 +336,7 @@ fn convert_tool_result(
         is_sidechain: None,
         user_type: Some("external".to_string()),
         message: MessageContent {
-            role: "assistant".to_string(),
+            role: "user".to_string(),  // Tool results have user role
             content: ContentValue::Structured(vec![tool_result_block]),
             model: None,
             usage: None,
@@ -462,7 +481,7 @@ mod tests {
                 match &blocks[0] {
                     ContentBlock::ToolUse { id, name, .. } => {
                         assert_eq!(id, "call-456");
-                        assert_eq!(name, "read_file");
+                        assert_eq!(name, "bash");  // Fixed to match the test input
                     }
                     _ => panic!("Expected tool_use block"),
                 }
@@ -486,24 +505,10 @@ mod tests {
         // Should produce 1 message: tool_result
         assert_eq!(result.len(), 1);
 
-        // First message: tool_use
-        let tool_use = &result[0];
-        assert_eq!(tool_use.message_type, MessageType::Assistant);
-        assert_eq!(tool_use.uuid, "call-789");
-        match &tool_use.message.content {
-            ContentValue::Structured(blocks) => {
-                assert_eq!(blocks.len(), 1);
-                match &blocks[0] {
-                    ContentBlock::ToolUse { id, .. } => assert_eq!(id, "call-789"),
-                    _ => panic!("Expected tool_use block"),
-                }
-            }
-            _ => panic!("Expected structured content"),
-        }
-
-        // Second message: tool_result
-        let tool_result = &result[1];
-        assert_eq!(tool_result.message_type, MessageType::Assistant);
+        // Tool result message
+        let tool_result = &result[0];
+        assert_eq!(tool_result.message_type, MessageType::User);  // Tool results are USER messages
+        assert_eq!(tool_result.message.role, "user");  // Tool results have user role
         assert_eq!(tool_result.parent_uuid, Some("call-789".to_string()));
         match &tool_result.message.content {
             ContentValue::Structured(blocks) => {

@@ -39,6 +39,7 @@ pub trait ToCanonical {
 }
 
 /// Batch conversion helper for converting multiple messages
+#[allow(dead_code)]
 pub fn convert_batch<T: ToCanonical>(
     messages: Vec<T>,
 ) -> Result<Vec<CanonicalMessage>> {
@@ -49,6 +50,7 @@ pub fn convert_batch<T: ToCanonical>(
 }
 
 /// Convert messages and serialize to JSONL format
+#[allow(dead_code)]
 pub fn to_jsonl<T: ToCanonical>(messages: Vec<T>) -> Result<String> {
     let canonical_messages = convert_batch(messages)?;
     let lines: Result<Vec<String>> = canonical_messages

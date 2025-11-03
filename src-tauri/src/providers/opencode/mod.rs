@@ -1,3 +1,7 @@
+pub mod converter;
+
+pub use converter::convert_opencode_jsonl_to_canonical;
+
 use super::opencode_parser::OpenCodeParser;
 use super::sort_projects_by_modified;
 use crate::config::ProjectInfo;

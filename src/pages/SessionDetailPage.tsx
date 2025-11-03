@@ -17,6 +17,7 @@ import {
   ChartBarIcon,
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
+  ClipboardIcon,
   ClockIcon,
   Cog6ToothIcon,
   DocumentTextIcon,
@@ -27,6 +28,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AiProcessingProgress } from '../components/AiProcessingProgress'
+import { JsonBlock } from '../components/JsonBlock'
 import { SessionChangesTab } from '../components/SessionChangesTab'
 import { SessionContextTab } from '../components/SessionContextTab'
 import ProviderIcon from '../components/icons/ProviderIcon'
@@ -242,7 +244,7 @@ export default function SessionDetailPage() {
 
   // Tab state - default to transcript
   const [activeTab, setActiveTab] = useState<
-    'phase-timeline' | 'transcript' | 'metrics' | 'changes' | 'context' | 'todos'
+    'phase-timeline' | 'transcript' | 'metrics' | 'changes' | 'context' | 'todos' | 'raw-jsonl'
   >('transcript')
 
   // Fetch session metadata with TanStack Query
@@ -619,6 +621,34 @@ export default function SessionDetailPage() {
   // Apply reverse order if requested
   const orderedItems = reverseOrder ? [...filteredItems].reverse() : filteredItems
 
+  // Calculate filter statistics
+  const totalParsedItems = timeline?.items?.length || 0
+  const displayedItems = filteredItems.length
+  const hiddenItems = totalParsedItems - displayedItems
+
+  // Calculate breakdown of hidden items
+  const metaMessageCount = timeline?.items?.filter(item => {
+    if (isTimelineGroup(item)) {
+      return item.messages.some(msg => msg.originalMessage.type === 'meta')
+    }
+    return item.originalMessage.type === 'meta'
+  }).length || 0
+
+  const emptyAssistantCount = timeline?.items?.filter(item => {
+    if (isTimelineGroup(item)) {
+      return item.messages.some(msg =>
+        msg.originalMessage.type === 'assistant_response' &&
+        typeof msg.originalMessage.content === 'string' &&
+        msg.originalMessage.content.trim() === ''
+      )
+    }
+    return (
+      item.originalMessage.type === 'assistant_response' &&
+      typeof item.originalMessage.content === 'string' &&
+      item.originalMessage.content.trim() === ''
+    )
+  }).length || 0
+
   return (
     <div className="space-y-4">
       {/* Page Header */}
@@ -841,6 +871,30 @@ export default function SessionDetailPage() {
                 )}
               </button>
             )}
+            <button
+              className={`tab tab-lg gap-2 ${
+                activeTab === 'raw-jsonl'
+                  ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                  : 'hover:bg-base-300'
+              }`}
+              onClick={() => setActiveTab('raw-jsonl')}
+              title="Raw JSONL"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                />
+              </svg>
+              <span className="hidden md:inline">Raw JSONL</span>
+            </button>
           </div>
 
           {/* Right: Tab-specific Controls */}
@@ -895,6 +949,55 @@ export default function SessionDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Filter Stats Banner */}
+      {activeTab === 'transcript' && hiddenItems > 0 && (
+        <div className="alert bg-base-200 border border-base-300">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 text-sm">
+              <svg
+                className="w-5 h-5 text-info"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div className="flex-1">
+                <div className="font-semibold text-base-content">
+                  Showing {displayedItems} of {totalParsedItems} items
+                </div>
+                <div className="text-xs text-base-content/70 mt-1">
+                  {hiddenItems} item{hiddenItems !== 1 ? 's' : ''} hidden
+                  {!showMetaMessages && metaMessageCount > 0 && (
+                    <span className="ml-1">
+                      ({metaMessageCount} meta message{metaMessageCount !== 1 ? 's' : ''})
+                    </span>
+                  )}
+                  {emptyAssistantCount > 0 && (
+                    <span className="ml-1">
+                      ({emptyAssistantCount} empty assistant response{emptyAssistantCount !== 1 ? 's' : ''})
+                    </span>
+                  )}
+                </div>
+              </div>
+              {!showMetaMessages && metaMessageCount > 0 && (
+                <button
+                  onClick={() => setShowMetaMessages(true)}
+                  className="btn btn-xs btn-ghost gap-1"
+                >
+                  Show Meta Messages
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Content */}
       <div>
@@ -985,6 +1088,78 @@ export default function SessionDetailPage() {
             }}
             fileContent={fileContent}
           />
+        )}
+        {activeTab === 'raw-jsonl' && (
+          <div className="card bg-base-100 border border-base-300">
+            <div className="card-body">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Raw JSONL File Content</h3>
+                {fileContent && (
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(fileContent).then(
+                        () => toast.success('Copied to clipboard!'),
+                        () => toast.error('Failed to copy to clipboard')
+                      )
+                    }}
+                    className="btn btn-sm btn-ghost gap-2"
+                  >
+                    <ClipboardIcon className="w-4 h-4" />
+                    Copy All
+                  </button>
+                )}
+              </div>
+              {contentLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <span className="loading loading-spinner loading-lg" />
+                </div>
+              ) : contentError ? (
+                <div className="alert alert-error">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>Failed to load session content: {contentError}</span>
+                </div>
+              ) : fileContent ? (
+                <JsonBlock content={fileContent} maxHeight="800px" />
+              ) : (
+                <div className="alert">
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>No file content available</span>
+                </div>
+              )}
+              <div className="mt-4 p-3 bg-info/10 rounded-lg text-xs text-info">
+                <p className="font-semibold mb-1">💡 About Raw JSONL Format:</p>
+                <ul className="list-disc list-inside space-y-1 text-info/80">
+                  <li>Each line is a separate JSON object representing a session event</li>
+                  <li>
+                    Messages are in canonical format after conversion from provider-specific formats
+                  </li>
+                  <li>Use this view to debug parsing issues or inspect raw session data</li>
+                  <li>
+                    Tip: Copy to clipboard and format with a JSON formatter for better readability
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

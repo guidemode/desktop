@@ -2,12 +2,11 @@ use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_error, log_info, log_warn};
 use crate::providers::common::{
-    extract_session_id_from_filename, get_file_size, has_extension, should_skip_file,
-    SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
+    extract_session_id_from_filename, get_file_size, has_extension,
+    should_skip_file, SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
     MIN_SIZE_CHANGE_BYTES,
 };
-use crate::providers::gemini::converter::convert_session_to_canonical;
-use crate::providers::gemini_parser::GeminiSession;
+use crate::providers::gemini::converter::convert_to_canonical_file;
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use shellexpand::tilde;
@@ -196,8 +195,8 @@ impl GeminiWatcher {
             match rx.recv_timeout(EVENT_TIMEOUT) {
                 Ok(Ok(event)) => {
                     if let Some(file_event) = Self::process_file_event(&event, &tmp_path) {
-                        // Convert Gemini JSON to canonical JSONL and cache it
-                        let canonical_path = match Self::convert_to_canonical_file(
+                        // Convert Gemini JSON to canonical JSONL and cache it using shared function
+                        let canonical_path = match convert_to_canonical_file(
                             &file_event.path,
                             &file_event.session_id,
                         ) {
@@ -358,71 +357,6 @@ impl GeminiWatcher {
             }
         }
         None
-    }
-
-    /// Convert Gemini JSON file to canonical JSONL and cache it
-    /// Returns the path to the cached canonical JSONL file
-    fn convert_to_canonical_file(
-        json_file_path: &Path,
-        session_id: &str,
-    ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        // Get canonical cache directory
-        let cache_base = dirs::home_dir()
-            .ok_or("Failed to get home directory")?
-            .join(".guideai")
-            .join("cache")
-            .join("canonical")
-            .join(PROVIDER_ID);
-
-        // Create cache directory if it doesn't exist
-        fs::create_dir_all(&cache_base)?;
-
-        // Output file path
-        let cache_path = cache_base.join(format!("{}.jsonl", session_id));
-
-        // Read the original Gemini JSON file
-        let content = fs::read_to_string(json_file_path)?;
-
-        // Parse the Gemini session
-        let session = GeminiSession::from_json(&content)?;
-
-        // Try to infer CWD from message content
-        let cwd = Self::infer_cwd_from_session(&session);
-
-        // Convert to canonical format
-        let canonical_messages = convert_session_to_canonical(&session, cwd)?;
-
-        // Serialize each message to JSONL
-        let mut canonical_lines = Vec::new();
-        for (line_num, msg) in canonical_messages.iter().enumerate() {
-            match serde_json::to_string(msg) {
-                Ok(line) => canonical_lines.push(line),
-                Err(e) => {
-                    if let Err(log_err) = log_error(
-                        PROVIDER_ID,
-                        &format!(
-                            "Failed to serialize canonical message {} for session {}: {}",
-                            line_num, session_id, e
-                        ),
-                    ) {
-                        eprintln!("Logging error: {}", log_err);
-                    }
-                    // Continue processing other messages
-                }
-            }
-        }
-
-        // Write to canonical cache
-        fs::write(&cache_path, canonical_lines.join("\n"))?;
-
-        Ok(cache_path)
-    }
-
-    /// Infer working directory from Gemini session messages
-    /// Uses the shared CWD extraction function from gemini_utils.rs
-    fn infer_cwd_from_session(session: &GeminiSession) -> Option<String> {
-        use super::gemini_utils::infer_cwd_from_session as shared_infer_cwd;
-        shared_infer_cwd(session, &session.project_hash)
     }
 
     /// Extract project name from JSONL file by reading CWD field
