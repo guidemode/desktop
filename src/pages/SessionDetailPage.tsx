@@ -14,6 +14,7 @@ import type { SessionRating } from '@guideai-dev/session-processing/ui'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  BugAntIcon,
   ChartBarIcon,
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
@@ -191,7 +192,14 @@ export default function SessionDetailPage() {
     return saved === 'newest-first'
   })
   const [showSettings, setShowSettings] = useState(false)
-  const [showMetaMessages, setShowMetaMessages] = useState(false)
+  const [showMetaMessages, setShowMetaMessages] = useState(() => {
+    const saved = localStorage.getItem('transcript-show-meta')
+    return saved === 'true'
+  })
+  const [showThinkingBlocks, setShowThinkingBlocks] = useState(() => {
+    const saved = localStorage.getItem('transcript-show-thinking')
+    return saved !== 'false' // Default to true (shown)
+  })
   const [processingAi, setProcessingAi] = useState(false)
   const { processSessionWithAi, hasApiKey } = useAiProcessing()
   const { processSession: processMetrics } = useSessionProcessing()
@@ -383,6 +391,15 @@ export default function SessionDetailPage() {
     localStorage.setItem('sessionMessageOrder', reverseOrder ? 'newest-first' : 'oldest-first')
   }, [reverseOrder])
 
+  // Save transcript settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('transcript-show-meta', showMetaMessages.toString())
+  }, [showMetaMessages])
+
+  useEffect(() => {
+    localStorage.setItem('transcript-show-thinking', showThinkingBlocks.toString())
+  }, [showThinkingBlocks])
+
   // Listen for sync events and invalidate queries
   useEffect(() => {
     if (!sessionId) return
@@ -557,6 +574,53 @@ export default function SessionDetailPage() {
     return todos.length > 0
   }, [fileContent])
 
+  // Filter out meta messages, empty assistant messages, and thinking blocks (based on settings)
+  const filteredItems = useMemo(() => {
+    let filtered = timeline?.items || []
+    if (timeline) {
+      filtered = filtered.filter(item => {
+        if (isTimelineGroup(item)) {
+          // Keep group if messages pass all filter criteria
+          return item.messages.every(msg => {
+            const isMetaMessage = msg.originalMessage.type === 'meta'
+            const isEmptyAssistant =
+              msg.originalMessage.type === 'assistant_response' &&
+              typeof msg.originalMessage.content === 'string' &&
+              msg.originalMessage.content.trim() === ''
+            const isThinkingMessage = msg.originalMessage.metadata?.isThinking === true
+
+            // Filter out meta (if disabled), empty assistant messages (always), and thinking (if disabled)
+            return (
+              (!showMetaMessages ? !isMetaMessage : true) &&
+              !isEmptyAssistant &&
+              (!showThinkingBlocks ? !isThinkingMessage : true)
+            )
+          })
+        }
+        // For single messages
+        const isMetaMessage = item.originalMessage.type === 'meta'
+        const isEmptyAssistant =
+          item.originalMessage.type === 'assistant_response' &&
+          typeof item.originalMessage.content === 'string' &&
+          item.originalMessage.content.trim() === ''
+        const isThinkingMessage = item.originalMessage.metadata?.isThinking === true
+
+        // Filter out meta (if disabled), empty assistant messages (always), and thinking (if disabled)
+        return (
+          (!showMetaMessages ? !isMetaMessage : true) &&
+          !isEmptyAssistant &&
+          (!showThinkingBlocks ? !isThinkingMessage : true)
+        )
+      })
+    }
+    return filtered
+  }, [timeline, showMetaMessages, showThinkingBlocks])
+
+  // Apply reverse order if requested
+  const orderedItems = useMemo(() => {
+    return reverseOrder ? [...filteredItems].reverse() : filteredItems
+  }, [filteredItems, reverseOrder])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -589,38 +653,6 @@ export default function SessionDetailPage() {
   const messages = timeline?.items.filter(item => !isTimelineGroup(item)) || []
   const messageCount = messages.length
 
-  // Filter out meta messages and empty assistant messages
-  let filteredItems = timeline?.items || []
-  if (timeline) {
-    filteredItems = filteredItems.filter(item => {
-      if (isTimelineGroup(item)) {
-        // Keep group if messages are not meta and not empty assistant responses
-        return item.messages.every(msg => {
-          const isMetaMessage = msg.originalMessage.type === 'meta'
-          const isEmptyAssistant =
-            msg.originalMessage.type === 'assistant_response' &&
-            typeof msg.originalMessage.content === 'string' &&
-            msg.originalMessage.content.trim() === ''
-
-          // Filter out meta (if disabled) and always filter empty assistant messages
-          return (!showMetaMessages ? !isMetaMessage : true) && !isEmptyAssistant
-        })
-      }
-      // For single messages
-      const isMetaMessage = item.originalMessage.type === 'meta'
-      const isEmptyAssistant =
-        item.originalMessage.type === 'assistant_response' &&
-        typeof item.originalMessage.content === 'string' &&
-        item.originalMessage.content.trim() === ''
-
-      // Filter out meta (if disabled) and always filter empty assistant messages
-      return (!showMetaMessages ? !isMetaMessage : true) && !isEmptyAssistant
-    })
-  }
-
-  // Apply reverse order if requested
-  const orderedItems = reverseOrder ? [...filteredItems].reverse() : filteredItems
-
   // Calculate filter statistics
   const totalParsedItems = timeline?.items?.length || 0
   const displayedItems = filteredItems.length
@@ -632,6 +664,13 @@ export default function SessionDetailPage() {
       return item.messages.some(msg => msg.originalMessage.type === 'meta')
     }
     return item.originalMessage.type === 'meta'
+  }).length || 0
+
+  const thinkingBlockCount = timeline?.items?.filter(item => {
+    if (isTimelineGroup(item)) {
+      return item.messages.some(msg => msg.originalMessage.metadata?.isThinking === true)
+    }
+    return item.originalMessage.metadata?.isThinking === true
   }).length || 0
 
   const emptyAssistantCount = timeline?.items?.filter(item => {
@@ -744,10 +783,11 @@ export default function SessionDetailPage() {
       )}
 
       {/* Tabs Navigation with Controls */}
-      <div className="card bg-base-200 border border-base-300 border-b-2 rounded-lg overflow-hidden">
+      <div className="card bg-base-200 border border-base-300 border-b-2 rounded-lg">
         <div className="flex items-stretch">
           {/* Left: Tab Buttons */}
-          <div className="tabs tabs-bordered flex-1">
+          <div className="tabs tabs-bordered flex-1 flex justify-between">
+            <div className="flex">
             <button
               className={`tab tab-lg gap-2 rounded-tl-lg ${
                 activeTab === 'transcript'
@@ -871,8 +911,11 @@ export default function SessionDetailPage() {
                 )}
               </button>
             )}
+            </div>
+
+            {/* Right-aligned Raw JSONL tab */}
             <button
-              className={`tab tab-lg gap-2 ${
+              className={`tab tab-lg ${
                 activeTab === 'raw-jsonl'
                   ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
                   : 'hover:bg-base-300'
@@ -880,20 +923,7 @@ export default function SessionDetailPage() {
               onClick={() => setActiveTab('raw-jsonl')}
               title="Raw JSONL"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                />
-              </svg>
-              <span className="hidden md:inline">Raw JSONL</span>
+              <BugAntIcon className="w-5 h-5" />
             </button>
           </div>
 
@@ -926,21 +956,38 @@ export default function SessionDetailPage() {
                 {showSettings && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowSettings(false)} />
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-base-100 border border-base-300 rounded-lg shadow-lg z-20 p-4">
-                      <h3 className="text-sm font-semibold mb-3">Timeline Settings</h3>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={showMetaMessages}
-                          onChange={e => setShowMetaMessages(e.target.checked)}
-                          className="checkbox checkbox-sm checkbox-primary"
-                        />
-                        <span className="text-sm">Show meta messages</span>
-                      </label>
-                      <p className="text-xs text-base-content/60 mt-2">
-                        Meta messages are internal system messages that provide context but are not
-                        part of the main conversation.
-                      </p>
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-base-100 border border-base-300 rounded-lg shadow-lg z-20 p-4 space-y-4">
+                      <h3 className="text-sm font-semibold">Timeline Settings</h3>
+
+                      <div>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showMetaMessages}
+                            onChange={e => setShowMetaMessages(e.target.checked)}
+                            className="checkbox checkbox-sm checkbox-primary"
+                          />
+                          <span className="text-sm">Show meta messages</span>
+                        </label>
+                        <p className="text-xs text-base-content/60 mt-1.5 ml-6">
+                          Internal system messages that provide context but are not part of the main conversation.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showThinkingBlocks}
+                            onChange={e => setShowThinkingBlocks(e.target.checked)}
+                            className="checkbox checkbox-sm checkbox-primary"
+                          />
+                          <span className="text-sm">Show thinking blocks</span>
+                        </label>
+                        <p className="text-xs text-base-content/60 mt-1.5 ml-6">
+                          AI reasoning and thought process blocks that explain how responses were formed.
+                        </p>
+                      </div>
                     </div>
                   </>
                 )}
@@ -979,6 +1026,11 @@ export default function SessionDetailPage() {
                       ({metaMessageCount} meta message{metaMessageCount !== 1 ? 's' : ''})
                     </span>
                   )}
+                  {!showThinkingBlocks && thinkingBlockCount > 0 && (
+                    <span className="ml-1">
+                      ({thinkingBlockCount} thinking block{thinkingBlockCount !== 1 ? 's' : ''})
+                    </span>
+                  )}
                   {emptyAssistantCount > 0 && (
                     <span className="ml-1">
                       ({emptyAssistantCount} empty assistant response{emptyAssistantCount !== 1 ? 's' : ''})
@@ -986,14 +1038,24 @@ export default function SessionDetailPage() {
                   )}
                 </div>
               </div>
-              {!showMetaMessages && metaMessageCount > 0 && (
-                <button
-                  onClick={() => setShowMetaMessages(true)}
-                  className="btn btn-xs btn-ghost gap-1"
-                >
-                  Show Meta Messages
-                </button>
-              )}
+              <div className="flex gap-2">
+                {!showMetaMessages && metaMessageCount > 0 && (
+                  <button
+                    onClick={() => setShowMetaMessages(true)}
+                    className="btn btn-xs btn-ghost gap-1"
+                  >
+                    Show Meta
+                  </button>
+                )}
+                {!showThinkingBlocks && thinkingBlockCount > 0 && (
+                  <button
+                    onClick={() => setShowThinkingBlocks(true)}
+                    className="btn btn-xs btn-ghost gap-1"
+                  >
+                    Show Thinking
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
