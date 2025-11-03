@@ -243,10 +243,16 @@ impl OpenCodeParser {
                             tool_count += 1;
 
                             // Get timestamp from part if available
-                            let part_timestamp = part
+                            // For tool parts, check state.time first, then part.time
+                            let part_timestamp = state
                                 .time
                                 .as_ref()
                                 .and_then(|t| t.start)
+                                .or_else(|| {
+                                    part.time
+                                        .as_ref()
+                                        .and_then(|t| t.start)
+                                })
                                 .and_then(DateTime::from_timestamp_millis)
                                 .unwrap_or(base_timestamp);
 
@@ -273,10 +279,16 @@ impl OpenCodeParser {
 
                             // Create separate entry for tool result if output exists
                             if let Some(output) = state.output.as_ref() {
-                                let result_timestamp = part
+                                // For tool parts, check state.time.end first, then part.time.end
+                                let result_timestamp = state
                                     .time
                                     .as_ref()
                                     .and_then(|t| t.end)
+                                    .or_else(|| {
+                                        part.time
+                                            .as_ref()
+                                            .and_then(|t| t.end)
+                                    })
                                     .and_then(DateTime::from_timestamp_millis)
                                     .unwrap_or_else(|| {
                                         part_timestamp + chrono::Duration::milliseconds(1)
