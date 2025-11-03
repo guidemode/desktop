@@ -25,6 +25,7 @@ pub fn convert_event_to_canonical(
         "tool.execution_start" => Ok(vec![convert_tool_use(event, session_id, cwd)?]),
         "tool.execution_complete" => Ok(vec![convert_tool_result(event, session_id, cwd)?]),
         "session.info" => Ok(vec![convert_info_message(event, session_id, cwd)?]),
+        "abort" => Ok(vec![convert_abort_message(event, session_id, cwd)?]),
         _ => {
             // Unknown type - create a meta message
             Ok(vec![convert_unknown_message(event, session_id, cwd)?])
@@ -156,7 +157,29 @@ fn convert_info_message(
 ) -> Result<CanonicalMessage> {
     let id = extract_id(event);
     let timestamp = extract_timestamp(event)?;
-    let text = extract_text(event);
+
+    // Extract message from data.message field (not data.content)
+    let message_text = event
+        .data
+        .get("message")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    // Extract infoType for metadata
+    let info_type = event
+        .data
+        .get("infoType")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let mut metadata = serde_json::json!({
+        "copilot_type": "info",
+    });
+
+    if let Some(info_type_val) = info_type {
+        metadata["infoType"] = serde_json::Value::String(info_type_val);
+    }
 
     Ok(CanonicalMessage {
         uuid: id,
@@ -171,13 +194,57 @@ fn convert_info_message(
         is_sidechain: None,
         user_type: Some("external".to_string()),
         message: MessageContent {
-            role: "assistant".to_string(),
-            content: ContentValue::Text(text),
+            role: "meta".to_string(),
+            content: ContentValue::Text(message_text),
+            model: None,
+            usage: None,
+        },
+        provider_metadata: Some(metadata),
+        is_meta: Some(true),
+        request_id: None,
+        tool_use_result: None,
+    })
+}
+
+/// Convert abort event
+fn convert_abort_message(
+    event: &CopilotEvent,
+    session_id: &str,
+    cwd: Option<&str>,
+) -> Result<CanonicalMessage> {
+    let id = extract_id(event);
+    let timestamp = extract_timestamp(event)?;
+
+    // Extract abort reason
+    let reason = event
+        .data
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+
+    let message_text = format!("Session aborted: {}", reason);
+
+    Ok(CanonicalMessage {
+        uuid: id,
+        timestamp,
+        message_type: MessageType::Meta,
+        session_id: session_id.to_string(),
+        provider: "github-copilot".to_string(),
+        cwd: cwd.map(String::from),
+        git_branch: None,
+        version: None,
+        parent_uuid: None,
+        is_sidechain: None,
+        user_type: Some("external".to_string()),
+        message: MessageContent {
+            role: "meta".to_string(),
+            content: ContentValue::Text(message_text),
             model: None,
             usage: None,
         },
         provider_metadata: Some(serde_json::json!({
-            "copilot_type": "info",
+            "copilot_type": "abort",
+            "reason": reason,
         })),
         is_meta: Some(true),
         request_id: None,
@@ -208,7 +275,10 @@ fn convert_tool_use(
         .get("toolName")
         .or_else(|| event.data.get("name"))
         .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
+        .unwrap_or_else(|| {
+            eprintln!("Warning: Tool name not found in event data. Event: {:?}", event.data);
+            "unknown"
+        })
         .to_string();
 
     // Parse arguments (can be a JSON string or object)
@@ -534,6 +604,38 @@ mod tests {
         let msg = &result[0];
         assert_eq!(msg.message_type, MessageType::Meta);
         assert_eq!(msg.is_meta, Some(true));
+
+        // Verify message content is extracted from data.message
+        match &msg.message.content {
+            ContentValue::Text(text) => assert_eq!(text, "Connected to MCP"),
+            _ => panic!("Expected text content"),
+        }
+
+        // Verify infoType is in metadata
+        let metadata = msg.provider_metadata.as_ref().unwrap();
+        assert_eq!(metadata["infoType"], "mcp");
+    }
+
+    #[test]
+    fn test_convert_abort_message() {
+        let entry = create_test_event("abort", json!({ "reason": "user initiated" }));
+        let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
+
+        assert_eq!(result.len(), 1);
+        let msg = &result[0];
+        assert_eq!(msg.message_type, MessageType::Meta);
+        assert_eq!(msg.is_meta, Some(true));
+
+        // Verify message content includes abort reason
+        match &msg.message.content {
+            ContentValue::Text(text) => assert_eq!(text, "Session aborted: user initiated"),
+            _ => panic!("Expected text content"),
+        }
+
+        // Verify reason is in metadata
+        let metadata = msg.provider_metadata.as_ref().unwrap();
+        assert_eq!(metadata["copilot_type"], "abort");
+        assert_eq!(metadata["reason"], "user initiated");
     }
 
     #[test]

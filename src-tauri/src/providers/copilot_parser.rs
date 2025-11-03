@@ -88,7 +88,7 @@ pub fn detect_project_and_cwd_from_events(
     events: &[CopilotEvent],
     trusted_folders: &[String],
 ) -> Option<(String, String)> {
-    // Scan events to find tool.execution_start events with path in arguments
+    // First pass: Look for tool.execution_start events with paths in arguments
     for event in events {
         if event.event_type == "tool.execution_start" {
             if let Some(args) = event.data.get("arguments") {
@@ -104,6 +104,35 @@ pub fn detect_project_and_cwd_from_events(
                 if let Some(command) = args.get("command").and_then(|c| c.as_str()) {
                     // Try to extract paths from common commands
                     for word in command.split_whitespace() {
+                        if word.starts_with('/') || word.starts_with('~') {
+                            if let Some((project, cwd)) = match_trusted_folder_with_cwd(word, trusted_folders) {
+                                return Some((project, cwd));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Second pass: Look for tool.execution_complete events with paths in result output
+    // This catches cases where commands like "pnpm lint" output the working directory
+    for event in events {
+        if event.event_type == "tool.execution_complete" {
+            if let Some(result) = event.data.get("result") {
+                // Extract content from result (can be string or {content: "..."})
+                let result_content = if let Some(content_str) = result.as_str() {
+                    content_str
+                } else if let Some(content) = result.get("content").and_then(|c| c.as_str()) {
+                    content
+                } else {
+                    continue;
+                };
+
+                // Look for paths in the result output
+                // Common patterns: "> package@version command /path/to/project"
+                for line in result_content.lines().take(10) {  // Only check first 10 lines for performance
+                    for word in line.split_whitespace() {
                         if word.starts_with('/') || word.starts_with('~') {
                             if let Some((project, cwd)) = match_trusted_folder_with_cwd(word, trusted_folders) {
                                 return Some((project, cwd));
