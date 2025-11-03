@@ -1,151 +1,137 @@
 # GuideAI Desktop
 
-Cross-platform desktop menubar application for monitoring and analyzing AI coding agent sessions.
+> **Your AI coding sessions, captured automatically.**
 
-## Features
+![GuideAI Desktop Screenshot](https://via.placeholder.com/800x500?text=Desktop+App+Screenshot) <!-- TODO: Replace with actual screenshot -->
 
-- **Session Monitoring**: Track Claude Code, OpenCode, Codex, and other AI coding agents
-- **Real-time Processing**: Analyze sessions with AI-powered insights
-- **Metrics Dashboard**: View detailed performance and usage statistics
-- **Secure Authentication**: OAuth integration with GuideAI server
-- **Cross-platform**: Works on macOS, Windows, and Linux
+A lightweight menubar app that watches your AI coding sessions and uploads them to GuideAI for analytics. Works with Claude Code, Gemini, GitHub Copilot, Codex, and OpenCode.
+
+## Why Use This?
+
+**🔄 Automatic Capture** - No manual logging. The app watches your AI tool sessions automatically.
+
+**🔒 Privacy First** - Choose what to sync:
+- **No Sync**: Keep everything local
+- **Metrics Only**: Just usage stats, no code
+- **Full Transcript**: Complete session history
+
+**📊 Unified Analytics** - All your AI tools in one place. Compare effectiveness, track costs, identify patterns.
+
+**⚡ Lightweight** - Runs quietly in your menubar. Uses minimal resources.
+
+## Supported AI Tools
+
+![Supported Providers](https://via.placeholder.com/600x150?text=Provider+Logos+Here) <!-- TODO: Add logos -->
+
+- ✅ **Claude Code** - Anthropic
+- ✅ **Gemini Code** - Google
+- ✅ **GitHub Copilot** - GitHub
+- ✅ **Codex** - AI assistant
+- ✅ **OpenCode** - Open source
 
 ## Installation
 
-### Download Pre-built Binaries
+### Download
 
-Download the latest release for your platform:
+- 🍎 [**macOS**](https://downloads.guideai.dev/desktop/latest/) (Universal - Intel & Apple Silicon)
+- 🪟 [**Windows**](https://downloads.guideai.dev/desktop/latest/) (Windows 10+)
+- 🐧 [**Linux**](https://downloads.guideai.dev/desktop/latest/) (.deb / .AppImage)
 
-- **macOS**: [GuideAI-Desktop-macOS.dmg](https://downloads.guideai.dev/desktop/latest/GuideAI-Desktop-macOS.dmg)
-- **Windows**: [GuideAI-Desktop-windows.msi](https://downloads.guideai.dev/desktop/latest/GuideAI-Desktop-windows.msi)
-- **Linux**:
-  - [GuideAI-Desktop-linux.deb](https://downloads.guideai.dev/desktop/latest/GuideAI-Desktop-linux.deb) (Debian/Ubuntu)
-  - [GuideAI-Desktop-linux.AppImage](https://downloads.guideai.dev/desktop/latest/GuideAI-Desktop-linux.AppImage) (Universal)
+### First Launch
+
+1. Install and open the app
+2. Click the menubar icon
+3. Sign in with GitHub
+4. Configure which AI tools to watch
+5. Start coding!
+
+That's it. GuideAI handles the rest automatically.
+
+## Features
+
+- **Automatic Detection** - Watches AI tool directories for new sessions
+- **Smart Conversion** - Converts all formats to a unified structure
+- **Intelligent Sync** - Uploads only when needed, with retry logic
+- **Local Dashboard** - View sessions even without sync
+- **Secure Auth** - GitHub OAuth integration
+- **Cross-Platform** - macOS, Windows, and Linux
+
+## For Developers
 
 ### Build from Source
 
-Requirements:
+**Requirements:**
 - Node.js >= 24.0.0
 - pnpm >= 9.0.0
-- Rust and Cargo
+- Rust (via rustup)
 
+**Setup:**
 ```bash
-# Clone the repository
 git clone https://github.com/guideai-dev/desktop.git
 cd desktop
-
-# Install dependencies
 pnpm install
-
-# Build dependencies
-pnpm --filter @guideai-dev/types build
-pnpm --filter @guideai-dev/session-processing build
-
-# Run in development
 pnpm tauri:dev
-
-# Build for production
-pnpm tauri:build
 ```
 
-## Usage
+**See [CLAUDE.md](CLAUDE.md) for:**
+- Complete development setup
+- Architecture documentation
+- How to add new AI provider support
+- Testing and debugging
 
-1. **Launch the app**: The app appears in your system tray/menubar
-2. **Login**: Click the tray icon and login with GitHub OAuth
-3. **Configure watchers**: Set up file watchers for your AI agent directories
-4. **Monitor sessions**: Sessions are automatically detected and uploaded for processing
+### Key Technologies
 
-## Architecture
-
-- **Frontend**: React 18 + TypeScript + Tailwind CSS + DaisyUI
-- **Backend**: Tauri (Rust) for native system integration
-- **Database**: SQLite for local session storage
-- **State**: Zustand for React state management
+- **Frontend**: React 18 + TypeScript + Tailwind CSS
+- **Backend**: Rust + Tauri
+- **Database**: SQLite (local storage)
+- **Build**: Vite + Cargo
 
 ## Configuration
 
-Config file location: `~/.guideai/config.json`
+Config file: `~/.guideai/config.json`
 
-Example:
 ```json
 {
   "apiKey": "your-api-key",
   "serverUrl": "https://be.guideai.dev",
   "username": "your-username",
-  "tenantId": "your-tenant-id",
-  "tenantName": "Your Team"
+  "tenantId": "your-tenant-id"
 }
 ```
 
-## Development
+## Platform Notes
 
-This repository is automatically synced from the [GuideAI private monorepo](https://github.com/guideai-dev/guideai).
-
-### Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork this repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-**Note**: All pull requests are reviewed and manually backported to the private monorepo. This ensures security and compatibility with the broader GuideAI ecosystem.
-
-### Local Development
-
-```bash
-# Start development server (frontend only)
-pnpm dev
-
-# Start full Tauri app with hot reload
-pnpm tauri:dev
-
-# Type checking
-pnpm typecheck
-
-# Clean build artifacts
-pnpm clean
-```
-
-## Platform-Specific Notes
-
-### macOS
+**macOS:**
 - Requires macOS 10.15+
-- Apple Silicon and Intel supported (universal binary)
-- Config: `~/.guideai/config.json`
+- Universal binary (Intel + Apple Silicon)
 
-### Windows
+**Windows:**
 - Requires Windows 10+
-- Config: `C:\Users\<username>\.guideai\config.json`
-- **Note**: Claude Code requires WSL on Windows
+- Note: Claude Code needs WSL
 
-### Linux
-- Requires modern Linux distribution
-- GTK dependencies required (WebKit2GTK)
-- Config: `~/.guideai/config.json`
+**Linux:**
+- GTK dependencies required
+- Works on most modern distributions
+
+## Support
+
+- 🐛 [**Report Issues**](https://github.com/guideai-dev/desktop/issues)
+- 💬 [**Discussions**](https://github.com/guideai-dev/desktop/discussions)
+- 📧 **Email**: support@guideai.dev
+- 📚 **Docs**: https://docs.guideai.dev
+
+## Related Packages
+
+Part of the GuideAI ecosystem:
+
+- [@guideai-dev/session-processing](https://github.com/guideai-dev/session-processing) - Analytics engine
+- [@guideai-dev/types](https://github.com/guideai-dev/types) - Shared types
+- [@guideai-dev/cli](https://github.com/guideai-dev/cli) - Command-line tool
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## Links
+---
 
-- [GuideAI Website](https://guideai.dev)
-- [Documentation](https://docs.guideai.dev)
-- [GitHub Organization](https://github.com/guideai-dev)
-- [Related Packages](#related-packages)
-
-## Related Packages
-
-This desktop app depends on other GuideAI open source packages:
-
-- [@guideai-dev/types](https://github.com/guideai-dev/types) - Shared TypeScript types
-- [@guideai-dev/session-processing](https://github.com/guideai-dev/session-processing) - Session processing and AI models
-- [@guideai-dev/cli](https://github.com/guideai-dev/cli) - Command-line interface
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/guideai-dev/desktop/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/guideai-dev/desktop/discussions)
-- **Email**: support@guideai.dev
+Built with ❤️ by the GuideAI team

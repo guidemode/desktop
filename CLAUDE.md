@@ -223,6 +223,104 @@ tokio::select! {
 - No lost events on exit
 - Supports multiple subscribers
 
+### Canonical Format Architecture
+
+**All providers convert to a single, unified JSONL format for downstream processing.**
+
+#### Core Concept
+
+**Location:** `src/providers/canonical/mod.rs`
+
+The canonical format is GuideAI's universal message format that all AI providers (Claude Code, Gemini, Copilot, Codex, OpenCode) convert to. This simplifies downstream processing—instead of 5+ provider-specific parsers, we have one canonical parser.
+
+**Key Benefits:**
+- Single TypeScript parser handles all providers
+- Consistent processing and metrics across providers
+- Easy to add new providers (only Rust converter needed)
+- Provider-specific features preserved in `providerMetadata`
+
+#### Message Structure
+
+```rust
+pub struct CanonicalMessage {
+    uuid: String,              // Unique message ID
+    timestamp: String,         // ISO 8601
+    message_type: MessageType, // user, assistant, meta
+    session_id: String,
+    provider: String,          // "claude-code", "gemini-code", etc.
+
+    // Context
+    cwd: Option<String>,
+    git_branch: Option<String>,
+    version: Option<String>,
+
+    // Core content
+    message: MessageContent,
+
+    // Preserve provider-specific data
+    provider_metadata: Option<Value>,
+}
+```
+
+**Content Blocks:**
+- `Text` - Simple text messages
+- `ToolUse` - Function calls, commands
+- `ToolResult` - Function outputs
+- `Thinking` - Extended reasoning (Gemini, Claude)
+
+#### Provider Converters
+
+Each provider implements the `ToCanonical` trait:
+
+```rust
+pub trait ToCanonical {
+    fn to_canonical(&self) -> Result<Option<CanonicalMessage>>;
+    fn provider_name(&self) -> &str;
+}
+```
+
+**Implementations:** `src/providers/{provider}/converter.rs`
+
+**Canonical Output:** `~/.guideai/sessions/{provider}/{project}/{session}.jsonl`
+
+#### Adding New Providers
+
+**Example: Adding "cursor-ai"**
+
+1. **Create converter** - `src/providers/cursor/converter.rs`:
+   ```rust
+   impl ToCanonical for CursorMessage {
+       fn to_canonical(&self) -> Result<Option<CanonicalMessage>> {
+           // Map native format to canonical structure
+           // Preserve cursor-specific fields in provider_metadata
+       }
+   }
+   ```
+
+2. **Create watcher** - `src/providers/cursor_watcher.rs`:
+   ```rust
+   // Watch Cursor session files
+   // Parse to CursorMessage
+   // Convert using to_canonical()
+   // Write to canonical path
+   // Publish SessionEvent
+   ```
+
+3. **Register provider** - `src/providers/mod.rs`:
+   ```rust
+   pub mod cursor;
+   mod cursor_watcher;
+   ```
+
+4. **Update TypeScript** - `packages/session-processing/src/parsers/registry.ts`:
+   ```typescript
+   const providerAliases = [..., 'cursor-ai']
+   ```
+
+**That's it!** The canonical parser automatically handles the new provider.
+
+See `src/providers/canonical/converter.rs` for the trait definition and helper functions.
+
 ### Provider Watchers
 
 Each AI provider (Claude, Copilot, OpenCode, Codex, Gemini) has a dedicated file watcher:
@@ -230,18 +328,29 @@ Each AI provider (Claude, Copilot, OpenCode, Codex, Gemini) has a dedicated file
 **Architecture:**
 - Monitor provider-specific file paths
 - Detect session file changes (size, timestamp)
+- **Convert native format to canonical JSONL** using `ToCanonical` trait
+- Write to canonical path (`~/.guideai/sessions/{provider}/{project}/`)
 - Extract metadata (CWD, git info, timing)
 - Publish `SessionEvent` to EventBus
 - Track session state in memory
 
 **Example: Claude Watcher**
 ```rust
-// Detect file change
+// Parse native format
+let entry = parse_claude_entry(&line)?;
+
+// Convert to canonical
+let canonical = entry.to_canonical()?;
+
+// Write to canonical path
+write_canonical_message(&canonical_path, &canonical)?;
+
+// Publish event
 if is_new_session {
     event_bus.publish("claude", SessionEventPayload::SessionChanged {
         session_id,
         project_name,
-        file_path,
+        file_path: canonical_path, // Points to canonical JSONL
         file_size,
     })?;
 }

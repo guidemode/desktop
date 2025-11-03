@@ -33,11 +33,13 @@ Total: ~2,600 lines across 12 focused modules
 
 ### Processing Flow
 1. DB polling finds unsynced sessions (every 30s)
-2. Items added to queue with validation
+2. Items added to queue with validation (canonical JSONL format)
 3. Processor picks up items (max 3 concurrent)
 4. Upload attempted (v2 or metrics-only)
 5. Success: mark complete, emit event
 6. Failure: classify error, schedule retry if applicable
+
+**Note:** All session files are in canonical JSONL format (converted by provider watchers).
 
 ### Retry Strategy
 - **Client errors** (400, 401, 403): No retry
@@ -83,6 +85,7 @@ stop_processing()
 ### validation.rs
 - `validate_jsonl_timestamps()` - Ensures chronological order
 - File size and content validation
+- **All uploads use canonical JSONL format** from `~/.guideai/sessions/{provider}/`
 
 ### hashing.rs
 - `calculate_file_hash_sha256()` - Hash files for deduplication
