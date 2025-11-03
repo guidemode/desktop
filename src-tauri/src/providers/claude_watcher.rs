@@ -305,8 +305,10 @@ impl ClaudeWatcher {
         // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
         let canonical_path = get_canonical_path(PROVIDER_ID, Some(&cwd_value), session_id)?;
 
-        // Copy Claude file to project-organized path
-        fs::copy(claude_file, &canonical_path)?;
+        // Merge Claude file with agent files to project-organized path
+        // This will copy the main session and inline any agent-*.jsonl files
+        use crate::providers::common::merge_session_with_agents;
+        merge_session_with_agents(claude_file, &canonical_path)?;
 
         Ok(canonical_path)
     }
@@ -324,6 +326,14 @@ impl ClaudeWatcher {
                     // Check if it's a .jsonl file
                     if !has_extension(path, "jsonl") {
                         continue;
+                    }
+
+                    // Skip agent files - they will be merged when processing the main session
+                    if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                        use crate::providers::common::is_agent_file;
+                        if is_agent_file(filename) {
+                            continue;
+                        }
                     }
 
                     // Extract project name from path
@@ -479,7 +489,7 @@ mod tests {
 
         // Create a normal file
         let normal_file = project_path.join("session-123.jsonl");
-        fs::write(&normal_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path","type":"user"}"#).unwrap();
+        fs::write(&normal_file, r#"{"sessionId":"session-123","timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path","type":"user"}"#).unwrap();
 
         // Test hidden file is ignored
         let hidden_event = Event {

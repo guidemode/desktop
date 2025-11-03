@@ -95,6 +95,14 @@ fn scan_claude_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
             for project_entry in project_entries.flatten() {
                 let file_path = project_entry.path();
                 if file_path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
+                    // Skip agent files - they will be merged when processing the main session
+                    if let Some(filename) = file_path.file_name().and_then(|n| n.to_str()) {
+                        use super::common::is_agent_file;
+                        if is_agent_file(filename) {
+                            continue;
+                        }
+                    }
+
                     match parse_claude_session(&file_path, project_name) {
                         Ok(mut session_info) => {
                             session_info.provider = "claude-code".to_string();
@@ -215,14 +223,15 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
         eprintln!("Logging error: {}", e);
     }
 
-    // Copy to project-organized canonical path (Claude is already canonical format)
-    use super::common::get_canonical_path;
+    // Merge to project-organized canonical path (Claude is already canonical format)
+    // This will copy the main session and inline any agent-*.jsonl files
+    use super::common::{get_canonical_path, merge_session_with_agents};
 
     let cache_path = get_canonical_path("claude-code", cwd.as_deref(), &session_id)
         .map_err(|e| format!("Failed to get canonical path: {}", e))?;
 
-    fs::copy(file_path, &cache_path)
-        .map_err(|e| format!("Failed to copy to canonical cache: {}", e))?;
+    merge_session_with_agents(file_path, &cache_path)
+        .map_err(|e| format!("Failed to merge session with agents: {}", e))?;
 
     // Update file size from cache file
     let file_size = fs::metadata(&cache_path).map(|m| m.len()).unwrap_or(0);
