@@ -93,11 +93,5 @@
     "type": "git",
     "url": "https://github.com/guideai-dev/desktop.git"
   },
-  "keywords": [
-    "ai",
-    "guide",
-    "desktop",
-    "tauri",
-    "menubar"
-  ]
+  "keywords": ["ai", "guide", "desktop", "tauri", "menubar"]
 }

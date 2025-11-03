@@ -659,34 +659,38 @@ export default function SessionDetailPage() {
   const hiddenItems = totalParsedItems - displayedItems
 
   // Calculate breakdown of hidden items
-  const metaMessageCount = timeline?.items?.filter(item => {
-    if (isTimelineGroup(item)) {
-      return item.messages.some(msg => msg.originalMessage.type === 'meta')
-    }
-    return item.originalMessage.type === 'meta'
-  }).length || 0
+  const metaMessageCount =
+    timeline?.items?.filter(item => {
+      if (isTimelineGroup(item)) {
+        return item.messages.some(msg => msg.originalMessage.type === 'meta')
+      }
+      return item.originalMessage.type === 'meta'
+    }).length || 0
 
-  const thinkingBlockCount = timeline?.items?.filter(item => {
-    if (isTimelineGroup(item)) {
-      return item.messages.some(msg => msg.originalMessage.metadata?.isThinking === true)
-    }
-    return item.originalMessage.metadata?.isThinking === true
-  }).length || 0
+  const thinkingBlockCount =
+    timeline?.items?.filter(item => {
+      if (isTimelineGroup(item)) {
+        return item.messages.some(msg => msg.originalMessage.metadata?.isThinking === true)
+      }
+      return item.originalMessage.metadata?.isThinking === true
+    }).length || 0
 
-  const emptyAssistantCount = timeline?.items?.filter(item => {
-    if (isTimelineGroup(item)) {
-      return item.messages.some(msg =>
-        msg.originalMessage.type === 'assistant_response' &&
-        typeof msg.originalMessage.content === 'string' &&
-        msg.originalMessage.content.trim() === ''
+  const emptyAssistantCount =
+    timeline?.items?.filter(item => {
+      if (isTimelineGroup(item)) {
+        return item.messages.some(
+          msg =>
+            msg.originalMessage.type === 'assistant_response' &&
+            typeof msg.originalMessage.content === 'string' &&
+            msg.originalMessage.content.trim() === ''
+        )
+      }
+      return (
+        item.originalMessage.type === 'assistant_response' &&
+        typeof item.originalMessage.content === 'string' &&
+        item.originalMessage.content.trim() === ''
       )
-    }
-    return (
-      item.originalMessage.type === 'assistant_response' &&
-      typeof item.originalMessage.content === 'string' &&
-      item.originalMessage.content.trim() === ''
-    )
-  }).length || 0
+    }).length || 0
 
   return (
     <div className="space-y-4">
@@ -788,129 +792,131 @@ export default function SessionDetailPage() {
           {/* Left: Tab Buttons */}
           <div className="tabs tabs-bordered flex-1 flex justify-between">
             <div className="flex">
-            <button
-              className={`tab tab-lg gap-2 rounded-tl-lg ${
-                activeTab === 'transcript'
-                  ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                  : 'hover:bg-base-300'
-              }`}
-              onClick={() => setActiveTab('transcript')}
-              title="Transcript"
-            >
-              <ChatBubbleLeftRightIcon className="w-5 h-5" />
-              <span className="hidden md:inline">Transcript</span>
-            </button>
-            {phaseAnalysis && (
               <button
-                className={`tab tab-lg gap-2 ${
-                  activeTab === 'phase-timeline'
+                className={`tab tab-lg gap-2 rounded-tl-lg ${
+                  activeTab === 'transcript'
                     ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
                     : 'hover:bg-base-300'
                 }`}
-                onClick={() => setActiveTab('phase-timeline')}
-                title="Timeline"
+                onClick={() => setActiveTab('transcript')}
+                title="Transcript"
               >
-                <ClockIcon className="w-5 h-5" />
-                <span className="hidden md:inline">Timeline</span>
+                <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                <span className="hidden md:inline">Transcript</span>
               </button>
-            )}
-            <button
-              className={`tab tab-lg gap-2 ${
-                activeTab === 'metrics'
-                  ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                  : 'hover:bg-base-300'
-              }`}
-              onClick={() => setActiveTab('metrics')}
-              title="Metrics"
-            >
-              <ChartBarIcon className="w-5 h-5" />
-              <span className="hidden md:inline">Metrics</span>
-            </button>
-            {session.cwd && (
-              <button
-                className={`tab tab-lg gap-2 ${
-                  activeTab === 'context'
-                    ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                    : 'hover:bg-base-300'
-                }`}
-                onClick={() => setActiveTab('context')}
-                title="Context"
-              >
-                <DocumentTextIcon className="w-5 h-5" />
-                <span className="hidden md:inline">Context</span>
-                {activeTab !== 'context' && contextStats && contextStats.fileCount > 0 && (
-                  <span className="badge badge-info badge-sm">
-                    {formatSize(contextStats.totalSize)}
-                  </span>
-                )}
-              </button>
-            )}
-            {(metrics?.quality?.usedTodoTracking || hasTodos) && (
-              <button
-                className={`tab tab-lg gap-2 ${
-                  activeTab === 'todos'
-                    ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                    : 'hover:bg-base-300'
-                }`}
-                onClick={() => setActiveTab('todos')}
-                title="Todos"
-              >
-                <CheckCircleIcon className="w-5 h-5" />
-                <span className="hidden md:inline">Todos</span>
-              </button>
-            )}
-            {session.cwd && session.firstCommitHash && (
-              <button
-                className={`tab tab-lg gap-2 ${
-                  activeTab === 'changes'
-                    ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
-                    : hasPendingChanges
-                      ? 'hover:bg-base-300 animate-pulse'
+              {phaseAnalysis && (
+                <button
+                  className={`tab tab-lg gap-2 ${
+                    activeTab === 'phase-timeline'
+                      ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
                       : 'hover:bg-base-300'
+                  }`}
+                  onClick={() => setActiveTab('phase-timeline')}
+                  title="Timeline"
+                >
+                  <ClockIcon className="w-5 h-5" />
+                  <span className="hidden md:inline">Timeline</span>
+                </button>
+              )}
+              <button
+                className={`tab tab-lg gap-2 ${
+                  activeTab === 'metrics'
+                    ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                    : 'hover:bg-base-300'
                 }`}
-                onClick={() => setActiveTab('changes')}
-                title={hasPendingChanges ? 'New changes detected' : 'Changes'}
+                onClick={() => setActiveTab('metrics')}
+                title="Metrics"
               >
-                <svg
-                  className={`w-5 h-5 ${hasPendingChanges && activeTab !== 'changes' ? 'text-primary' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <ChartBarIcon className="w-5 h-5" />
+                <span className="hidden md:inline">Metrics</span>
+              </button>
+              {session.cwd && (
+                <button
+                  className={`tab tab-lg gap-2 ${
+                    activeTab === 'context'
+                      ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                      : 'hover:bg-base-300'
+                  }`}
+                  onClick={() => setActiveTab('context')}
+                  title="Context"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                  />
-                </svg>
-                <span
-                  className={`hidden md:inline ${hasPendingChanges && activeTab !== 'changes' ? 'text-primary' : ''}`}
-                >
-                  Changes
-                </span>
-                {activeTab !== 'changes' &&
-                  gitDiffStats &&
-                  (gitDiffStats.additions > 0 || gitDiffStats.deletions > 0) && (
-                    <span className="flex items-center gap-1">
-                      {gitDiffStats.additions > 0 && (
-                        <span className="badge badge-success badge-sm">
-                          {gitDiffStats.additions}
-                        </span>
-                      )}
-                      {gitDiffStats.deletions > 0 && (
-                        <span className="badge badge-error badge-sm">{gitDiffStats.deletions}</span>
-                      )}
+                  <DocumentTextIcon className="w-5 h-5" />
+                  <span className="hidden md:inline">Context</span>
+                  {activeTab !== 'context' && contextStats && contextStats.fileCount > 0 && (
+                    <span className="badge badge-info badge-sm">
+                      {formatSize(contextStats.totalSize)}
                     </span>
                   )}
-                {hasPendingChanges && activeTab !== 'changes' && (
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </button>
+              )}
+              {(metrics?.quality?.usedTodoTracking || hasTodos) && (
+                <button
+                  className={`tab tab-lg gap-2 ${
+                    activeTab === 'todos'
+                      ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                      : 'hover:bg-base-300'
+                  }`}
+                  onClick={() => setActiveTab('todos')}
+                  title="Todos"
+                >
+                  <CheckCircleIcon className="w-5 h-5" />
+                  <span className="hidden md:inline">Todos</span>
+                </button>
+              )}
+              {session.cwd && session.firstCommitHash && (
+                <button
+                  className={`tab tab-lg gap-2 ${
+                    activeTab === 'changes'
+                      ? 'tab-active bg-base-100 text-primary font-semibold border-b-2 border-primary'
+                      : hasPendingChanges
+                        ? 'hover:bg-base-300 animate-pulse'
+                        : 'hover:bg-base-300'
+                  }`}
+                  onClick={() => setActiveTab('changes')}
+                  title={hasPendingChanges ? 'New changes detected' : 'Changes'}
+                >
+                  <svg
+                    className={`w-5 h-5 ${hasPendingChanges && activeTab !== 'changes' ? 'text-primary' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                    />
+                  </svg>
+                  <span
+                    className={`hidden md:inline ${hasPendingChanges && activeTab !== 'changes' ? 'text-primary' : ''}`}
+                  >
+                    Changes
                   </span>
-                )}
-              </button>
-            )}
+                  {activeTab !== 'changes' &&
+                    gitDiffStats &&
+                    (gitDiffStats.additions > 0 || gitDiffStats.deletions > 0) && (
+                      <span className="flex items-center gap-1">
+                        {gitDiffStats.additions > 0 && (
+                          <span className="badge badge-success badge-sm">
+                            {gitDiffStats.additions}
+                          </span>
+                        )}
+                        {gitDiffStats.deletions > 0 && (
+                          <span className="badge badge-error badge-sm">
+                            {gitDiffStats.deletions}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  {hasPendingChanges && activeTab !== 'changes' && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Right-aligned Raw JSONL tab */}
@@ -970,7 +976,8 @@ export default function SessionDetailPage() {
                           <span className="text-sm">Show meta messages</span>
                         </label>
                         <p className="text-xs text-base-content/60 mt-1.5 ml-6">
-                          Internal system messages that provide context but are not part of the main conversation.
+                          Internal system messages that provide context but are not part of the main
+                          conversation.
                         </p>
                       </div>
 
@@ -985,7 +992,8 @@ export default function SessionDetailPage() {
                           <span className="text-sm">Show thinking blocks</span>
                         </label>
                         <p className="text-xs text-base-content/60 mt-1.5 ml-6">
-                          AI reasoning and thought process blocks that explain how responses were formed.
+                          AI reasoning and thought process blocks that explain how responses were
+                          formed.
                         </p>
                       </div>
                     </div>
@@ -1033,7 +1041,8 @@ export default function SessionDetailPage() {
                   )}
                   {emptyAssistantCount > 0 && (
                     <span className="ml-1">
-                      ({emptyAssistantCount} empty assistant response{emptyAssistantCount !== 1 ? 's' : ''})
+                      ({emptyAssistantCount} empty assistant response
+                      {emptyAssistantCount !== 1 ? 's' : ''})
                     </span>
                   )}
                 </div>
@@ -1191,12 +1200,7 @@ export default function SessionDetailPage() {
                 <JsonBlock content={fileContent} maxHeight="800px" />
               ) : (
                 <div className="alert">
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"

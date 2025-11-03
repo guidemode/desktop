@@ -345,7 +345,7 @@ mod tests {
             model: None,
         };
 
-        let canonical = msg.to_canonical().unwrap();
+        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
 
         assert_eq!(canonical.uuid, "msg-1");
         assert_eq!(canonical.message_type, MessageType::User);
@@ -377,7 +377,7 @@ mod tests {
             model: Some("gemini-2.0-flash-exp".to_string()),
         };
 
-        let canonical = msg.to_canonical().unwrap();
+        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
 
         assert_eq!(canonical.message_type, MessageType::Assistant);
         assert_eq!(canonical.message.role, "assistant");
@@ -495,7 +495,7 @@ mod tests {
             model: Some("gemini-2.5-pro".to_string()),
         };
 
-        let canonical = msg.to_canonical().unwrap();
+        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
 
         // Should have structured content with thinking blocks and text
         match canonical.message.content {
@@ -551,7 +551,7 @@ mod tests {
             model: None,
         };
 
-        let canonical = msg.to_canonical().unwrap();
+        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
 
         // Should have structured content with only thinking block (no text)
         match canonical.message.content {
