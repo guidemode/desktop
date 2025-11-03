@@ -36,6 +36,11 @@ export default function SessionsPage() {
     return saved ? JSON.parse(saved) : { option: 'all' }
   })
   const [providerFilter, setProviderFilter] = useState<string>(() => {
+    // Check URL parameter first, then fall back to localStorage
+    const urlProvider = searchParams.get('provider')
+    if (urlProvider) {
+      return urlProvider
+    }
     return localStorage.getItem(PROVIDER_FILTER_KEY) || 'all'
   })
   const [projectFilter, setProjectFilter] = useState<string>('all')
@@ -96,6 +101,17 @@ export default function SessionsPage() {
     const projectParam = searchParams.get('project')
     if (projectParam) {
       setProjectFilter(projectParam)
+    }
+  }, [searchParams])
+
+  // Initialize provider filter from URL parameter
+  useEffect(() => {
+    const providerParam = searchParams.get('provider')
+    if (providerParam) {
+      setProviderFilter(providerParam)
+    } else if (!searchParams.has('provider')) {
+      // If no URL param, keep current filter (don't reset to 'all')
+      return
     }
   }, [searchParams])
 
@@ -602,7 +618,17 @@ export default function SessionsPage() {
         <select
           className="select select-bordered select-sm"
           value={providerFilter}
-          onChange={e => setProviderFilter(e.target.value)}
+          onChange={e => {
+            const value = e.target.value
+            setProviderFilter(value)
+            // Update URL parameter
+            if (value === 'all') {
+              searchParams.delete('provider')
+            } else {
+              searchParams.set('provider', value)
+            }
+            setSearchParams(searchParams)
+          }}
         >
           <option value="all">All Providers</option>
           <option value="claude-code">Claude Code</option>

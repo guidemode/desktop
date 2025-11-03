@@ -1,3 +1,4 @@
+import { Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { open } from '@tauri-apps/plugin-shell'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
@@ -11,6 +12,7 @@ interface NavItem {
   label: string
   icon: string
   type?: 'main' | 'section' | 'provider'
+  settingsPath?: string
 }
 
 interface ProviderNavItemProps {
@@ -18,43 +20,79 @@ interface ProviderNavItemProps {
   provider: (typeof CODING_AGENTS)[0] | undefined
   isActive: boolean
   onClick: () => void
+  onSettingsClick?: () => void
 }
 
-function ProviderNavItem({ item, provider, isActive, onClick }: ProviderNavItemProps) {
-  // Get provider config to check home directory
+function ProviderNavItem({ item, provider, isActive, onClick, onSettingsClick }: ProviderNavItemProps) {
+  const location = useLocation()
+
+  // Get provider config to check home directory and enabled status
   const { data: config } = useProviderConfig(provider?.id || '')
   const homeDir = config?.homeDirectory || provider?.defaultHomeDirectory
 
   // Check if directory exists
   const { data: directoryExists } = useDirectoryExists(homeDir, !!provider)
 
-  // Determine if provider is unavailable (directory doesn't exist)
-  const isUnavailable = provider && directoryExists === false
+  // Determine if provider is unavailable (directory doesn't exist or disabled)
+  const isDisabled = config?.enabled === false
+  const isUnavailable = provider && (directoryExists === false || isDisabled)
+
+  // Check if we're on the settings page for this provider
+  const isOnSettingsPage = location.pathname === item.settingsPath
 
   return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left ${
-        isActive
-          ? 'bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-sm hover:from-green-700 hover:to-blue-700'
-          : isUnavailable
-            ? 'text-base-content/50 hover:bg-base-200/50 opacity-60'
-            : 'text-base-content hover:bg-base-200'
-      }`}
-    >
-      {provider ? (
-        <div
-          className={`flex-shrink-0 w-5 h-5 flex items-center justify-center ${isUnavailable ? 'opacity-50' : ''}`}
+    <div className="relative group">
+      <button
+        onClick={() => {
+          // If disabled/unavailable, go to settings page instead
+          if (isUnavailable && onSettingsClick) {
+            onSettingsClick()
+          } else {
+            onClick()
+          }
+        }}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left ${
+          isActive
+            ? 'bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-sm hover:from-green-700 hover:to-blue-700'
+            : isUnavailable
+              ? 'text-base-content/50 hover:bg-base-200/50 opacity-60'
+              : 'text-base-content hover:bg-base-200'
+        }`}
+      >
+        {provider ? (
+          <div
+            className={`flex-shrink-0 w-5 h-5 flex items-center justify-center ${isUnavailable ? 'opacity-50 grayscale' : ''}`}
+          >
+            <ProviderIcon providerId={provider.id} size={20} />
+          </div>
+        ) : (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+          </svg>
+        )}
+        <span className="flex-1">{item.label}</span>
+      </button>
+      {onSettingsClick && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onSettingsClick()
+          }}
+          className={`absolute right-2 inset-y-0 my-auto h-8 w-8 rounded-md transition-all flex items-center justify-center ${
+            isOnSettingsPage
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100'
+          } ${
+            isActive
+              ? 'hover:bg-white/20 text-white'
+              : 'hover:bg-base-300 text-base-content/60 hover:text-base-content'
+          }`}
+          title="Agent Settings"
         >
-          <ProviderIcon providerId={provider.id} size={20} />
-        </div>
-      ) : (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
-        </svg>
+          <Cog6ToothIcon className="w-4 h-4" />
+        </button>
       )}
-      <span className="flex-1">{item.label}</span>
-    </button>
+    </div>
   )
 }
 
@@ -67,7 +105,7 @@ const navItems: NavItem[] = [
   },
   {
     path: '/sessions',
-    label: 'Sessions',
+    label: 'All Sessions',
     icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
     type: 'main',
   },
@@ -78,7 +116,8 @@ const navItems: NavItem[] = [
     type: 'main',
   },
   ...CODING_AGENTS.map(agent => ({
-    path: `/provider/${agent.id}`,
+    path: `/sessions?provider=${agent.id}`,
+    settingsPath: `/provider/${agent.id}`,
     label: agent.name,
     icon: agent.icon,
     type: 'provider' as const,
@@ -121,7 +160,10 @@ function SideNav() {
           {navItems
             .filter(item => item.type === 'main')
             .map(item => {
-              const isActive = location.pathname === item.path
+              // For Sessions page, only highlight if there's no provider filter
+              const isActive = item.path === '/sessions'
+                ? location.pathname === '/sessions' && !location.search.includes('provider=')
+                : location.pathname === item.path
               const dataTour = item.path === '/sessions' ? 'sessions-nav' : undefined
 
               return (
@@ -158,8 +200,11 @@ function SideNav() {
             {navItems
               .filter(item => item.type === 'provider')
               .map(item => {
-                const isActive = location.pathname === item.path
-                const provider = CODING_AGENTS.find(agent => item.path === `/provider/${agent.id}`)
+                // Check if current path matches either the sessions filter or settings page
+                const isActive =
+                  location.pathname === '/sessions' && location.search === `?provider=${item.path.split('=')[1]}` ||
+                  location.pathname === item.settingsPath
+                const provider = CODING_AGENTS.find(agent => item.settingsPath === `/provider/${agent.id}`)
 
                 return (
                   <ProviderNavItem
@@ -168,6 +213,7 @@ function SideNav() {
                     provider={provider}
                     isActive={isActive}
                     onClick={() => handleNavClick(item.path)}
+                    onSettingsClick={item.settingsPath ? () => handleNavClick(item.settingsPath!) : undefined}
                   />
                 )
               })}
