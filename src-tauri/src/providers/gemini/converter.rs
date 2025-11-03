@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 /// - Tool calls are split into separate tool_use/tool_result messages
 /// - Thoughts and token usage preserved in metadata
 impl ToCanonical for GeminiMessage {
-    fn to_canonical(&self) -> Result<CanonicalMessage> {
+    fn to_canonical(&self) -> Result<Option<CanonicalMessage>> {
         // Map "gemini" type to "assistant"
         let message_type = match self.message_type.as_str() {
             "user" => MessageType::User,
@@ -74,7 +74,7 @@ impl ToCanonical for GeminiMessage {
             "has_tool_calls": self.tool_calls.is_some(),
         });
 
-        Ok(CanonicalMessage {
+        Ok(Some(CanonicalMessage {
             uuid: self.id.clone(),
             timestamp: self.timestamp.clone(),
             message_type,
@@ -96,7 +96,7 @@ impl ToCanonical for GeminiMessage {
             is_meta: None,
             request_id: None,
             tool_use_result: None,
-        })
+        }))
     }
 
     fn provider_name(&self) -> &str {
@@ -232,26 +232,26 @@ pub fn convert_session_to_canonical(
         // Then, emit main message if it has content OR thoughts
         // Tool messages are emitted separately above
         if !message.content.is_empty() || message.thoughts.is_some() {
-            let mut canonical_msg = message.to_canonical()?;
+            if let Some(mut canonical_msg) = message.to_canonical()? {
+                // Fill in session-level fields
+                canonical_msg.session_id = session.session_id.clone();
+                canonical_msg.cwd = cwd.clone();
 
-            // Fill in session-level fields
-            canonical_msg.session_id = session.session_id.clone();
-            canonical_msg.cwd = cwd.clone();
-
-            // Add thoughts to metadata if present
-            if let Some(ref thoughts) = message.thoughts {
-                if let Some(ref mut metadata) = canonical_msg.provider_metadata {
-                    if let Some(obj) = metadata.as_object_mut() {
-                        obj.insert(
-                            "gemini_thoughts".to_string(),
-                            serde_json::to_value(thoughts)
-                                .context("Failed to serialize thoughts")?,
-                        );
+                // Add thoughts to metadata if present
+                if let Some(ref thoughts) = message.thoughts {
+                    if let Some(ref mut metadata) = canonical_msg.provider_metadata {
+                        if let Some(obj) = metadata.as_object_mut() {
+                            obj.insert(
+                                "gemini_thoughts".to_string(),
+                                serde_json::to_value(thoughts)
+                                    .context("Failed to serialize thoughts")?,
+                            );
+                        }
                     }
                 }
-            }
 
-            canonical_messages.push(canonical_msg);
+                canonical_messages.push(canonical_msg);
+            }
         }
     }
 

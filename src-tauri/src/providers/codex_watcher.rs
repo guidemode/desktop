@@ -1,6 +1,7 @@
 use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_error, log_info};
+use crate::providers::canonical::converter::ToCanonical;
 use crate::providers::codex::converter::CodexMessage;
 use crate::providers::common::{
     extract_cwd_from_canonical_content, get_canonical_path, get_file_size, has_extension,
@@ -231,16 +232,12 @@ impl CodexWatcher {
         codex_file: &Path,
         session_id: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        use crate::providers::codex::converter::MessageAggregator;
-
         // Read original Codex JSONL
         let content = fs::read_to_string(codex_file)?;
 
-        // Create message aggregator to combine text + tool_use
-        let mut aggregator = MessageAggregator::new();
         let mut canonical_lines = Vec::new();
 
-        // Parse and convert each line through the aggregator
+        // Parse and convert each line independently (no aggregation needed)
         for (line_num, line) in content.lines().enumerate() {
             if line.trim().is_empty() {
                 continue;
@@ -248,8 +245,8 @@ impl CodexWatcher {
 
             match serde_json::from_str::<CodexMessage>(line) {
                 Ok(codex_msg) => {
-                    // Process through aggregator
-                    match aggregator.process(codex_msg) {
+                    // Convert to canonical format
+                    match codex_msg.to_canonical() {
                         Ok(Some(mut canonical_msg)) => {
                             // Update session_id from the known session ID (from filename)
                             // This ensures all messages have the correct session_id,
@@ -259,13 +256,13 @@ impl CodexWatcher {
                             canonical_lines.push(serde_json::to_string(&canonical_msg)?);
                         }
                         Ok(None) => {
-                            // Message buffered in aggregator, waiting for more items
+                            // Message was skipped (e.g., duplicate event_msg)
                         }
                         Err(e) => {
                             if let Err(log_err) = log_error(
                                 PROVIDER_ID,
                                 &format!(
-                                    "Failed to aggregate Codex message at line {}: {}",
+                                    "Failed to convert Codex message at line {}: {}",
                                     line_num + 1,
                                     e
                                 ),
@@ -290,18 +287,6 @@ impl CodexWatcher {
                     // Continue processing other lines
                 }
             }
-        }
-
-        // Flush any remaining buffered message from the aggregator
-        if let Ok(Some(mut final_msg)) = aggregator.flush() {
-            final_msg.session_id = session_id.to_string();
-            canonical_lines.push(serde_json::to_string(&final_msg)?);
-        }
-
-        // Also check for any pending message (e.g., a tool_result that was queued)
-        if let Some(mut pending_msg) = aggregator.take_pending() {
-            pending_msg.session_id = session_id.to_string();
-            canonical_lines.push(serde_json::to_string(&pending_msg)?);
         }
 
         // Join canonical lines into content

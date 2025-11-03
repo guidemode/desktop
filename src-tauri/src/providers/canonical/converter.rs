@@ -12,7 +12,8 @@ pub trait ToCanonical {
     /// 1. Map provider-specific fields to canonical fields
     /// 2. Preserve provider-specific data in `provider_metadata`
     /// 3. Handle missing fields gracefully (use None for optional fields)
-    fn to_canonical(&self) -> Result<CanonicalMessage>;
+    /// 4. Return None for messages that should be skipped (e.g., duplicates)
+    fn to_canonical(&self) -> Result<Option<CanonicalMessage>>;
 
     /// Provider name (e.g., "codex", "gemini-code", "github-copilot")
     fn provider_name(&self) -> &str;
@@ -39,13 +40,18 @@ pub trait ToCanonical {
 }
 
 /// Batch conversion helper for converting multiple messages
+/// Filters out None values (skipped messages)
 #[allow(dead_code)]
 pub fn convert_batch<T: ToCanonical>(
     messages: Vec<T>,
 ) -> Result<Vec<CanonicalMessage>> {
     messages
         .into_iter()
-        .map(|msg| msg.to_canonical())
+        .filter_map(|msg| match msg.to_canonical() {
+            Ok(Some(canonical)) => Some(Ok(canonical)),
+            Ok(None) => None, // Skip this message
+            Err(e) => Some(Err(e)),
+        })
         .collect()
 }
 
@@ -73,8 +79,8 @@ mod tests {
     }
 
     impl ToCanonical for MockMessage {
-        fn to_canonical(&self) -> Result<CanonicalMessage> {
-            Ok(CanonicalMessage {
+        fn to_canonical(&self) -> Result<Option<CanonicalMessage>> {
+            Ok(Some(CanonicalMessage {
                 uuid: self.id.clone(),
                 timestamp: "2025-01-01T00:00:00.000Z".to_string(),
                 message_type: MessageType::User,
@@ -96,7 +102,7 @@ mod tests {
                 is_meta: None,
                 request_id: None,
                 tool_use_result: None,
-            })
+            }))
         }
 
         fn provider_name(&self) -> &str {
@@ -161,8 +167,8 @@ mod tests {
         struct NoCwdMessage;
 
         impl ToCanonical for NoCwdMessage {
-            fn to_canonical(&self) -> Result<CanonicalMessage> {
-                Ok(CanonicalMessage::new_text_message(
+            fn to_canonical(&self) -> Result<Option<CanonicalMessage>> {
+                Ok(Some(CanonicalMessage::new_text_message(
                     "id".to_string(),
                     "2025-01-01T00:00:00.000Z".to_string(),
                     MessageType::User,
@@ -170,7 +176,7 @@ mod tests {
                     "test".to_string(),
                     "user".to_string(),
                     "text".to_string(),
-                ))
+                )))
             }
 
             fn provider_name(&self) -> &str {

@@ -164,7 +164,7 @@ impl CodexMessage {
 }
 
 impl ToCanonical for CodexMessage {
-    fn to_canonical(&self) -> Result<CanonicalMessage> {
+    fn to_canonical(&self) -> Result<Option<CanonicalMessage>> {
         let session_id = self.get_session_id().unwrap_or_else(|| "unknown".to_string());
         let uuid = generate_uuid_from_codex(&self.timestamp, &session_id);
 
@@ -175,7 +175,7 @@ impl ToCanonical for CodexMessage {
             CodexPayload::EventMsg(event) => self.convert_event_msg(event, &uuid, &session_id),
             CodexPayload::SessionMeta(_) => {
                 // Session meta becomes a meta message
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid,
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::Meta,
@@ -197,11 +197,11 @@ impl ToCanonical for CodexMessage {
                     is_meta: Some(true),
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
             CodexPayload::TurnContext(_) => {
                 // Turn context is metadata - preserve full payload
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid,
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::Meta,
@@ -223,7 +223,7 @@ impl ToCanonical for CodexMessage {
                     is_meta: Some(true),
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
         }
     }
@@ -251,7 +251,7 @@ impl CodexMessage {
         item: &ResponseItemPayload,
         uuid: &str,
         session_id: &str,
-    ) -> Result<CanonicalMessage> {
+    ) -> Result<Option<CanonicalMessage>> {
         match item.item_type.as_str() {
             "message" => {
                 let role = item.data["role"]
@@ -274,7 +274,7 @@ impl CodexMessage {
                     String::new()
                 };
 
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
                     message_type: if role == "user" {
@@ -303,7 +303,7 @@ impl CodexMessage {
                     is_meta: None,
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
             "function_call" => {
                 let name = item.data["name"]
@@ -325,7 +325,7 @@ impl CodexMessage {
                     input,
                 };
 
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::Assistant,
@@ -350,25 +350,16 @@ impl CodexMessage {
                     is_meta: None,
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
             "function_call_output" => {
                 let call_id = item.data["call_id"].as_str().unwrap_or(uuid);
 
-                // Parse the output - Codex wraps it in a JSON string with nested "output" field
-                let output = if let Some(output_str) = item.data["output"].as_str() {
-                    // Try to parse the JSON string
-                    if let Ok(output_json) = serde_json::from_str::<serde_json::Value>(output_str) {
-                        // Extract the inner "output" field
-                        let inner_output = output_json["output"].as_str().unwrap_or(output_str);
-                        inner_output.to_string()
-                    } else {
-                        // Fallback to the string as-is if it's not valid JSON
-                        output_str.to_string()
-                    }
-                } else {
-                    String::new()
-                };
+                // Simple output extraction to match TypeScript
+                let output = item.data["output"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string();
 
                 // Validate we have required data for tool_result
                 // Don't create empty tool_result blocks (causes parsing issues)
@@ -382,11 +373,11 @@ impl CodexMessage {
 
                 let block = ContentBlock::ToolResult {
                     tool_use_id: call_id.to_string(),
-                    content: output.to_string(),
+                    content: output,
                     is_error: Some(false),
                 };
 
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::User,  // Tool results are USER messages
@@ -411,7 +402,7 @@ impl CodexMessage {
                     is_meta: None,
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
             "reasoning" => {
                 // Codex reasoning becomes text content
@@ -428,7 +419,7 @@ impl CodexMessage {
                     String::new()
                 };
 
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::Assistant,
@@ -453,11 +444,11 @@ impl CodexMessage {
                     is_meta: None,
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
             _ => {
                 // Unknown type, preserve full payload for future analysis
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::Assistant,
@@ -483,7 +474,7 @@ impl CodexMessage {
                     is_meta: None,
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
         }
     }
@@ -493,18 +484,19 @@ impl CodexMessage {
         event: &EventMsgPayload,
         uuid: &str,
         session_id: &str,
-    ) -> Result<CanonicalMessage> {
+    ) -> Result<Option<CanonicalMessage>> {
         match event.event_type.as_str() {
             "token_count" => {
                 // Extract token usage from info
                 let info = &event.data["info"];
                 let usage = if !info.is_null() {
-                    let total = &info["total_token_usage"];
+                    // Use last_token_usage (per-turn) not total_token_usage (cumulative)
+                    let last = &info["last_token_usage"];
                     Some(TokenUsage {
-                        input_tokens: total["input_tokens"].as_u64().map(|v| v as u32),
-                        output_tokens: total["output_tokens"].as_u64().map(|v| v as u32),
+                        input_tokens: last["input_tokens"].as_u64().map(|v| v as u32),
+                        output_tokens: last["output_tokens"].as_u64().map(|v| v as u32),
                         cache_creation_input_tokens: None,
-                        cache_read_input_tokens: total["cached_input_tokens"]
+                        cache_read_input_tokens: last["cached_input_tokens"]
                             .as_u64()
                             .map(|v| v as u32),
                     })
@@ -512,7 +504,7 @@ impl CodexMessage {
                     None
                 };
 
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::Meta,
@@ -537,107 +529,26 @@ impl CodexMessage {
                     is_meta: Some(true),
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
             "user_message" => {
                 // Skip user_message event_msg - it duplicates response_item messages
                 // User messages are already correctly captured by response_item with type="message" role="user"
-                // Convert to meta message to avoid duplicates
-                Ok(CanonicalMessage {
-                    uuid: uuid.to_string(),
-                    timestamp: self.timestamp.clone(),
-                    message_type: MessageType::Meta,
-                    session_id: session_id.to_string(),
-                    provider: self.provider_name().to_string(),
-                    cwd: self.extract_cwd(),
-                    git_branch: None,
-                    version: None,
-                    parent_uuid: None,
-                    is_sidechain: None,
-                    user_type: Some("external".to_string()),
-                    message: MessageContent {
-                        role: "assistant".to_string(),
-                        content: ContentValue::Text(String::new()),
-                        model: None,
-                        usage: None,
-                    },
-                    provider_metadata: Some(serde_json::json!({
-                        "codex_type": "event_msg",
-                        "event_type": "user_message",
-                        "note": "skipped to avoid duplicate of response_item message",
-                    })),
-                    is_meta: Some(true),
-                    request_id: None,
-                    tool_use_result: None,
-                })
+                Ok(None)
             }
             "agent_message" => {
                 // Skip agent_message event_msg - it duplicates response_item messages
                 // Agent messages are already correctly captured by response_item with type="message" role="assistant"
-                // Convert to meta message to avoid duplicates
-                Ok(CanonicalMessage {
-                    uuid: uuid.to_string(),
-                    timestamp: self.timestamp.clone(),
-                    message_type: MessageType::Meta,
-                    session_id: session_id.to_string(),
-                    provider: self.provider_name().to_string(),
-                    cwd: self.extract_cwd(),
-                    git_branch: None,
-                    version: None,
-                    parent_uuid: None,
-                    is_sidechain: None,
-                    user_type: Some("external".to_string()),
-                    message: MessageContent {
-                        role: "assistant".to_string(),
-                        content: ContentValue::Text(String::new()),
-                        model: None,
-                        usage: None,
-                    },
-                    provider_metadata: Some(serde_json::json!({
-                        "codex_type": "event_msg",
-                        "event_type": "agent_message",
-                        "note": "skipped to avoid duplicate of response_item message",
-                    })),
-                    is_meta: Some(true),
-                    request_id: None,
-                    tool_use_result: None,
-                })
+                Ok(None)
             }
             "agent_reasoning" => {
                 // Skip agent_reasoning event_msg - it duplicates response_item reasoning blocks
                 // Agent reasoning is already correctly captured by response_item with type="reasoning"
-                // Convert to meta message to avoid duplicates
-                Ok(CanonicalMessage {
-                    uuid: uuid.to_string(),
-                    timestamp: self.timestamp.clone(),
-                    message_type: MessageType::Meta,
-                    session_id: session_id.to_string(),
-                    provider: self.provider_name().to_string(),
-                    cwd: self.extract_cwd(),
-                    git_branch: None,
-                    version: None,
-                    parent_uuid: None,
-                    is_sidechain: None,
-                    user_type: Some("external".to_string()),
-                    message: MessageContent {
-                        role: "assistant".to_string(),
-                        content: ContentValue::Text(String::new()),
-                        model: None,
-                        usage: None,
-                    },
-                    provider_metadata: Some(serde_json::json!({
-                        "codex_type": "event_msg",
-                        "event_type": "agent_reasoning",
-                        "note": "skipped to avoid duplicate of response_item reasoning block",
-                    })),
-                    is_meta: Some(true),
-                    request_id: None,
-                    tool_use_result: None,
-                })
+                Ok(None)
             }
             _ => {
                 // Unknown event type - preserve type for debugging
-                Ok(CanonicalMessage {
+                Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
                     message_type: MessageType::Meta,
@@ -663,7 +574,7 @@ impl CodexMessage {
                     is_meta: Some(true),
                     request_id: None,
                     tool_use_result: None,
-                })
+                }))
             }
         }
     }
@@ -688,328 +599,6 @@ fn generate_uuid_from_codex(timestamp: &str, session_id: &str) -> String {
         (hash >> 48) as u16,
         hash & 0xFFFFFFFFFFFF
     )
-}
-
-/// Aggregates Codex response_items with the same timestamp into a single canonical message
-///
-/// This solves the duplicate assistant message issue where text and tool_use were
-/// being emitted as separate messages when they should be combined.
-#[cfg_attr(test, derive(Debug))]
-pub struct MessageAggregator {
-    current_timestamp: Option<String>,
-    current_session_id: String,
-    content_blocks: Vec<ContentBlock>,
-    text_content: Option<String>,
-    provider_metadata: Vec<String>, // Track all item_types combined
-    cwd: Option<String>,
-    git_branch: Option<String>,
-    version: Option<String>,
-    pending_message: Option<CanonicalMessage>, // Queue for messages that need to be emitted after flush
-}
-
-impl Default for MessageAggregator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl MessageAggregator {
-    pub fn new() -> Self {
-        Self {
-            current_timestamp: None,
-            current_session_id: String::new(),
-            content_blocks: Vec::new(),
-            text_content: None,
-            provider_metadata: Vec::new(),
-            cwd: None,
-            git_branch: None,
-            version: None,
-            pending_message: None,
-        }
-    }
-
-    /// Check if there's a pending message waiting to be emitted
-    pub fn has_pending(&self) -> bool {
-        self.pending_message.is_some()
-    }
-
-    /// Take the pending message (if any)
-    pub fn take_pending(&mut self) -> Option<CanonicalMessage> {
-        self.pending_message.take()
-    }
-
-    /// Process a Codex message. Returns Some(CanonicalMessage) when a complete
-    /// assistant turn is ready to emit.
-    ///
-    /// This method handles three types of messages differently:
-    /// 1. Non-ResponseItem (session_meta, event_msg, etc.) - convert directly
-    /// 2. User messages and tool results - convert directly (not aggregated)
-    /// 3. Assistant response_items (text, tool_use, reasoning) - aggregate by timestamp
-    pub fn process(&mut self, codex_msg: CodexMessage) -> Result<Option<CanonicalMessage>> {
-        // First check if there's a pending message from previous call
-        if let Some(pending) = self.take_pending() {
-            // We have a pending message to emit before processing this new one
-            // Store the new message for next call by re-processing it
-            self.pending_message = self.process_internal(codex_msg)?;
-            return Ok(Some(pending));
-        }
-
-        self.process_internal(codex_msg)
-    }
-
-    fn process_internal(&mut self, codex_msg: CodexMessage) -> Result<Option<CanonicalMessage>> {
-        let timestamp = codex_msg.timestamp.clone();
-
-        // Non-ResponseItem messages convert directly (session_meta, event_msg, etc.)
-        if !matches!(codex_msg.payload, CodexPayload::ResponseItem(_)) {
-            // Flush any pending aggregated message first
-            if let Some(pending) = self.flush_internal()? {
-                // Store the non-response-item message for next call
-                let direct_msg = codex_msg.to_canonical()?;
-                self.pending_message = Some(direct_msg);
-                return Ok(Some(pending));
-            }
-
-            // No pending, convert directly
-            return codex_msg.to_canonical().map(Some);
-        }
-
-        let item = match &codex_msg.payload {
-            CodexPayload::ResponseItem(item) => item,
-            _ => unreachable!(),
-        };
-
-        // Check if this is a message type that should NOT be aggregated
-        // (user messages and tool results)
-        if self.should_convert_directly(item)? {
-            // Flush any pending aggregated message first
-            if let Some(pending) = self.flush_internal()? {
-                // Store the tool_result/user message for next call
-                let direct_msg = codex_msg.to_canonical()?;
-                self.pending_message = Some(direct_msg);
-                return Ok(Some(pending));
-            }
-
-            // No pending, convert directly
-            return codex_msg.to_canonical().map(Some);
-        }
-
-        // This is an assistant response_item - aggregate by timestamp
-
-        // Check if this is a new turn (different timestamp)
-        if self.current_timestamp.as_ref() != Some(&timestamp) {
-            // Flush previous message if exists
-            let previous = self.flush_internal()?;
-
-            // Start new turn
-            self.current_timestamp = Some(timestamp);
-            self.current_session_id = codex_msg.get_session_id().unwrap_or_default();
-            self.cwd = codex_msg.get_cwd();
-            self.git_branch = codex_msg.get_git_branch();
-            self.version = codex_msg.get_version();
-
-            // Now process this message for the new turn
-            self.accumulate_content(item)?;
-
-            return Ok(previous);
-        }
-
-        // Same timestamp - accumulate content
-        self.accumulate_content(item)?;
-
-        Ok(None)
-    }
-
-    /// Check if a response_item should be converted directly (not aggregated)
-    fn should_convert_directly(&self, item: &ResponseItemPayload) -> Result<bool> {
-        match item.item_type.as_str() {
-            "message" => {
-                // User messages should be converted directly
-                let role = item.data["role"].as_str().context("Missing role")?;
-                Ok(role == "user")
-            }
-            "function_call_output" => {
-                // Tool results are always converted directly
-                Ok(true)
-            }
-            _ => {
-                // Everything else (function_call, reasoning) gets aggregated
-                Ok(false)
-            }
-        }
-    }
-
-    /// Accumulate content from a response_item into the current turn
-    fn accumulate_content(&mut self, item: &ResponseItemPayload) -> Result<()> {
-        match item.item_type.as_str() {
-            "message" => {
-                // Extract text content
-                let role = item.data["role"].as_str().context("Missing role")?;
-
-                // Only accumulate assistant messages (skip user messages - they emit immediately)
-                if role == "assistant" {
-                    let content = &item.data["content"];
-                    let content_text = if content.is_array() {
-                        content
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .filter_map(|c| c["text"].as_str())
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    } else if content.is_string() {
-                        content.as_str().unwrap().to_string()
-                    } else {
-                        String::new()
-                    };
-
-                    if !content_text.is_empty() {
-                        self.text_content = Some(content_text);
-                    }
-                    self.provider_metadata.push("message".to_string());
-                } else {
-                    // User messages should be emitted immediately, not aggregated
-                    // This case shouldn't happen in normal flow since user messages
-                    // should be in separate turns
-                }
-            }
-            "function_call" => {
-                // Add tool_use block
-                let name = item.data["name"].as_str().context("Missing function name")?;
-                let call_id = item.data["call_id"].as_str().unwrap_or("unknown");
-                let arguments = &item.data["arguments"];
-
-                let input: Value = if arguments.is_string() {
-                    serde_json::from_str(arguments.as_str().unwrap()).unwrap_or(Value::Null)
-                } else {
-                    arguments.clone()
-                };
-
-                self.content_blocks.push(ContentBlock::ToolUse {
-                    id: call_id.to_string(),
-                    name: name.to_string(),
-                    input,
-                });
-
-                self.provider_metadata.push("function_call".to_string());
-            }
-            "reasoning" => {
-                // Add thinking block (Codex extended thinking)
-                let summary = &item.data["summary"];
-                let text = if summary.is_array() {
-                    summary
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .filter_map(|s| s["text"].as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                } else {
-                    String::new()
-                };
-
-                if !text.is_empty() {
-                    self.content_blocks.push(ContentBlock::Thinking {
-                        thinking: text,
-                    });
-                }
-                self.provider_metadata.push("reasoning".to_string());
-            }
-            "function_call_output" => {
-                // Tool results are USER messages - they should NOT be aggregated
-                // They will be handled by to_canonical() directly
-            }
-            _ => {
-                // Unknown type - track in metadata
-                self.provider_metadata.push(item.item_type.clone());
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Flush the current buffered message (if any)
-    pub fn flush(&mut self) -> Result<Option<CanonicalMessage>> {
-        self.flush_internal()
-    }
-
-    fn flush_internal(&mut self) -> Result<Option<CanonicalMessage>> {
-        if self.current_timestamp.is_none() {
-            return Ok(None);
-        }
-
-        // Check if we have any content to emit
-        if self.text_content.is_none() && self.content_blocks.is_empty() {
-            // Empty turn - reset and return None
-            self.reset();
-            return Ok(None);
-        }
-
-        let timestamp = self.current_timestamp.take().unwrap();
-        let session_id = std::mem::take(&mut self.current_session_id);
-
-        // Build content value
-        let content = if !self.content_blocks.is_empty() {
-            // If we have tool_use, reasoning, etc., use structured content
-            // Add text as first block if present
-            let mut blocks = Vec::new();
-            if let Some(text) = self.text_content.take() {
-                blocks.push(ContentBlock::Text { text });
-            }
-            blocks.extend(std::mem::take(&mut self.content_blocks));
-
-            ContentValue::Structured(blocks)
-        } else if let Some(text) = self.text_content.take() {
-            // Plain text only
-            ContentValue::Text(text)
-        } else {
-            // Shouldn't reach here due to check above
-            ContentValue::Text(String::new())
-        };
-
-        let metadata_types = std::mem::take(&mut self.provider_metadata);
-        let cwd = self.cwd.take();
-        let git_branch = self.git_branch.take();
-        let version = self.version.take();
-
-        Ok(Some(CanonicalMessage {
-            uuid: generate_uuid_from_codex(&timestamp, &session_id),
-            timestamp,
-            message_type: MessageType::Assistant,
-            session_id,
-            provider: "codex".to_string(),
-            cwd,
-            git_branch,
-            version,
-            parent_uuid: None,
-            is_sidechain: None,
-            user_type: Some("external".to_string()),
-            message: MessageContent {
-                role: "assistant".to_string(),
-                content,
-                model: None,
-                usage: None,
-            },
-            provider_metadata: Some(serde_json::json!({
-                "codex_type": "response_item_aggregated",
-                "item_types": metadata_types,
-            })),
-            is_meta: None,
-            request_id: None,
-            tool_use_result: None,
-        }))
-    }
-
-    fn reset(&mut self) {
-        self.current_timestamp = None;
-        self.current_session_id = String::new();
-        self.content_blocks.clear();
-        self.text_content = None;
-        self.provider_metadata.clear();
-        self.cwd = None;
-        self.git_branch = None;
-        self.version = None;
-    }
 }
 
 #[cfg(test)]
@@ -1055,7 +644,7 @@ mod tests {
         }"#;
 
         let msg: CodexMessage = serde_json::from_str(json).unwrap();
-        let canonical = msg.to_canonical().unwrap();
+        let canonical = msg.to_canonical().unwrap().unwrap();
 
         assert_eq!(canonical.message_type, MessageType::User);
         assert_eq!(canonical.message.role, "user");
@@ -1080,7 +669,7 @@ mod tests {
         }"#;
 
         let msg: CodexMessage = serde_json::from_str(json).unwrap();
-        let canonical = msg.to_canonical().unwrap();
+        let canonical = msg.to_canonical().unwrap().unwrap();
 
         match canonical.message.content {
             ContentValue::Structured(blocks) => {

@@ -496,13 +496,16 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
     for line in lines.iter() {
         if let Ok(codex_msg) = serde_json::from_str::<CodexMessage>(line) {
             match codex_msg.to_canonical() {
-                Ok(mut canonical_msg) => {
+                Ok(Some(mut canonical_msg)) => {
                     // Fix session_id for all messages (not just session_meta)
                     canonical_msg.session_id = session_id.clone();
 
                     if let Ok(serialized) = serde_json::to_string(&canonical_msg) {
                         canonical_lines.push(serialized);
                     }
+                }
+                Ok(None) => {
+                    // Message was skipped (e.g., duplicate event_msg)
                 }
                 Err(e) => {
                     // Log error but continue processing
