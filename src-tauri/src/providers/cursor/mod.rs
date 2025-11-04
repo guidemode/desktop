@@ -11,8 +11,10 @@
 pub mod converter;
 pub mod db;
 pub mod protobuf;
+pub mod scanner;
 pub mod types;
 
+pub use scanner::{scan_existing_sessions, write_canonical_file, ScanResult};
 pub use types::{CursorSession, ProjectInfo, SessionMetadata};
 
 use std::fs;
