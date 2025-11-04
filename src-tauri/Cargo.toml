@@ -9,6 +9,14 @@ default-run = "guideai-desktop"
 edition = "2021"
 rust-version = "1.89"
 
+[[bin]]
+name = "cursor_analysis"
+path = "src/bin/cursor_analysis.rs"
+
+[[bin]]
+name = "cursor_protobuf_decoder"
+path = "src/bin/cursor_protobuf_decoder.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
@@ -74,6 +82,8 @@ indexmap = "2.0"
 ignore = "0.4"
 # Directory traversal for migration
 walkdir = "2.0"
+# Protocol Buffers for Cursor provider
+prost = "0.13"
 
 # macOS specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]
