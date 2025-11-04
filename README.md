@@ -2,7 +2,7 @@
 
 > **Your AI coding sessions, captured automatically.**
 
-![GuideAI Desktop Screenshot](https://via.placeholder.com/800x500?text=Desktop+App+Screenshot) <!-- TODO: Replace with actual screenshot -->
+![GuideAI Desktop Session Detail](https://www.guideai.dev/session_detail.png)
 
 A lightweight menubar app that watches your AI coding sessions and uploads them to GuideAI for analytics. Works with Claude Code, Gemini, GitHub Copilot, Codex, and OpenCode.
 
@@ -20,8 +20,6 @@ A lightweight menubar app that watches your AI coding sessions and uploads them 
 **⚡ Lightweight** - Runs quietly in your menubar. Uses minimal resources.
 
 ## Supported AI Tools
-
-![Supported Providers](https://via.placeholder.com/600x150?text=Provider+Logos+Here) <!-- TODO: Add logos -->
 
 - ✅ **Claude Code** - Anthropic
 - ✅ **Gemini Code** - Google
