@@ -1167,7 +1167,7 @@ mod tests {
 
         fs::write(&file_path, content).unwrap();
 
-        let result = parse_codex_session(&file_path).unwrap();
+        let result = parse_codex_session(&file_path, None).unwrap().unwrap();
 
         assert_eq!(result.session_id, "01998f6b-8fc9-7782-8d57-ca53fbfd057a");
         assert_eq!(result.project_name, "guideai");
