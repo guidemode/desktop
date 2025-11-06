@@ -208,20 +208,32 @@ impl CursorWatcher {
             .ok_or_else(|| format!("Session {} not found after discovery", session_id))?;
 
         // Use scanner logic to process single session
+        use crate::providers::cursor::converter::CursorMessageWithRaw;
         use crate::providers::cursor::scanner;
         use crate::providers::canonical::converter::ToCanonical;
 
         let conn = db::open_cursor_db(&session.db_path)?;
-        let decoded_blobs = db::get_decoded_blobs(&conn)?;
+        let decoded_messages = db::get_decoded_messages(&conn)?;
 
         let mut canonical_messages = Vec::new();
-        for (_blob_id, blob) in decoded_blobs {
-            if let Ok(Some(mut canonical)) = blob.to_canonical() {
-                canonical.session_id = session.session_id.clone();
-                if canonical.cwd.is_none() {
-                    canonical.cwd = session.cwd.clone();
+        for (message_index, (_msg_id, raw_data, msg)) in decoded_messages.iter().enumerate() {
+            // Wrap message with raw data and session metadata for timestamp calculation
+            let msg_with_raw = CursorMessageWithRaw::new(
+                &msg,
+                &raw_data,
+                session.metadata.created_at,
+                message_index,
+            );
+
+            // Use split conversion to prevent UUID collisions
+            if let Ok(mut messages) = msg_with_raw.to_canonical_split() {
+                for mut canonical in messages {
+                    canonical.session_id = session.session_id.clone();
+                    if canonical.cwd.is_none() {
+                        canonical.cwd = session.cwd.clone();
+                    }
+                    canonical_messages.push(canonical);
                 }
-                canonical_messages.push(canonical);
             }
         }
 
@@ -319,13 +331,14 @@ impl CursorWatcher {
         with_connection_mut(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT session_id, file_path
-                 FROM sessions
+                 FROM agent_sessions
                  WHERE provider = 'cursor'
-                 AND last_updated > datetime('now', '-' || ? || ' hours')
-                 ORDER BY last_updated DESC",
+                 AND session_end_time IS NULL
+                 ORDER BY created_at DESC
+                 LIMIT 100",
             )?;
 
-            let sessions = stmt.query_map([ACTIVE_WINDOW_HOURS], |row| {
+            let sessions = stmt.query_map([], |row| {
                 Ok((row.get(0)?, row.get(1)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;

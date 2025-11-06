@@ -53,6 +53,14 @@ pub fn scan_all_sessions(
     provider_id: &str,
     home_directory: &str,
 ) -> Result<Vec<SessionInfo>, String> {
+    scan_all_sessions_filtered(provider_id, home_directory, None)
+}
+
+pub fn scan_all_sessions_filtered(
+    provider_id: &str,
+    home_directory: &str,
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<SessionInfo>, String> {
     let expanded = tilde(home_directory);
     let base_path = Path::new(expanded.as_ref());
 
@@ -61,17 +69,24 @@ pub fn scan_all_sessions(
     }
 
     match provider_id {
-        "claude-code" => scan_claude_sessions(base_path),
-        "github-copilot" => scan_copilot_sessions(base_path),
-        "opencode" => scan_opencode_sessions(base_path),
-        "codex" => scan_codex_sessions(base_path),
-        "gemini-code" => scan_gemini_sessions(base_path),
-        "cursor" => scan_cursor_sessions(base_path),
+        "claude-code" => scan_claude_sessions_filtered(base_path, selected_projects),
+        "github-copilot" => scan_copilot_sessions_filtered(base_path, selected_projects),
+        "opencode" => scan_opencode_sessions_filtered(base_path, selected_projects),
+        "codex" => scan_codex_sessions_filtered(base_path, selected_projects),
+        "gemini-code" => scan_gemini_sessions_filtered(base_path, selected_projects),
+        "cursor" => scan_cursor_sessions_filtered(selected_projects),
         _ => Err(format!("Unsupported provider: {}", provider_id)),
     }
 }
 
 fn scan_claude_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
+    scan_claude_sessions_filtered(base_path, None)
+}
+
+fn scan_claude_sessions_filtered(
+    base_path: &Path,
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<SessionInfo>, String> {
     let projects_path = base_path.join("projects");
     if !projects_path.exists() {
         return Ok(Vec::new());
@@ -90,6 +105,13 @@ fn scan_claude_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
         let Some(project_name) = project_path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
+
+        // Skip projects not in the selected list
+        if let Some(selected) = selected_projects {
+            if !selected.contains(&project_name.to_string()) {
+                continue;
+            }
+        }
 
         // Find all .jsonl files in this project
         if let Ok(project_entries) = fs::read_dir(&project_path) {
@@ -224,15 +246,16 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
         eprintln!("Logging error: {}", e);
     }
 
-    // Merge to project-organized canonical path (Claude is already canonical format)
-    // This will copy the main session and inline any agent-*.jsonl files
-    use super::common::{get_canonical_path, merge_session_with_agents};
+    // Convert to canonical format using shared conversion function
+    // This will:
+    // 1. Filter out system events (file-history-snapshot, summary, etc.)
+    // 2. Add provider field
+    // 3. Fix empty tool_result content
+    // 4. Merge agent sidechain files
+    use super::claude::convert_to_canonical_file;
 
-    let cache_path = get_canonical_path("claude-code", cwd.as_deref(), &session_id)
-        .map_err(|e| format!("Failed to get canonical path: {}", e))?;
-
-    merge_session_with_agents(file_path, &cache_path)
-        .map_err(|e| format!("Failed to merge session with agents: {}", e))?;
+    let cache_path = convert_to_canonical_file(file_path, &session_id, cwd.as_deref())
+        .map_err(|e| format!("Failed to convert session: {}", e))?;
 
     // Update file size from cache file
     let file_size = fs::metadata(&cache_path).map(|m| m.len()).unwrap_or(0);
@@ -258,6 +281,13 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
 }
 
 fn scan_opencode_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
+    scan_opencode_sessions_filtered(base_path, None)
+}
+
+fn scan_opencode_sessions_filtered(
+    base_path: &Path,
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<SessionInfo>, String> {
     // Import the OpenCode parser
     use super::opencode_parser::OpenCodeParser;
 
@@ -275,6 +305,20 @@ fn scan_opencode_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> 
         .map_err(|e| format!("Failed to get OpenCode projects: {}", e))?;
 
     for project in projects {
+        // Extract project name from worktree path
+        let project_name = Path::new(&project.worktree)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        // Skip projects not in the selected list
+        if let Some(selected) = selected_projects {
+            if !selected.contains(&project_name) {
+                continue;
+            }
+        }
+
         // Get all sessions for this project
         let session_ids = parser
             .get_sessions_for_project(&project.id)
@@ -356,6 +400,13 @@ fn parse_opencode_session(
 }
 
 fn scan_codex_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
+    scan_codex_sessions_filtered(base_path, None)
+}
+
+fn scan_codex_sessions_filtered(
+    base_path: &Path,
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<SessionInfo>, String> {
     // Codex uses ~/.codex/sessions/YYYY/MM/DD/*.jsonl structure
     let sessions_path = base_path.join("sessions");
     if !sessions_path.exists() {
@@ -384,9 +435,12 @@ fn scan_codex_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     find_session_files(&sessions_path, &mut session_files)?;
 
     for file_path in session_files {
-        match parse_codex_session(&file_path) {
-            Ok(session_info) => {
+        match parse_codex_session(&file_path, selected_projects) {
+            Ok(Some(session_info)) => {
                 sessions.push(session_info);
+            }
+            Ok(None) => {
+                // Session filtered out - skipped
             }
             Err(e) => {
                 if let Err(log_err) = log_warn(
@@ -414,6 +468,13 @@ fn scan_codex_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
 }
 
 fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
+    scan_copilot_sessions_filtered(base_path, None)
+}
+
+fn scan_copilot_sessions_filtered(
+    base_path: &Path,
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<SessionInfo>, String> {
     // Copilot uses ~/.copilot/session-state/{uuid}.jsonl
     let session_dir = base_path.join("session-state");
     if !session_dir.exists() {
@@ -432,9 +493,12 @@ fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
             if let Some(file_name) = file_path.file_name().and_then(|n| n.to_str()) {
                 // Skip hidden files
                 if !file_name.starts_with('.') {
-                    match parse_copilot_session(&file_path) {
-                        Ok(session_info) => {
+                    match parse_copilot_session(&file_path, selected_projects) {
+                        Ok(Some(session_info)) => {
                             sessions.push(session_info);
+                        }
+                        Ok(None) => {
+                            // Session filtered out - skipped
                         }
                         Err(e) => {
                             if let Err(log_err) = log_warn(
@@ -464,7 +528,10 @@ fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     Ok(sessions)
 }
 
-fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
+fn parse_codex_session(
+    file_path: &Path,
+    selected_projects: Option<&[String]>,
+) -> Result<Option<SessionInfo>, String> {
     use super::canonical::converter::ToCanonical;
     use super::codex::CodexMessage;
     use super::common::{extract_cwd_from_canonical_content, get_canonical_path};
@@ -497,6 +564,13 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
         .and_then(|name| name.to_str())
         .unwrap_or("unknown")
         .to_string();
+
+    // Filter projects BEFORE processing/caching
+    if let Some(selected) = selected_projects {
+        if !selected.contains(&project_name) {
+            return Ok(None); // Skip this session
+        }
+    }
 
     // Convert Codex JSONL to canonical format - simple 1-to-1 conversion
     // The watcher uses MessageAggregator for real-time processing, but the scanner
@@ -567,7 +641,7 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
         .unwrap_or("unknown.jsonl")
         .to_string();
 
-    Ok(SessionInfo {
+    Ok(Some(SessionInfo {
         provider: "codex".to_string(),
         project_name,
         session_id,
@@ -580,10 +654,13 @@ fn parse_codex_session(file_path: &Path) -> Result<SessionInfo, String> {
         content: None,         // Codex sessions use files directly
         cwd: Some(cwd),        // Codex sessions have CWD from parsing
         project_hash: None,    // Not used for Codex
-    })
+    }))
 }
 
-fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
+fn parse_copilot_session(
+    file_path: &Path,
+    selected_projects: Option<&[String]>,
+) -> Result<Option<SessionInfo>, String> {
     use super::copilot_parser::CopilotParser;
 
     // Use CopilotParser to parse the new JSONL event format
@@ -594,6 +671,13 @@ fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
 
     let parser = CopilotParser::new(storage_path.to_path_buf());
     let parsed = parser.parse_session(file_path)?;
+
+    // Filter projects BEFORE processing/caching
+    if let Some(selected) = selected_projects {
+        if !selected.contains(&parsed.project_name) {
+            return Ok(None); // Skip this session
+        }
+    }
 
     // Write canonical format to project-organized path
     use super::common::get_canonical_path;
@@ -612,7 +696,7 @@ fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
         .unwrap_or("")
         .to_string();
 
-    Ok(SessionInfo {
+    Ok(Some(SessionInfo {
         provider: "github-copilot".to_string(),
         project_name: parsed.project_name,
         session_id: parsed.session_id,
@@ -625,7 +709,7 @@ fn parse_copilot_session(file_path: &Path) -> Result<SessionInfo, String> {
         content: None,
         cwd: parsed.cwd,
         project_hash: None,
-    })
+    }))
 }
 
 // Helper to extract timing from JSONL (same logic as db_helpers)
@@ -685,6 +769,13 @@ fn extract_timing_from_jsonl(file_path: &Path) -> Result<TimingData, String> {
 }
 
 fn scan_gemini_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
+    scan_gemini_sessions_filtered(base_path, None)
+}
+
+fn scan_gemini_sessions_filtered(
+    base_path: &Path,
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<SessionInfo>, String> {
     // Gemini uses ~/.gemini/tmp/{hash}/chats/session-*.json structure
     let tmp_path = base_path.join("tmp");
     if !tmp_path.exists() {
@@ -709,6 +800,23 @@ fn scan_gemini_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
 
         if !project_path.is_dir() {
             continue;
+        }
+
+        // Get project hash (folder name)
+        let project_hash = project_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| s.to_string());
+
+        // Skip projects not in the selected list (Gemini uses hashes for filtering)
+        if let Some(selected) = selected_projects {
+            if let Some(ref hash) = project_hash {
+                if !selected.contains(hash) {
+                    continue;
+                }
+            } else {
+                continue; // Skip if we can't determine hash
+            }
         }
 
         let chats_path = project_path.join("chats");
@@ -845,6 +953,12 @@ fn extract_cwd_from_gemini_session(
 }
 
 fn scan_cursor_sessions(_base_path: &Path) -> Result<Vec<SessionInfo>, String> {
+    scan_cursor_sessions_filtered(None)
+}
+
+fn scan_cursor_sessions_filtered(
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<SessionInfo>, String> {
     use crate::providers::cursor;
 
     // Discover all Cursor sessions
@@ -857,8 +971,11 @@ fn scan_cursor_sessions(_base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     let mut session_infos = Vec::new();
 
     for session in sessions {
-        match scan_single_cursor_session(&session) {
-            Ok(info) => session_infos.push(info),
+        match scan_single_cursor_session(&session, selected_projects) {
+            Ok(Some(info)) => session_infos.push(info),
+            Ok(None) => {
+                // Session filtered out - skipped
+            }
             Err(e) => {
                 if let Err(log_err) = log_warn(
                     "cursor",
@@ -877,29 +994,46 @@ fn scan_cursor_sessions(_base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     Ok(session_infos)
 }
 
-fn scan_single_cursor_session(session: &crate::providers::cursor::CursorSession) -> Result<SessionInfo, String> {
-    use crate::providers::cursor::{db, find_cwd_for_session};
+fn scan_single_cursor_session(
+    session: &crate::providers::cursor::CursorSession,
+    selected_projects: Option<&[String]>,
+) -> Result<Option<SessionInfo>, String> {
+    use crate::providers::cursor::{db, find_cwd_for_session, converter::CursorMessageWithRaw};
     use crate::providers::common::get_canonical_path;
     use crate::providers::canonical::converter::ToCanonical;
 
-    // Open database and get decoded blobs
+    // Open database and get decoded messages (supports both protobuf and JSON)
     let conn = db::open_cursor_db(&session.db_path).map_err(|e| e.to_string())?;
-    let decoded_blobs = db::get_decoded_blobs(&conn).map_err(|e| e.to_string())?;
+    let decoded_messages = db::get_decoded_messages(&conn).map_err(|e| e.to_string())?;
 
-    if decoded_blobs.is_empty() {
+    if decoded_messages.is_empty() {
         return Err("Empty session (no messages)".to_string());
     }
 
-    // Convert blobs to canonical messages (decoded_blobs is Vec<(String, CursorBlob)>)
+    // Convert messages to canonical format (decoded_messages is Vec<(String, Vec<u8>, CursorMessage)>)
     let mut canonical_messages = Vec::new();
 
-    for (_blob_id, blob) in &decoded_blobs {
-        if let Ok(Some(mut msg)) = blob.to_canonical() {
-            // Try to find CWD from projects directory using session hash
-            if msg.cwd.is_none() {
-                msg.cwd = find_cwd_for_session(&session.hash);
+    for (message_index, (_blob_id, raw_data, msg)) in decoded_messages.iter().enumerate() {
+        // Wrap message with raw data and session metadata for timestamp calculation
+        let msg_with_raw = CursorMessageWithRaw::new(
+            msg,
+            raw_data,
+            session.metadata.created_at,
+            message_index,
+        );
+
+        // Use to_canonical_split() to properly separate tool calls and tool results
+        if let Ok(messages) = msg_with_raw.to_canonical_split() {
+            for mut canonical_msg in messages {
+                // Set session ID (required for UI parser)
+                canonical_msg.session_id = session.session_id.clone();
+
+                // Try to find CWD from projects directory using session hash
+                if canonical_msg.cwd.is_none() {
+                    canonical_msg.cwd = find_cwd_for_session(&session.hash);
+                }
+                canonical_messages.push(canonical_msg);
             }
-            canonical_messages.push(msg);
         }
     }
 
@@ -925,6 +1059,13 @@ fn scan_single_cursor_session(session: &crate::providers::cursor::CursorSession)
                 .map(|s| s.to_string())
         })
         .unwrap_or_else(|| session.metadata.name.clone());
+
+    // Filter projects BEFORE processing/caching
+    if let Some(selected) = selected_projects {
+        if !selected.contains(&project_name) {
+            return Ok(None); // Skip this session
+        }
+    }
 
     // Get canonical path
     let canonical_path = get_canonical_path("cursor", cwd.as_deref(), &session.session_id)
@@ -968,7 +1109,7 @@ fn scan_single_cursor_session(session: &crate::providers::cursor::CursorSession)
         .unwrap_or("unknown.jsonl")
         .to_string();
 
-    Ok(SessionInfo {
+    Ok(Some(SessionInfo {
         provider: "cursor".to_string(),
         project_name, // Use derived project name from CWD
         session_id: session.session_id.clone(),
@@ -981,7 +1122,7 @@ fn scan_single_cursor_session(session: &crate::providers::cursor::CursorSession)
         content: None,
         cwd,
         project_hash: None,
-    })
+    }))
 }
 
 #[cfg(test)]

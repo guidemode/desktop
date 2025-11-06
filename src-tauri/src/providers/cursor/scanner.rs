@@ -3,7 +3,7 @@
 /// This runs on watcher initialization to find and process all existing
 /// Cursor sessions that may not have been previously imported.
 
-use super::{db, discover_sessions, CursorSession};
+use super::{converter::CursorMessageWithRaw, db, discover_sessions, CursorSession};
 use crate::events::{EventBus, SessionEventPayload};
 use crate::providers::canonical::{converter::ToCanonical, CanonicalMessage};
 use crate::providers::common::get_canonical_path;
@@ -19,6 +19,23 @@ pub struct ScanResult {
     pub sessions_processed: usize,
     pub sessions_failed: usize,
     pub messages_converted: usize,
+}
+
+/// Statistics for message conversion
+#[derive(Default)]
+struct MessageStats {
+    user_count: usize,
+    user_json: usize,
+    user_protobuf: usize,
+    assistant_count: usize,
+    assistant_json: usize,
+    assistant_protobuf: usize,
+    system_count: usize,
+    other_count: usize,
+    tool_use_count: usize,
+    tool_result_count: usize,
+    skipped_count: usize,
+    failed_count: usize,
 }
 
 /// Scan all existing Cursor sessions and convert them to canonical format
@@ -100,19 +117,70 @@ fn process_session(
     // Open database
     let conn = db::open_cursor_db(&session.db_path)?;
 
-    // Get decoded blobs
-    let decoded_blobs = db::get_decoded_blobs(&conn)?;
+    // Get decoded messages (supports both protobuf and JSON)
+    let decoded_messages = db::get_decoded_messages(&conn)?;
 
-    if decoded_blobs.is_empty() {
+    if decoded_messages.is_empty() {
         return Ok(0); // Empty session, skip
     }
 
     // Convert to canonical messages
     let mut canonical_messages: Vec<CanonicalMessage> = Vec::new();
+    let mut stats = MessageStats::default();
 
-    for (_blob_id, blob) in decoded_blobs {
-        match blob.to_canonical() {
-            Ok(Some(mut canonical)) => {
+    for (message_index, (_msg_id, raw_data, msg)) in decoded_messages.iter().enumerate() {
+        // Track message source type
+        let msg_source = match &msg {
+            super::protobuf::CursorMessage::Protobuf(_) => "protobuf",
+            super::protobuf::CursorMessage::Json(_) => "json",
+        };
+
+        // Wrap message with raw data and session metadata for timestamp calculation
+        let msg_with_raw = CursorMessageWithRaw::new(
+            &msg,
+            &raw_data,
+            session.metadata.created_at,
+            message_index,
+        );
+
+        // Use split conversion to prevent UUID collisions
+        match msg_with_raw.to_canonical_split() {
+            Ok(mut messages) => {
+                // Process each split message
+                for mut canonical in messages {
+                    // Track by role and source
+                    match canonical.message.role.as_str() {
+                        "user" => {
+                            stats.user_count += 1;
+                            if msg_source == "json" {
+                                stats.user_json += 1;
+                            } else {
+                            stats.user_protobuf += 1;
+                        }
+                    }
+                    "assistant" => {
+                        stats.assistant_count += 1;
+                        if msg_source == "json" {
+                            stats.assistant_json += 1;
+                        } else {
+                            stats.assistant_protobuf += 1;
+                        }
+                    }
+                    "system" => stats.system_count += 1,
+                    _ => stats.other_count += 1,
+                }
+
+                // Check for tool content
+                if let crate::providers::canonical::ContentValue::Structured(blocks) = &canonical.message.content {
+                    for block in blocks {
+                        match block {
+                            crate::providers::canonical::ContentBlock::ToolUse { .. } => stats.tool_use_count += 1,
+                            crate::providers::canonical::ContentBlock::ToolResult { .. } => stats.tool_result_count += 1,
+                            _ => {}
+                        }
+                    }
+                }
+
                 // Set session ID (ToCanonical doesn't know it)
                 canonical.session_id = session.session_id.clone();
 
@@ -121,16 +189,32 @@ fn process_session(
                     canonical.cwd = session.cwd.clone();
                 }
 
-                canonical_messages.push(canonical);
-            }
-            Ok(None) => {
-                // Message was skipped (empty, etc.)
+                    canonical_messages.push(canonical);
+                }
             }
             Err(e) => {
+                stats.failed_count += 1;
                 tracing::warn!("Failed to convert blob in session {}: {:?}", session.session_id, e);
             }
         }
     }
+
+    tracing::info!(
+        "Conversion stats for session {}: {} messages ({} user [{} JSON + {} protobuf], {} assistant [{} JSON + {} protobuf], {} system, {} tool_use, {} tool_result, {} skipped, {} failed)",
+        session.session_id,
+        canonical_messages.len(),
+        stats.user_count,
+        stats.user_json,
+        stats.user_protobuf,
+        stats.assistant_count,
+        stats.assistant_json,
+        stats.assistant_protobuf,
+        stats.system_count,
+        stats.tool_use_count,
+        stats.tool_result_count,
+        stats.skipped_count,
+        stats.failed_count
+    );
 
     if canonical_messages.is_empty() {
         return Ok(0); // No valid messages, skip
@@ -204,7 +288,7 @@ mod tests {
 
         let messages = vec![CanonicalMessage {
             uuid: "test-1".to_string(),
-            timestamp: Utc::now().to_rfc3339(),
+            timestamp: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             message_type: MessageType::User,
             session_id: "test-session".to_string(),
             provider: "cursor".to_string(),
