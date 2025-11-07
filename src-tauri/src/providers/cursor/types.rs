@@ -1,5 +1,4 @@
 /// Cursor-specific type definitions
-
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -50,6 +49,7 @@ impl CursorSession {
     }
 
     /// Get created timestamp as DateTime
+    #[allow(dead_code)] // Helper method, may be used in future
     pub fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
         chrono::DateTime::from_timestamp_millis(self.metadata.created_at)
             .unwrap_or_else(chrono::Utc::now)

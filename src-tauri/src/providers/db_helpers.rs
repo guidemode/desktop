@@ -108,6 +108,7 @@ pub fn insert_session_immediately(
                 update_session(
                     session_id,
                     file_name,
+                    &file_path.to_string_lossy(),
                     file_size,
                     file_hash.as_deref(),
                     start_time,

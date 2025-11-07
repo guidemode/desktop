@@ -6,7 +6,7 @@ use crate::config::{
 };
 use crate::logging::{read_provider_logs, LogEntry};
 use crate::providers::{
-    scan_all_sessions, ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus,
+    ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus,
     CopilotWatcher, CopilotWatcherStatus, CursorWatcher, CursorWatcherStatus, GeminiWatcher,
     GeminiWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo,
 };
@@ -863,7 +863,7 @@ pub async fn scan_historical_sessions(
     app_handle: tauri::AppHandle,
     provider_id: String,
 ) -> Result<Vec<SessionInfo>, String> {
-    use crate::logging::{log_debug, log_info, log_warn};
+    use crate::logging::{log_info, log_warn};
     use tauri::Emitter;
 
     // Log start of scan
@@ -926,8 +926,36 @@ pub async fn scan_historical_sessions(
         }),
     );
 
-    // Scan for sessions
-    let all_sessions = scan_all_sessions(&provider_id, &config.home_directory).map_err(|e| {
+    // Prepare project filter (pass to scanner for early filtering)
+    let selected_projects_filter = if config.project_selection == "ALL" {
+        if let Err(e) = log_info(
+            &provider_id,
+            "📋 Using ALL project selection - scanning all projects",
+        ) {
+            eprintln!("Logging error: {}", e);
+        }
+        None
+    } else {
+        if let Err(e) = log_info(
+            &provider_id,
+            &format!(
+                "📋 Filtering to {} selected projects: {}",
+                config.selected_projects.len(),
+                config.selected_projects.join(", ")
+            ),
+        ) {
+            eprintln!("Logging error: {}", e);
+        }
+        Some(config.selected_projects.as_slice())
+    };
+
+    // Scan for sessions with early filtering (avoids scanning/processing unselected projects)
+    let sessions = crate::providers::scan_all_sessions_filtered(
+        &provider_id,
+        &config.home_directory,
+        selected_projects_filter,
+    )
+    .map_err(|e| {
         // Log the error
         if let Err(log_err) = log_warn(&provider_id, &format!("✗ Failed to scan sessions: {}", e))
         {
@@ -941,78 +969,6 @@ pub async fn scan_historical_sessions(
         .ok();
         e
     })?;
-
-    if let Err(e) = log_info(
-        &provider_id,
-        &format!(
-            "📊 Found {} total sessions before filtering",
-            all_sessions.len()
-        ),
-    ) {
-        eprintln!("Logging error: {}", e);
-    }
-
-    // Filter sessions based on project selection
-    let sessions: Vec<SessionInfo> = if config.project_selection == "ALL" {
-        if let Err(e) = log_info(
-            &provider_id,
-            "📋 Using ALL project selection - no filtering",
-        ) {
-            eprintln!("Logging error: {}", e);
-        }
-        all_sessions
-    } else {
-        if let Err(e) = log_info(
-            &provider_id,
-            &format!(
-                "📋 Filtering to {} selected projects: {}",
-                config.selected_projects.len(),
-                config.selected_projects.join(", ")
-            ),
-        ) {
-            eprintln!("Logging error: {}", e);
-        }
-
-        let filtered: Vec<SessionInfo> = all_sessions
-            .into_iter()
-            .filter(|session| {
-                // For Gemini, use project_hash for filtering (since selectedProjects contains hashes)
-                // For other providers, use project_name
-                let is_selected = if provider_id == "gemini-code" {
-                    if let Some(ref hash) = session.project_hash {
-                        config.selected_projects.contains(hash)
-                    } else {
-                        // Fallback to name-based filtering if hash is missing
-                        config.selected_projects.contains(&session.project_name)
-                    }
-                } else {
-                    config.selected_projects.contains(&session.project_name)
-                };
-
-                if !is_selected {
-                    if let Err(e) = log_debug(
-                        &provider_id,
-                        &format!(
-                            "  Skipping session {} (project '{}' not in selected projects)",
-                            session.session_id, session.project_name
-                        ),
-                    ) {
-                        eprintln!("Logging error: {}", e);
-                    }
-                }
-                is_selected
-            })
-            .collect();
-
-        if let Err(e) = log_info(
-            &provider_id,
-            &format!("📊 Filtered to {} sessions", filtered.len()),
-        ) {
-            eprintln!("Logging error: {}", e);
-        }
-
-        filtered
-    };
 
     if let Err(e) = log_info(
         &provider_id,
@@ -1411,10 +1367,19 @@ pub async fn get_session_content(
 
     let path = PathBuf::from(&file_path);
 
+    eprintln!("🔥 get_session_content called:");
+    eprintln!("   provider: {}", provider);
+    eprintln!("   file_path: {}", file_path);
+    eprintln!("   path exists: {}", path.exists());
+
     // All providers now use cached JSONL files - read directly
     // OpenCode sessions are aggregated to ~/.guideai/cache/opencode/{session_id}.jsonl
-    std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read session file for {}: {}", provider, e))
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read session file for {}: {}", provider, e))?;
+
+    eprintln!("   content length: {} bytes", content.len());
+
+    Ok(content)
 }
 
 // Autostart function for watchers

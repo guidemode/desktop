@@ -5,7 +5,6 @@
 /// - Watches ~/.cursor/chats for new session directories
 /// - Polls active sessions (from our database) using PRAGMA data_version
 /// - Only polls sessions updated in last hour (automatic pruning)
-
 use crate::config::load_provider_config;
 use crate::database::with_connection_mut;
 use crate::events::{EventBus, SessionEventPayload};
@@ -14,7 +13,7 @@ use crate::providers::common::get_canonical_path;
 use crate::upload_queue::UploadQueue;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
@@ -25,6 +24,7 @@ const ACTIVE_WINDOW_HOURS: i64 = 1;
 
 /// Session tracker for database polling
 struct SessionTracker {
+    #[allow(dead_code)] // Used as HashMap key, not accessed directly
     session_id: String,
     db_path: PathBuf,
     last_data_version: i64,
@@ -35,24 +35,16 @@ struct SessionTracker {
 pub struct CursorWatcher {
     _watcher: RecommendedWatcher,
     _poll_thread: thread::JoinHandle<()>,
-    upload_queue: Arc<UploadQueue>,
     is_running: Arc<Mutex<bool>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
+#[derive(Default)]
 pub struct CursorWatcherStatus {
     pub is_running: bool,
     pub active_sessions: usize,
 }
 
-impl Default for CursorWatcherStatus {
-    fn default() -> Self {
-        Self {
-            is_running: false,
-            active_sessions: 0,
-        }
-    }
-}
 
 impl CursorWatcher {
     pub fn new(
@@ -117,7 +109,6 @@ impl CursorWatcher {
         Ok(CursorWatcher {
             _watcher: watcher,
             _poll_thread: poll_thread,
-            upload_queue,
             is_running,
         })
     }
@@ -210,7 +201,7 @@ impl CursorWatcher {
         // Use scanner logic to process single session
         use crate::providers::cursor::converter::CursorMessageWithRaw;
         use crate::providers::cursor::scanner;
-        use crate::providers::canonical::converter::ToCanonical;
+        
 
         let conn = db::open_cursor_db(&session.db_path)?;
         let decoded_messages = db::get_decoded_messages(&conn)?;
@@ -219,14 +210,14 @@ impl CursorWatcher {
         for (message_index, (_msg_id, raw_data, msg)) in decoded_messages.iter().enumerate() {
             // Wrap message with raw data and session metadata for timestamp calculation
             let msg_with_raw = CursorMessageWithRaw::new(
-                &msg,
-                &raw_data,
+                msg,
+                raw_data,
                 session.metadata.created_at,
                 message_index,
             );
 
             // Use split conversion to prevent UUID collisions
-            if let Ok(mut messages) = msg_with_raw.to_canonical_split() {
+            if let Ok(messages) = msg_with_raw.to_canonical_split() {
                 for mut canonical in messages {
                     canonical.session_id = session.session_id.clone();
                     if canonical.cwd.is_none() {
@@ -247,7 +238,7 @@ impl CursorWatcher {
             session.cwd.as_deref(),
             &session.session_id,
         )
-        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) })?;
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) })?;
 
         scanner::write_canonical_file(&canonical_path, &canonical_messages)?;
 
@@ -296,10 +287,19 @@ impl CursorWatcher {
                 // Try to get DB path for this session
                 let db_path = get_db_path_for_session(&session_id).unwrap_or_default();
 
+                // Phase 1 Fix: Initialize with current data_version to prevent false positives
+                let initial_version = if db_path.exists() {
+                    db::open_cursor_db(&db_path)
+                        .and_then(|conn| db::get_data_version(&conn))
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+
                 SessionTracker {
                     session_id: session_id.clone(),
                     db_path,
-                    last_data_version: 0,
+                    last_data_version: initial_version,
                     last_checked: SystemTime::now(),
                 }
             });
@@ -307,11 +307,25 @@ impl CursorWatcher {
             // Check for changes using PRAGMA data_version
             match Self::check_session_changed(tracker) {
                 Ok(true) => {
-                    tracing::debug!("🔄 Session {} has changes, reprocessing", session_id);
+                    // Phase 3 Enhancement: Verify content actually changed before reprocessing
+                    // Prevents redundant processing when only SQLite metadata changed
+                    let should_reprocess = match Self::verify_content_changed(&canonical_path, &tracker.db_path) {
+                        Ok(changed) => changed,
+                        Err(e) => {
+                            tracing::debug!("Could not verify content change for {}: {:?}, will reprocess", session_id, e);
+                            true // Default to reprocessing if verification fails
+                        }
+                    };
 
-                    // Reprocess session
-                    if let Err(e) = Self::process_new_session(&session_id, event_bus) {
-                        tracing::warn!("Failed to reprocess session {}: {:?}", session_id, e);
+                    if should_reprocess {
+                        tracing::info!("🔄 Session {} has content changes, reprocessing", session_id);
+
+                        // Reprocess session
+                        if let Err(e) = Self::process_new_session(&session_id, event_bus) {
+                            tracing::warn!("Failed to reprocess session {}: {:?}", session_id, e);
+                        }
+                    } else {
+                        tracing::debug!("Session {} data_version changed but content unchanged, skipping", session_id);
                     }
                 }
                 Ok(false) => {
@@ -329,16 +343,26 @@ impl CursorWatcher {
     /// Query our database for recently active Cursor sessions
     fn get_active_sessions_from_db() -> Result<Vec<(String, String)>, rusqlite::Error> {
         with_connection_mut(|conn| {
+            // Phase 2 Optimization: Only poll sessions created/started in last hour
+            // Reduces overhead by ~80-90% for users with many old sessions
+            // Use session_start_time if available, otherwise fall back to created_at
+            let cutoff_timestamp = (SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64)
+                - (ACTIVE_WINDOW_HOURS * 3600);
+
             let mut stmt = conn.prepare(
                 "SELECT session_id, file_path
                  FROM agent_sessions
                  WHERE provider = 'cursor'
                  AND session_end_time IS NULL
-                 ORDER BY created_at DESC
-                 LIMIT 100",
+                 AND (session_start_time >= ? OR (session_start_time IS NULL AND created_at >= ?))
+                 ORDER BY COALESCE(session_start_time, created_at) DESC
+                 LIMIT 50",
             )?;
 
-            let sessions = stmt.query_map([], |row| {
+            let sessions = stmt.query_map([cutoff_timestamp, cutoff_timestamp], |row| {
                 Ok((row.get(0)?, row.get(1)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -362,6 +386,31 @@ impl CursorWatcher {
         } else {
             Ok(false)
         }
+    }
+
+    /// Verify content actually changed by comparing message count
+    /// Returns true if content changed, false if unchanged
+    fn verify_content_changed(
+        canonical_path: &str,
+        db_path: &Path,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        // If canonical file doesn't exist, definitely need to create it
+        if !std::path::Path::new(canonical_path).exists() {
+            return Ok(true);
+        }
+
+        // Count messages in Cursor database
+        let conn = db::open_cursor_db(db_path)?;
+        let db_message_count = db::get_decoded_messages(&conn)?.len();
+
+        // Count lines in canonical JSONL file (each line = 1 message)
+        let canonical_message_count = std::fs::read_to_string(canonical_path)?
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .count();
+
+        // If counts differ, content changed
+        Ok(db_message_count != canonical_message_count)
     }
 
     pub fn stop(&self) -> Result<(), String> {

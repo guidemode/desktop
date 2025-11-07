@@ -17,6 +17,18 @@ path = "src/bin/cursor_analysis.rs"
 name = "cursor_protobuf_decoder"
 path = "src/bin/cursor_protobuf_decoder.rs"
 
+[[bin]]
+name = "inspect_cursor"
+path = "src/bin/inspect_cursor.rs"
+
+[[bin]]
+name = "cursor_hex_inspector"
+path = "src/bin/cursor_hex_inspector.rs"
+
+[[bin]]
+name = "cursor_blob_analyzer"
+path = "src/bin/cursor_blob_analyzer.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]

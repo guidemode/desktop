@@ -67,13 +67,13 @@ pub fn get_canonical_path(
         match crate::project_metadata::extract_project_metadata(cwd_path) {
             Ok(metadata) => sanitize_project_name(&metadata.project_name),
             Err(_) => {
-                // CWD provided but couldn't extract project name - use "unknown"
-                "unknown".to_string()
+                // CWD provided but couldn't extract project name - reject this session
+                return Err("Cannot determine project name from CWD - session will not be cached".into());
             }
         }
     } else {
-        // No CWD provided - use "unknown"
-        "unknown".to_string()
+        // No CWD provided - reject this session
+        return Err("No CWD available - session will not be cached until CWD is found".into());
     };
 
     // Create full path with project subdirectory

@@ -2,7 +2,7 @@ use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_debug, log_error, log_info, log_warn};
 use crate::providers::common::{
-    extract_cwd_from_canonical_content, extract_session_id_from_filename, get_canonical_path,
+    extract_session_id_from_filename,
     get_file_size, has_extension, should_skip_file, SessionStateManager, WatcherStatus,
     EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL, MIN_SIZE_CHANGE_BYTES,
 };
@@ -33,7 +33,7 @@ pub struct ClaudeWatcher {
 
 impl ClaudeWatcher {
     pub fn new(
-        projects: Vec<String>,
+        _projects: Vec<String>,
         upload_queue: Arc<UploadQueue>,
         event_bus: EventBus,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
@@ -75,11 +75,14 @@ impl ClaudeWatcher {
             // Watch all available projects
             Self::discover_all_projects(&projects_path)?
         } else {
-            // Watch only selected projects
+            // Watch only selected projects that exist on disk
             let selected_projects: Vec<String> = config
                 .selected_projects
                 .into_iter()
-                .filter(|project| projects.contains(project))
+                .filter(|project| {
+                    let project_path = projects_path.join(project);
+                    project_path.exists() && project_path.is_dir()
+                })
                 .collect();
 
             if selected_projects.is_empty() {
@@ -219,6 +222,11 @@ impl ClaudeWatcher {
                             file_size: file_event.file_size,
                         };
 
+                        eprintln!("🔥 Claude watcher: Publishing SessionChanged event:");
+                        eprintln!("   session_id: {}", file_event.session_id);
+                        eprintln!("   project_name: {}", file_event.project_name);
+                        eprintln!("   file_path: {}", file_event.path.display());
+
                         if let Err(e) = event_bus.publish(PROVIDER_ID, payload) {
                             if let Err(log_err) = log_error(
                                 PROVIDER_ID,
@@ -286,31 +294,10 @@ impl ClaudeWatcher {
         claude_file: &Path,
         session_id: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        use std::fs;
+        use crate::providers::claude::convert_to_canonical_file as convert;
 
-        // Read Claude file content (already in canonical format)
-        let content = fs::read_to_string(claude_file)?;
-
-        // Extract CWD from canonical content (may not be in first line)
-        let cwd = extract_cwd_from_canonical_content(&content);
-
-        // Validate that CWD is present before processing
-        // This prevents race conditions with partial file writes where CWD hasn't been written yet
-        // If CWD is missing, return an error so we can retry on the next file modification event
-        let cwd_value = cwd.ok_or({
-            "CWD not found in session file - file may be incomplete, will retry on next event"
-        })?;
-
-        // Get project-organized canonical path
-        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
-        let canonical_path = get_canonical_path(PROVIDER_ID, Some(&cwd_value), session_id)?;
-
-        // Merge Claude file with agent files to project-organized path
-        // This will copy the main session and inline any agent-*.jsonl files
-        use crate::providers::common::merge_session_with_agents;
-        merge_session_with_agents(claude_file, &canonical_path)?;
-
-        Ok(canonical_path)
+        // Use shared conversion function
+        convert(claude_file, session_id, None)
     }
 
     fn process_file_event(event: &Event, projects_path: &Path) -> Option<FileChangeEvent> {
@@ -341,10 +328,16 @@ impl ClaudeWatcher {
                         // Extract session ID
                         let session_id = extract_session_id_from_filename(path);
 
+                        eprintln!("🔥 Claude watcher: Processing file {:?} for session {}", path, session_id);
+
                         // Copy to canonical cache for consistency
                         let canonical_path = match Self::convert_to_canonical_file(path, &session_id) {
-                            Ok(cache_path) => cache_path,
+                            Ok(cache_path) => {
+                                eprintln!("🔥 Claude watcher: Successfully converted to canonical: {:?}", cache_path);
+                                cache_path
+                            }
                             Err(e) => {
+                                eprintln!("🔥 Claude watcher: FAILED to convert - error: {}", e);
                                 // Check if this is expected (partial file without CWD)
                                 let error_msg = e.to_string();
                                 if error_msg.contains("CWD not found") || error_msg.contains("file may be incomplete") {
@@ -370,6 +363,11 @@ impl ClaudeWatcher {
 
                         // Get file size of canonical cache file
                         let file_size = get_file_size(&canonical_path).unwrap_or(0);
+
+                        eprintln!("🔥 Claude watcher: Returning FileChangeEvent:");
+                        eprintln!("   canonical_path: {:?}", canonical_path);
+                        eprintln!("   project_name: {}", project_name);
+                        eprintln!("   session_id: {}", session_id);
 
                         return Some(FileChangeEvent {
                             path: canonical_path, // Use canonical cache path

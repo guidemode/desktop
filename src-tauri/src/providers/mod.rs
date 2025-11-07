@@ -2,7 +2,7 @@ use crate::config::ProjectInfo;
 use chrono::{DateTime, Utc};
 
 pub mod canonical; // Canonical format types and converter trait
-mod claude;
+pub mod claude; // Claude Code converter (public for canonical format migration)
 mod claude_watcher;
 pub mod codex; // Codex converter (public for canonical format migration)
 mod codex_watcher;
@@ -30,7 +30,7 @@ pub use copilot_watcher::{CopilotWatcher, CopilotWatcherStatus};
 pub use cursor_watcher::{CursorWatcher, CursorWatcherStatus};
 pub use gemini_watcher::{GeminiWatcher, GeminiWatcherStatus};
 pub use opencode_watcher::{OpenCodeWatcher, OpenCodeWatcherStatus};
-pub use session_scanner::{scan_all_sessions, SessionInfo};
+pub use session_scanner::{scan_all_sessions_filtered, SessionInfo};
 
 pub fn scan_projects(provider_id: &str, home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
     match provider_id {

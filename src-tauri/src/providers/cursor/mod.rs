@@ -7,15 +7,15 @@
 /// - Protocol Buffer encoded messages in blobs table
 /// - Content-addressable storage with SHA-256 blob IDs
 /// - WAL mode for safe concurrent access
-
 pub mod converter;
 pub mod db;
+pub mod debug;
 pub mod protobuf;
 pub mod scanner;
 pub mod types;
 
-pub use scanner::{scan_existing_sessions, write_canonical_file, ScanResult};
-pub use types::{CursorSession, SessionMetadata};
+pub use scanner::scan_existing_sessions;
+pub use types::CursorSession;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -123,7 +123,28 @@ pub fn scan_projects(_home_directory: &str) -> Result<Vec<crate::config::Project
         }
     }
 
-    Ok(projects)
+    // Deduplicate projects by name, keeping the most recent
+    let mut unique_projects: std::collections::HashMap<String, crate::config::ProjectInfo> =
+        std::collections::HashMap::new();
+
+    for project in projects {
+        let should_replace = if let Some(existing) = unique_projects.get(&project.name) {
+            // Compare timestamps - keep the most recent
+            project.last_modified > existing.last_modified
+        } else {
+            true
+        };
+
+        if should_replace {
+            unique_projects.insert(project.name.clone(), project);
+        }
+    }
+
+    // Convert back to Vec and sort by last_modified (most recent first)
+    let mut deduplicated: Vec<_> = unique_projects.into_values().collect();
+    deduplicated.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+
+    Ok(deduplicated)
 }
 
 /// Discover all Cursor sessions with their metadata

@@ -2,10 +2,9 @@
 ///
 /// This runs on watcher initialization to find and process all existing
 /// Cursor sessions that may not have been previously imported.
-
 use super::{converter::CursorMessageWithRaw, db, discover_sessions, CursorSession};
 use crate::events::{EventBus, SessionEventPayload};
-use crate::providers::canonical::{converter::ToCanonical, CanonicalMessage};
+use crate::providers::canonical::CanonicalMessage;
 use crate::providers::common::get_canonical_path;
 use std::fs;
 use std::path::PathBuf;
@@ -15,6 +14,7 @@ const PROVIDER_ID: &str = "cursor";
 /// Scan result for tracking processed sessions
 #[derive(Debug)]
 pub struct ScanResult {
+    #[allow(dead_code)] // May be used in future for reporting
     pub sessions_found: usize,
     pub sessions_processed: usize,
     pub sessions_failed: usize,
@@ -137,15 +137,15 @@ fn process_session(
 
         // Wrap message with raw data and session metadata for timestamp calculation
         let msg_with_raw = CursorMessageWithRaw::new(
-            &msg,
-            &raw_data,
+            msg,
+            raw_data,
             session.metadata.created_at,
             message_index,
         );
 
         // Use split conversion to prevent UUID collisions
         match msg_with_raw.to_canonical_split() {
-            Ok(mut messages) => {
+            Ok(messages) => {
                 // Process each split message
                 for mut canonical in messages {
                     // Track by role and source
@@ -229,7 +229,7 @@ fn process_session(
         session.cwd.as_deref(),
         &session.session_id,
     )
-    .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) })?;
+    .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) })?;
 
     // Write canonical JSONL
     write_canonical_file(&canonical_path, &canonical_messages)?;

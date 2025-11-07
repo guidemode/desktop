@@ -232,3 +232,19 @@ pub fn delete_provider_config(provider_id: &str) -> Result<(), Box<dyn std::erro
 
     Ok(())
 }
+
+/// Determines whether a project should be included based on the provider configuration.
+///
+/// Returns `true` if:
+/// - `project_selection` is "ALL", OR
+/// - `project_selection` is "SELECTED" and the project is in `selected_projects`
+///
+/// Returns `false` otherwise.
+#[allow(dead_code)] // Helper function, may be used in future
+pub fn should_include_project(project: &str, config: &ProviderConfig) -> bool {
+    if config.project_selection == "ALL" {
+        return true;
+    }
+
+    config.selected_projects.contains(&project.to_string())
+}

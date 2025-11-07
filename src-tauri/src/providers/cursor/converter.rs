@@ -1,5 +1,4 @@
 /// Converter from Cursor protobuf format to canonical JSONL
-
 use super::protobuf::{CursorBlob, ContentBlock as CursorContentBlock, CursorMessage};
 use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
@@ -347,7 +346,7 @@ fn create_json_structured_message(
 fn split_complex_message(
     blob: &CursorBlob,
     timestamp: &str,
-    raw_data: &[u8],
+    _raw_data: &[u8],
 ) -> Result<Vec<CanonicalMessage>> {
     let complex = blob
         .parse_complex()
@@ -484,7 +483,7 @@ fn create_text_message(
 ) -> Result<CanonicalMessage> {
     // Generate unique UUID for each split message
     // Use original UUID as base, but append suffix to make unique
-    let base_uuid = blob.uuid.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
+    let base_uuid = blob.uuid.as_deref().unwrap_or("unknown");
     let unique_uuid = format!("{}-{}", base_uuid, uuid::Uuid::new_v4());
 
     Ok(CanonicalMessage {
@@ -529,7 +528,7 @@ fn create_structured_message(
     blocks: Vec<ContentBlock>,
 ) -> Result<CanonicalMessage> {
     // Generate unique UUID for each split message
-    let base_uuid = blob.uuid.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
+    let base_uuid = blob.uuid.as_deref().unwrap_or("unknown");
     let unique_uuid = format!("{}-{}", base_uuid, uuid::Uuid::new_v4());
 
     Ok(CanonicalMessage {
@@ -609,8 +608,7 @@ impl CursorBlob {
         };
 
         let model = self
-            .parse_complex()
-            .and_then(|c| Some(c.role.clone()))
+            .parse_complex().map(|c| c.role.clone())
             .filter(|r| r == "assistant")
             .map(|_| "default".to_string());
 
@@ -772,7 +770,7 @@ fn parse_text_with_thinking(text: &str, blocks: &mut Vec<ContentBlock>) {
 fn parse_content_array(content: &serde_json::Value, role: &str, message_id: &str) -> ContentValue {
     let content_blocks_value = if let Some(array) = content.as_array() {
         // Check if this is experimental_content format
-        if array.len() > 0 && array[0].get("experimental_content").is_some() {
+        if !array.is_empty() && array[0].get("experimental_content").is_some() {
             // Extract experimental_content
             if let Some(exp_content) = array[0].get("experimental_content") {
                 exp_content

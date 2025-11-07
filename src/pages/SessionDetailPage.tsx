@@ -31,6 +31,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { JsonBlock } from '../components/JsonBlock'
 import { SessionChangesTab } from '../components/SessionChangesTab'
 import { SessionContextTab } from '../components/SessionContextTab'
+import { ValidationReport } from '../components/ValidationReport'
 import ProviderIcon from '../components/icons/ProviderIcon'
 import { useAiProcessing } from '../hooks/useAiProcessing'
 import { useAiProcessingProgress } from '../hooks/useAiProcessingProgress'
@@ -41,6 +42,7 @@ import { useQuickRating } from '../hooks/useQuickRating'
 import { useSessionActivity } from '../hooks/useSessionActivity'
 import { useSessionProcessing } from '../hooks/useSessionProcessing'
 import { useToast } from '../hooks/useToast'
+import { useValidationStatus } from '../hooks/useValidationStatus'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'
 import {
   type AgentSessionRow,
@@ -281,6 +283,13 @@ export default function SessionDetailPage() {
     },
     enabled: !!sessionId,
   })
+
+  // Validate session canonical JSONL file
+  const { status: validationStatus } = useValidationStatus(
+    session?.filePath,
+    session?.provider,
+    session?.sessionId
+  )
 
   // Parse phase analysis if available
   const phaseAnalysis: SessionPhaseAnalysis | null = (session as any)?.aiModelPhaseAnalysis
@@ -724,56 +733,54 @@ export default function SessionDetailPage() {
 
       {/* Session Detail Header */}
       {session && (
-        <>
-          <SessionDetailHeader
-            session={{
-              provider: session.provider,
-              projectName: session.projectName,
-              sessionStartTime: session.sessionStartTime,
-              durationMs: session.durationMs ?? null,
-              fileSize: session.fileSize ?? undefined,
-              cwd: session.cwd ?? undefined,
-              project: project
-                ? {
-                    name: project.name,
-                    gitRemoteUrl: (project as any).githubRepo ?? undefined,
-                    cwd: undefined,
-                  }
-                : undefined,
-              aiModelSummary: session.aiModelSummary ?? undefined,
-              gitBranch: session.gitBranch ?? undefined,
-              firstCommitHash: session.firstCommitHash ?? undefined,
-              latestCommitHash: session.latestCommitHash ?? undefined,
-            }}
-            messageCount={messageCount}
-            rating={(session.assessmentRating as SessionRating) ?? null}
-            onRate={handleQuickRate}
-            onProcessSession={handleProcessWithAi}
-            processingStatus={session.aiModelSummary ? 'completed' : 'pending'}
-            isProcessing={processingAi}
-            processingProgress={
-              progress.currentStep
-                ? {
-                    stepName: progress.currentStep.name,
-                    percentage: progress.currentStep.percentage,
-                  }
-                : null
-            }
-            onCwdClick={session.cwd ? handleCwdClick : undefined}
-            onViewDiff={session.firstCommitHash ? handleViewDiff : undefined}
-            onProjectClick={
-              session.projectId ? () => navigate(`/projects/${session.projectId}`) : undefined
-            }
-            syncStatus={{
-              synced: session.syncedToServer === true,
-              failed: !!session.syncFailedReason,
-              reason: session.syncFailedReason ?? undefined,
-              onSync: handleSyncSession,
-              onShowError: error => toast.error(error, 10000),
-            }}
-            ProviderIcon={ProviderIcon}
-          />
-        </>
+        <SessionDetailHeader
+          session={{
+            provider: session.provider,
+            projectName: session.projectName,
+            sessionStartTime: session.sessionStartTime,
+            durationMs: session.durationMs ?? null,
+            fileSize: session.fileSize ?? undefined,
+            cwd: session.cwd ?? undefined,
+            project: project
+              ? {
+                  name: project.name,
+                  gitRemoteUrl: (project as any).githubRepo ?? undefined,
+                  cwd: undefined,
+                }
+              : undefined,
+            aiModelSummary: session.aiModelSummary ?? undefined,
+            gitBranch: session.gitBranch ?? undefined,
+            firstCommitHash: session.firstCommitHash ?? undefined,
+            latestCommitHash: session.latestCommitHash ?? undefined,
+          }}
+          messageCount={messageCount}
+          rating={(session.assessmentRating as SessionRating) ?? null}
+          onRate={handleQuickRate}
+          onProcessSession={handleProcessWithAi}
+          processingStatus={session.aiModelSummary ? 'completed' : 'pending'}
+          isProcessing={processingAi}
+          processingProgress={
+            progress.currentStep
+              ? {
+                  stepName: progress.currentStep.name,
+                  percentage: progress.currentStep.percentage,
+                }
+              : null
+          }
+          onCwdClick={session.cwd ? handleCwdClick : undefined}
+          onViewDiff={session.firstCommitHash ? handleViewDiff : undefined}
+          onProjectClick={
+            session.projectId ? () => navigate(`/projects/${session.projectId}`) : undefined
+          }
+          syncStatus={{
+            synced: session.syncedToServer === true,
+            failed: !!session.syncFailedReason,
+            reason: session.syncFailedReason ?? undefined,
+            onSync: handleSyncSession,
+            onShowError: error => toast.error(error, 10000),
+          }}
+          ProviderIcon={ProviderIcon}
+        />
       )}
 
       {/* Tabs Navigation with Controls */}
@@ -909,7 +916,7 @@ export default function SessionDetailPage() {
               )}
             </div>
 
-            {/* Right-aligned Raw JSONL tab */}
+            {/* Right-aligned Raw JSONL tab with validation status */}
             <button
               className={`tab tab-lg ${
                 activeTab === 'raw-jsonl'
@@ -917,9 +924,19 @@ export default function SessionDetailPage() {
                   : 'hover:bg-base-300'
               }`}
               onClick={() => setActiveTab('raw-jsonl')}
-              title="Raw JSONL"
+              title={`Raw JSONL${validationStatus === 'valid' ? ' (Valid)' : validationStatus === 'errors' ? ' (Validation Errors)' : validationStatus === 'warnings' ? ' (Validation Warnings)' : ''}`}
             >
-              <BugAntIcon className="w-5 h-5" />
+              <BugAntIcon
+                className={`w-5 h-5 ${
+                  validationStatus === 'valid'
+                    ? 'text-success'
+                    : validationStatus === 'errors'
+                      ? 'text-error'
+                      : validationStatus === 'warnings'
+                        ? 'text-warning'
+                        : ''
+                }`}
+              />
             </button>
           </div>
 
@@ -1187,7 +1204,22 @@ export default function SessionDetailPage() {
                   <span>Failed to load session content: {contentError}</span>
                 </div>
               ) : fileContent ? (
-                <JsonBlock content={fileContent} maxHeight="800px" />
+                <>
+                  {/* Validation Report */}
+                  {session && (
+                    <div className="mb-6">
+                      <ValidationReport
+                        sessionId={session.sessionId}
+                        provider={session.provider}
+                        project={project?.name ?? 'unknown'}
+                        filePath={session.filePath ?? ''}
+                      />
+                    </div>
+                  )}
+
+                  {/* Raw JSONL Content */}
+                  <JsonBlock content={fileContent} maxHeight="800px" />
+                </>
               ) : (
                 <div className="alert">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

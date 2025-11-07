@@ -1,3 +1,4 @@
+#![allow(warnings)] // Development tool
 /// Cursor Database Analysis Tool
 /// Analyzes Cursor's SQLite databases to reverse engineer the protobuf schema
 

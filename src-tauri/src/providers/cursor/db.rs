@@ -1,5 +1,4 @@
 /// SQLite database utilities for Cursor sessions
-
 use super::protobuf::CursorBlob;
 use super::types::SessionMetadata;
 use rusqlite::{Connection, OpenFlags};
@@ -50,7 +49,10 @@ pub fn get_all_blobs(
     Ok(blobs)
 }
 
-/// Get all blobs decoded as CursorBlob structs
+/// Get all blobs decoded as CursorBlob structs (legacy - protobuf only)
+///
+/// **Deprecated**: Use `get_decoded_messages()` instead for hybrid protobuf/JSON support.
+/// This function only decodes protobuf and will fail on JSON messages.
 pub fn get_decoded_blobs(
     conn: &Connection,
 ) -> Result<Vec<(String, CursorBlob)>, Box<dyn std::error::Error>> {
@@ -60,12 +62,60 @@ pub fn get_decoded_blobs(
     for (id, data) in blobs {
         match CursorBlob::decode_from_bytes(&data) {
             Ok(blob) => decoded.push((id, blob)),
-            Err(e) => {
-                tracing::warn!("Failed to decode blob {}: {:?}", id, e);
+            Err(_e) => {
+                // Decode failed - likely a tree/reference blob or JSON message
+                // Use get_decoded_messages() for proper hybrid support
+                tracing::debug!("Skipping blob {} (use get_decoded_messages for full support)", id);
                 // Continue with other blobs
             }
         }
     }
+
+    Ok(decoded)
+}
+
+/// Get all blobs decoded as hybrid CursorMessage (supports both protobuf and JSON)
+///
+/// Returns tuples of (blob_id, raw_data, decoded_message).
+/// The raw_data is needed for fallback decoding of user messages where Field 1 is a direct string.
+#[allow(clippy::type_complexity)]
+pub fn get_decoded_messages(
+    conn: &Connection,
+) -> Result<Vec<(String, Vec<u8>, super::protobuf::CursorMessage)>, Box<dyn std::error::Error>> {
+    let blobs = get_all_blobs(conn)?;
+    let mut decoded = Vec::new();
+    let total_blobs = blobs.len();
+
+    tracing::info!("Decoding {} blobs from Cursor database", total_blobs);
+
+    for (idx, (id, data)) in blobs.into_iter().enumerate() {
+        tracing::debug!("--- Blob {}/{}: {} ---", idx + 1, total_blobs, id);
+
+        match super::protobuf::CursorMessage::decode_from_bytes(&data) {
+            Ok(msg) => {
+                let msg_type = match &msg {
+                    super::protobuf::CursorMessage::Protobuf(_) => "Protobuf",
+                    super::protobuf::CursorMessage::Json(_) => "JSON",
+                };
+                tracing::info!("✓ Successfully decoded blob {} as {} (role: {})", id, msg_type, msg.get_role());
+                // Store raw data alongside decoded message for fallback decoding
+                decoded.push((id, data, msg));
+            }
+            Err(_e) => {
+                // Decode failed - likely a tree/reference blob (internal Cursor structure)
+                // These are expected and not actual messages, so we skip them silently
+                tracing::debug!("⊘ Skipping non-message blob {} (tree/reference blob)", id);
+                // Continue with other blobs
+            }
+        }
+    }
+
+    tracing::info!(
+        "Decode summary: {}/{} blobs successful ({:.1}% success rate)",
+        decoded.len(),
+        total_blobs,
+        (decoded.len() as f64 / total_blobs as f64) * 100.0
+    );
 
     Ok(decoded)
 }

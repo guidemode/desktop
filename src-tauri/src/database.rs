@@ -196,7 +196,8 @@ pub fn insert_session(
 #[allow(clippy::too_many_arguments)]
 pub fn update_session(
     session_id: &str,
-    _file_name: &str, // Kept for API compatibility but not used in query
+    file_name: &str,
+    file_path: &str,
     file_size: u64,
     file_hash: Option<&str>,
     session_start_time: Option<DateTime<Utc>>,
@@ -268,7 +269,9 @@ pub fn update_session(
         // Reset core_metrics_status and processing_status to 'pending' since file content has changed
         tx.execute(
             "UPDATE agent_sessions
-             SET file_size = ?,
+             SET file_name = ?,
+                 file_path = ?,
+                 file_size = ?,
                  file_hash = ?,
                  session_start_time = ?,
                  session_end_time = ?,
@@ -283,6 +286,8 @@ pub fn update_session(
                  processing_status = 'pending'
              WHERE session_id = ?",
             params![
+                file_name,
+                file_path,
                 file_size as i64,
                 file_hash,
                 final_start_time_ms,

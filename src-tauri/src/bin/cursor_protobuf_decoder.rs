@@ -1,3 +1,4 @@
+#![allow(warnings)] // Development tool
 /// Cursor Protobuf Decoder
 /// Attempts to decode the protobuf structure manually to understand the schema
 

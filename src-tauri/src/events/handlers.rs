@@ -85,7 +85,8 @@ impl DatabaseEventHandler {
                 // Update with timing information
                 database::update_session(
                     session_id,
-                    "",
+                    "", // file_name not changed
+                    "", // file_path not changed
                     0, // file_size not changed
                     None,
                     Some(*start_time),

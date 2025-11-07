@@ -49,6 +49,7 @@ struct CodexPayload {
     cwd: Option<String>,
 }
 
+#[allow(dead_code)] // Will be removed during provider file reorganization
 pub fn scan_all_sessions(
     provider_id: &str,
     home_directory: &str,
@@ -79,6 +80,7 @@ pub fn scan_all_sessions_filtered(
     }
 }
 
+#[allow(dead_code)] // Will be removed during provider file reorganization
 fn scan_claude_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     scan_claude_sessions_filtered(base_path, None)
 }
@@ -280,6 +282,7 @@ fn parse_claude_session(file_path: &Path, project_name: &str) -> Result<SessionI
     })
 }
 
+#[allow(dead_code)] // Will be removed during provider file reorganization
 fn scan_opencode_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     scan_opencode_sessions_filtered(base_path, None)
 }
@@ -399,6 +402,7 @@ fn parse_opencode_session(
     })
 }
 
+#[allow(dead_code)] // Will be removed during provider file reorganization
 fn scan_codex_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     scan_codex_sessions_filtered(base_path, None)
 }
@@ -467,6 +471,7 @@ fn scan_codex_sessions_filtered(
     Ok(sessions)
 }
 
+#[allow(dead_code)] // Will be removed during provider file reorganization
 fn scan_copilot_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     scan_copilot_sessions_filtered(base_path, None)
 }
@@ -768,6 +773,7 @@ fn extract_timing_from_jsonl(file_path: &Path) -> Result<TimingData, String> {
     Ok((session_start_time, session_end_time, duration_ms))
 }
 
+#[allow(dead_code)] // Will be removed during provider file reorganization
 fn scan_gemini_sessions(base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     scan_gemini_sessions_filtered(base_path, None)
 }
@@ -952,6 +958,7 @@ fn extract_cwd_from_gemini_session(
     infer_cwd_from_session(session, &session.project_hash)
 }
 
+#[allow(dead_code)] // Will be removed during provider file reorganization
 fn scan_cursor_sessions(_base_path: &Path) -> Result<Vec<SessionInfo>, String> {
     scan_cursor_sessions_filtered(None)
 }
@@ -1000,7 +1007,7 @@ fn scan_single_cursor_session(
 ) -> Result<Option<SessionInfo>, String> {
     use crate::providers::cursor::{db, find_cwd_for_session, converter::CursorMessageWithRaw};
     use crate::providers::common::get_canonical_path;
-    use crate::providers::canonical::converter::ToCanonical;
+    
 
     // Open database and get decoded messages (supports both protobuf and JSON)
     let conn = db::open_cursor_db(&session.db_path).map_err(|e| e.to_string())?;

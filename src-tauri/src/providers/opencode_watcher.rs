@@ -46,7 +46,7 @@ pub struct OpenCodeWatcher {
 
 impl OpenCodeWatcher {
     pub fn new(
-        projects: Vec<String>,
+        _projects: Vec<String>,
         upload_queue: Arc<UploadQueue>,
         event_bus: EventBus,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
@@ -91,11 +91,25 @@ impl OpenCodeWatcher {
             // Watch all available projects
             Self::discover_all_projects(&parser)?
         } else {
-            // Watch only selected projects
+            // Get all available projects from parser
+            let all_available_projects: HashSet<String> = match parser.get_all_projects() {
+                Ok(projects) => projects
+                    .into_iter()
+                    .filter_map(|project| {
+                        Path::new(&project.worktree)
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                            .map(|s| s.to_string())
+                    })
+                    .collect(),
+                Err(_) => HashSet::new(),
+            };
+
+            // Watch only selected projects that exist
             let selected_projects: Vec<String> = config
                 .selected_projects
                 .into_iter()
-                .filter(|project| projects.contains(project))
+                .filter(|project| all_available_projects.contains(project))
                 .collect();
 
             if selected_projects.is_empty() {

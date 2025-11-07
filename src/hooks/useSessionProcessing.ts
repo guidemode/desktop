@@ -229,7 +229,7 @@ function mapResultsToRow(
         const engagement = metrics as EngagementMetrics
         row.interruption_rate = engagement.interruption_rate
         row.session_length_minutes = engagement.session_length_minutes
-        row.total_interruptions = engagement.metadata?.total_interruptions
+        row.total_interruptions = engagement.total_interruptions
         row.engagement_total_responses = engagement.metadata?.total_responses
         row.engagement_improvement_tips = engagement.metadata?.improvement_tips?.join('\n')
         break

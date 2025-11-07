@@ -1,4 +1,4 @@
-use super::sort_projects_by_modified;
+use crate::providers::sort_projects_by_modified;
 use crate::config::ProjectInfo;
 use chrono::{DateTime, Utc};
 use shellexpand::tilde;

@@ -1,8 +1,9 @@
-// Agent file merging utilities for Claude Code sessions
-//
-// Claude Code creates separate agent files (agent-*.jsonl) for Task tool invocations.
-// This module handles merging these agent files back into the main session file
-// during cache generation, inserting agent messages after their corresponding tool_result.
+//! Agent file merging utilities for Claude Code sessions
+//!
+//! Claude Code creates separate agent files (agent-*.jsonl) for Task tool invocations.
+//! This module handles merging these agent files back into the main session file
+//! during cache generation, inserting agent messages after their corresponding tool_result.
+#![allow(dead_code)] // May be used in future for agent file support
 
 use std::fs;
 use std::io::Write;
