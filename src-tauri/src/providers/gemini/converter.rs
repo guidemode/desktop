@@ -330,7 +330,7 @@ fn infer_cwd_from_session(session: &GeminiSession) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::parser::{Thought, TokenUsage as GeminiTokenUsage, ToolCall};
+    use crate::providers::gemini::parser::{Thought, TokenUsage as GeminiTokenUsage, ToolCall};
 
     #[test]
     fn test_convert_user_message() {

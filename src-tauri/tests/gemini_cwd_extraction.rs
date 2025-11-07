@@ -1,7 +1,7 @@
-use guideai_desktop::providers::gemini_utils::{
+use guideai_desktop::providers::gemini::utils::{
     extract_candidate_paths_from_content, find_matching_path, infer_cwd_from_session, verify_hash,
 };
-use guideai_desktop::providers::gemini_parser::{GeminiMessage, GeminiSession, Thought, ToolCall};
+use guideai_desktop::providers::gemini::parser::{GeminiMessage, GeminiSession, Thought, ToolCall};
 use serde_json::json;
 use std::collections::HashMap;
 

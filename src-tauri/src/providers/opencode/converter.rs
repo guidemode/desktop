@@ -181,7 +181,7 @@ pub fn convert_opencode_jsonl_to_canonical(opencode_jsonl: &str) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::parser::{OpenCodeJsonLMessage, OpenCodeJsonLContent};
+    use crate::providers::opencode::parser::{OpenCodeJsonLMessage, OpenCodeJsonLContent};
 
     #[test]
     fn test_convert_text_entry() {

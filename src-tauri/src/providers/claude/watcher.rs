@@ -222,11 +222,6 @@ impl ClaudeWatcher {
                             file_size: file_event.file_size,
                         };
 
-                        eprintln!("🔥 Claude watcher: Publishing SessionChanged event:");
-                        eprintln!("   session_id: {}", file_event.session_id);
-                        eprintln!("   project_name: {}", file_event.project_name);
-                        eprintln!("   file_path: {}", file_event.path.display());
-
                         if let Err(e) = event_bus.publish(PROVIDER_ID, payload) {
                             if let Err(log_err) = log_error(
                                 PROVIDER_ID,
@@ -328,16 +323,12 @@ impl ClaudeWatcher {
                         // Extract session ID
                         let session_id = extract_session_id_from_filename(path);
 
-                        eprintln!("🔥 Claude watcher: Processing file {:?} for session {}", path, session_id);
-
                         // Copy to canonical cache for consistency
                         let canonical_path = match Self::convert_to_canonical_file(path, &session_id) {
                             Ok(cache_path) => {
-                                eprintln!("🔥 Claude watcher: Successfully converted to canonical: {:?}", cache_path);
                                 cache_path
                             }
                             Err(e) => {
-                                eprintln!("🔥 Claude watcher: FAILED to convert - error: {}", e);
                                 // Check if this is expected (partial file without CWD)
                                 let error_msg = e.to_string();
                                 if error_msg.contains("CWD not found") || error_msg.contains("file may be incomplete") {
@@ -363,11 +354,6 @@ impl ClaudeWatcher {
 
                         // Get file size of canonical cache file
                         let file_size = get_file_size(&canonical_path).unwrap_or(0);
-
-                        eprintln!("🔥 Claude watcher: Returning FileChangeEvent:");
-                        eprintln!("   canonical_path: {:?}", canonical_path);
-                        eprintln!("   project_name: {}", project_name);
-                        eprintln!("   session_id: {}", session_id);
 
                         return Some(FileChangeEvent {
                             path: canonical_path, // Use canonical cache path

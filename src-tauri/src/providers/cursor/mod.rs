@@ -15,7 +15,7 @@ pub mod scanner;
 pub mod types;
 pub mod watcher;
 
-pub use scanner::scan_existing_sessions;
+pub use scanner::{scan_existing_sessions, scan_sessions_filtered};
 pub use types::CursorSession;
 pub use watcher::{CursorWatcher, CursorWatcherStatus};
 

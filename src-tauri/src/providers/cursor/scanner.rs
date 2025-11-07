@@ -273,6 +273,180 @@ pub fn write_canonical_file(
     Ok(())
 }
 
+/// Scan Cursor sessions with optional project filtering
+///
+/// This function matches the API of other providers for use in session_scanner.rs dispatcher.
+/// Unlike other providers, Cursor doesn't use a base_path parameter.
+pub fn scan_sessions_filtered(
+    selected_projects: Option<&[String]>,
+) -> Result<Vec<crate::providers::common::SessionInfo>, String> {
+    use crate::logging::{log_info, log_warn};
+
+    // Discover all Cursor sessions
+    let sessions = discover_sessions().map_err(|e| e.to_string())?;
+
+    if let Err(e) = log_info("cursor", &format!("📊 Found {} Cursor sessions to scan", sessions.len())) {
+        eprintln!("Logging error: {}", e);
+    }
+
+    let mut session_infos = Vec::new();
+
+    for session in sessions {
+        match scan_single_cursor_session(&session, selected_projects) {
+            Ok(Some(info)) => session_infos.push(info),
+            Ok(None) => {
+                // Session filtered out - skipped
+            }
+            Err(e) => {
+                if let Err(log_err) = log_warn(
+                    "cursor",
+                    &format!("Failed to scan Cursor session {}: {}", session.session_id, e),
+                ) {
+                    eprintln!("Logging error: {}", log_err);
+                }
+            }
+        }
+    }
+
+    if let Err(e) = log_info("cursor", &format!("✅ Scanned {} Cursor sessions", session_infos.len())) {
+        eprintln!("Logging error: {}", e);
+    }
+
+    Ok(session_infos)
+}
+
+fn scan_single_cursor_session(
+    session: &CursorSession,
+    selected_projects: Option<&[String]>,
+) -> Result<Option<crate::providers::common::SessionInfo>, String> {
+    use super::{find_cwd_for_session};
+    use crate::providers::common::SessionInfo;
+    use chrono::{DateTime, Utc};
+    use std::path::Path;
+
+    // Open database and get decoded messages (supports both protobuf and JSON)
+    let conn = db::open_cursor_db(&session.db_path).map_err(|e| e.to_string())?;
+    let decoded_messages = db::get_decoded_messages(&conn).map_err(|e| e.to_string())?;
+
+    if decoded_messages.is_empty() {
+        return Err("Empty session (no messages)".to_string());
+    }
+
+    // Convert messages to canonical format (decoded_messages is Vec<(String, Vec<u8>, CursorMessage)>)
+    let mut canonical_messages = Vec::new();
+
+    for (message_index, (_blob_id, raw_data, msg)) in decoded_messages.iter().enumerate() {
+        // Wrap message with raw data and session metadata for timestamp calculation
+        let msg_with_raw = CursorMessageWithRaw::new(
+            msg,
+            raw_data,
+            session.metadata.created_at,
+            message_index,
+        );
+
+        // Use to_canonical_split() to properly separate tool calls and tool results
+        if let Ok(messages) = msg_with_raw.to_canonical_split() {
+            for mut canonical_msg in messages {
+                // Set session ID (required for UI parser)
+                canonical_msg.session_id = session.session_id.clone();
+
+                // Try to find CWD from projects directory using session hash
+                if canonical_msg.cwd.is_none() {
+                    canonical_msg.cwd = find_cwd_for_session(&session.hash);
+                }
+                canonical_messages.push(canonical_msg);
+            }
+        }
+    }
+
+    if canonical_messages.is_empty() {
+        return Err("No valid messages after conversion".to_string());
+    }
+
+    // Sort by timestamp
+    canonical_messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    // Extract CWD from first message (now enriched with project directory lookup)
+    let cwd = canonical_messages
+        .first()
+        .and_then(|m| m.cwd.clone());
+
+    // Derive project name from CWD (last path component) or fall back to session name
+    let project_name = cwd
+        .as_ref()
+        .and_then(|path| {
+            Path::new(path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_else(|| session.metadata.name.clone());
+
+    // Filter projects BEFORE processing/caching
+    if let Some(selected) = selected_projects {
+        if !selected.contains(&project_name) {
+            return Ok(None); // Skip this session
+        }
+    }
+
+    // Get canonical path
+    let canonical_path = get_canonical_path("cursor", cwd.as_deref(), &session.session_id)
+        .map_err(|e| format!("Failed to get canonical path: {}", e))?;
+
+    // Write canonical JSONL
+    let canonical_content = canonical_messages
+        .iter()
+        .filter_map(|msg| serde_json::to_string(msg).ok())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    fs::write(&canonical_path, canonical_content)
+        .map_err(|e| format!("Failed to write canonical file: {}", e))?;
+
+    // Extract timing from messages
+    let session_start_time = canonical_messages
+        .first()
+        .and_then(|m| DateTime::parse_from_rfc3339(&m.timestamp).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    let session_end_time = canonical_messages
+        .last()
+        .and_then(|m| DateTime::parse_from_rfc3339(&m.timestamp).ok())
+        .map(|dt| dt.with_timezone(&Utc));
+
+    let duration_ms = if let (Some(start), Some(end)) = (session_start_time, session_end_time) {
+        Some((end - start).num_milliseconds())
+    } else {
+        None
+    };
+
+    // Get file size
+    let file_size = fs::metadata(&canonical_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    let file_name = canonical_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown.jsonl")
+        .to_string();
+
+    Ok(Some(SessionInfo {
+        provider: "cursor".to_string(),
+        project_name, // Use derived project name from CWD
+        session_id: session.session_id.clone(),
+        file_path: canonical_path,
+        file_name,
+        session_start_time,
+        session_end_time,
+        duration_ms,
+        file_size,
+        content: None,
+        cwd,
+        project_hash: None,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

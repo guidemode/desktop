@@ -10,9 +10,11 @@ use std::time::SystemTime;
 use toml::Value;
 
 pub mod converter;
+pub mod scanner;
 pub mod watcher;
 
 pub use converter::CodexMessage;
+pub use scanner::scan_sessions_filtered;
 pub use watcher::{CodexWatcher, CodexWatcherStatus};
 
 #[derive(Debug, Deserialize, Default)]
