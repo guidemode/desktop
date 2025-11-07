@@ -1,7 +1,7 @@
 use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
 };
-use crate::providers::opencode_parser::{OpenCodeJsonLContent, OpenCodeJsonLEntry};
+use super::parser::{OpenCodeJsonLContent, OpenCodeJsonLEntry};
 use anyhow::{Context, Result};
 use uuid::Uuid;
 
@@ -181,7 +181,7 @@ pub fn convert_opencode_jsonl_to_canonical(opencode_jsonl: &str) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::opencode_parser::{OpenCodeJsonLMessage, OpenCodeJsonLContent};
+    use super::parser::{OpenCodeJsonLMessage, OpenCodeJsonLContent};
 
     #[test]
     fn test_convert_text_entry() {

@@ -65,7 +65,7 @@ impl DatabaseEventHandler {
                 // - Smart insert-or-update (tries insert, falls back to update)
                 // - Extracts CWD, git info, and timing from file
                 // - Links session to project
-                crate::providers::db_helpers::insert_session_immediately(
+                crate::providers::common::db_helpers::insert_session_immediately(
                     &event.provider,
                     project_name,
                     session_id,

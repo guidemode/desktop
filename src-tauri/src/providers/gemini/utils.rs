@@ -1,6 +1,6 @@
-use super::sort_projects_by_modified;
+use crate::providers::sort_projects_by_modified;
 use crate::config::ProjectInfo;
-use crate::providers::gemini_parser::GeminiSession;
+use super::parser::GeminiSession;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 use shellexpand::tilde;
@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn scan_projects(home_directory: &str) -> Result<Vec<ProjectInfo>, String> {
-    use super::gemini_registry::GeminiProjectRegistry;
+    use super::registry::GeminiProjectRegistry;
 
     let expanded = tilde(home_directory);
     let base_path = PathBuf::from(expanded.into_owned());

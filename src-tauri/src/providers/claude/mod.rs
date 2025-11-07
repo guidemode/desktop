@@ -13,7 +13,9 @@ pub mod converter;
 pub mod converter_utils;
 pub mod scanner;
 pub mod types;
+pub mod watcher;
 
 // Re-export main types
 pub use converter_utils::convert_to_canonical_file;
 pub use scanner::scan_projects;
+pub use watcher::{ClaudeWatcher, ClaudeWatcherStatus};

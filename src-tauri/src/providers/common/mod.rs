@@ -6,6 +6,7 @@
 pub mod agent_merger;
 pub mod canonical_path;
 pub mod constants;
+pub mod db_helpers;
 pub mod file_utils;
 pub mod session_state;
 pub mod watcher_status;

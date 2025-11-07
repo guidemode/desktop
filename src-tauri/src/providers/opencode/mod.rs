@@ -1,8 +1,10 @@
 pub mod converter;
+pub mod parser;
+pub mod watcher;
 
 pub use converter::convert_opencode_jsonl_to_canonical;
-
-use super::opencode_parser::OpenCodeParser;
+pub use parser::OpenCodeParser;
+pub use watcher::{OpenCodeWatcher, OpenCodeWatcherStatus};
 use super::sort_projects_by_modified;
 use crate::config::ProjectInfo;
 use chrono::{DateTime, Utc};

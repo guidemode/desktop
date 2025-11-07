@@ -3,7 +3,7 @@ use crate::providers::canonical::{
     MessageType, TokenUsage,
 };
 use crate::providers::common::get_canonical_path;
-use crate::providers::gemini_parser::{GeminiMessage, GeminiSession};
+use super::parser::{GeminiMessage, GeminiSession};
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::fs;
@@ -323,14 +323,14 @@ pub fn convert_to_canonical_file(
 ///
 /// Uses the shared CWD extraction function from gemini_utils.rs
 fn infer_cwd_from_session(session: &GeminiSession) -> Option<String> {
-    use crate::providers::gemini_utils::infer_cwd_from_session as shared_infer_cwd;
+    use super::utils::infer_cwd_from_session as shared_infer_cwd;
     shared_infer_cwd(session, &session.project_hash)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::gemini_parser::{Thought, TokenUsage as GeminiTokenUsage, ToolCall};
+    use super::parser::{Thought, TokenUsage as GeminiTokenUsage, ToolCall};
 
     #[test]
     fn test_convert_user_message() {

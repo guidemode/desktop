@@ -1006,7 +1006,7 @@ pub async fn scan_historical_sessions(
                 }),
             );
         }
-        match crate::providers::db_helpers::insert_session_immediately(
+        match crate::providers::common::db_helpers::insert_session_immediately(
             &provider_id,
             &session.project_name,
             &session.session_id,

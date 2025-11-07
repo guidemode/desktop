@@ -1,5 +1,5 @@
 use crate::config::ProjectInfo;
-use crate::providers::copilot_parser::load_copilot_config;
+use super::parser::load_copilot_config;
 use chrono::{DateTime, Utc};
 use shellexpand::tilde;
 use std::fs;

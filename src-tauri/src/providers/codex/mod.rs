@@ -10,8 +10,10 @@ use std::time::SystemTime;
 use toml::Value;
 
 pub mod converter;
+pub mod watcher;
 
 pub use converter::CodexMessage;
+pub use watcher::{CodexWatcher, CodexWatcherStatus};
 
 #[derive(Debug, Deserialize, Default)]
 struct CodexConfig {

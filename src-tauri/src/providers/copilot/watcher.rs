@@ -240,7 +240,7 @@ impl CopilotWatcher {
         copilot_file: &Path,
         session_id: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-        use crate::providers::copilot_parser::CopilotParser;
+        use super::parser::CopilotParser;
         use std::fs;
 
         // Parse and convert to canonical format using the parser

@@ -292,7 +292,7 @@ fn scan_opencode_sessions_filtered(
     selected_projects: Option<&[String]>,
 ) -> Result<Vec<SessionInfo>, String> {
     // Import the OpenCode parser
-    use super::opencode_parser::OpenCodeParser;
+    use super::opencode::parser::OpenCodeParser;
 
     let storage_path = base_path.join("storage");
     if !storage_path.exists() {
@@ -353,9 +353,9 @@ fn scan_opencode_sessions_filtered(
 }
 
 fn parse_opencode_session(
-    parser: &super::opencode_parser::OpenCodeParser,
+    parser: &super::opencode::parser::OpenCodeParser,
     session_id: &str,
-    _project: &super::opencode_parser::OpenCodeProject,
+    _project: &super::opencode::parser::OpenCodeProject,
 ) -> Result<SessionInfo, String> {
     use std::fs;
     use super::opencode::convert_opencode_jsonl_to_canonical;
@@ -666,7 +666,7 @@ fn parse_copilot_session(
     file_path: &Path,
     selected_projects: Option<&[String]>,
 ) -> Result<Option<SessionInfo>, String> {
-    use super::copilot_parser::CopilotParser;
+    use super::copilot::parser::CopilotParser;
 
     // Use CopilotParser to parse the new JSONL event format
     let storage_path = file_path
@@ -873,7 +873,7 @@ fn scan_gemini_sessions_filtered(
 
 fn parse_gemini_session(file_path: &Path) -> Result<SessionInfo, String> {
     use super::common::extract_session_id_from_filename;
-    use super::gemini_parser::GeminiSession;
+    use super::gemini::parser::GeminiSession;
 
     let content =
         fs::read_to_string(file_path).map_err(|e| format!("Failed to read file: {}", e))?;
@@ -952,9 +952,9 @@ fn parse_gemini_session(file_path: &Path) -> Result<SessionInfo, String> {
 
 /// Extract CWD from Gemini session using shared extraction logic
 fn extract_cwd_from_gemini_session(
-    session: &super::gemini_parser::GeminiSession,
+    session: &super::gemini::parser::GeminiSession,
 ) -> Option<String> {
-    use super::gemini_utils::infer_cwd_from_session;
+    use super::gemini::utils::infer_cwd_from_session;
     infer_cwd_from_session(session, &session.project_hash)
 }
 

@@ -1,5 +1,5 @@
-use super::opencode::convert_opencode_jsonl_to_canonical;
-use super::opencode_parser::OpenCodeParser;
+use super::converter::convert_opencode_jsonl_to_canonical;
+use super::parser::OpenCodeParser;
 use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_error, log_info};

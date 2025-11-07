@@ -1,7 +1,7 @@
 use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
 };
-use crate::providers::copilot_parser::CopilotEvent;
+use super::parser::CopilotEvent;
 use anyhow::Result;
 use serde_json::Value;
 
