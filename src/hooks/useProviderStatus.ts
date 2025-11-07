@@ -4,6 +4,7 @@ import { CODING_AGENTS } from '../types/providers'
 import { useClaudeWatcherStatus } from './useClaudeWatcher'
 import { useCodexWatcherStatus } from './useCodexWatcher'
 import { useCopilotWatcherStatus } from './useCopilotWatcher'
+import { useCursorWatcherStatus } from './useCursorWatcher'
 import { useDirectoryExists } from './useDirectoryExists'
 import { useGeminiWatcherStatus } from './useGeminiWatcher'
 import { useOpenCodeWatcherStatus } from './useOpenCodeWatcher'
@@ -56,6 +57,7 @@ export function useProviderStatus(providerId: string): UseProviderStatusResult {
   // Get watcher status based on provider ID
   const claudeWatcher = useClaudeWatcherStatus()
   const copilotWatcher = useCopilotWatcherStatus()
+  const cursorWatcher = useCursorWatcherStatus()
   const opencodeWatcher = useOpenCodeWatcherStatus()
   const codexWatcher = useCodexWatcherStatus()
   const geminiWatcher = useGeminiWatcherStatus()
@@ -67,6 +69,8 @@ export function useProviderStatus(providerId: string): UseProviderStatusResult {
         return claudeWatcher
       case 'github-copilot':
         return copilotWatcher
+      case 'cursor':
+        return cursorWatcher
       case 'opencode':
         return opencodeWatcher
       case 'codex':
@@ -81,7 +85,7 @@ export function useProviderStatus(providerId: string): UseProviderStatusResult {
           refetch: async () => {},
         }
     }
-  }, [providerId, claudeWatcher, copilotWatcher, opencodeWatcher, codexWatcher, geminiWatcher])
+  }, [providerId, claudeWatcher, copilotWatcher, cursorWatcher, opencodeWatcher, codexWatcher, geminiWatcher])
 
   // Get provider config from React Query (single source of truth)
   const {

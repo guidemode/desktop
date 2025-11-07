@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useClaudeWatcherStatus } from '../hooks/useClaudeWatcher'
 import { useCodexWatcherStatus } from '../hooks/useCodexWatcher'
 import { useCopilotWatcherStatus } from '../hooks/useCopilotWatcher'
+import { useCursorWatcherStatus } from '../hooks/useCursorWatcher'
 import { useGeminiWatcherStatus } from '../hooks/useGeminiWatcher'
 import { useLocalSessions } from '../hooks/useLocalSessions'
 import { useOpenCodeWatcherStatus } from '../hooks/useOpenCodeWatcher'
@@ -21,6 +22,7 @@ function DashboardPage() {
   // Get watcher statuses
   useClaudeWatcherStatus()
   useCopilotWatcherStatus()
+  useCursorWatcherStatus()
   useOpenCodeWatcherStatus()
   useCodexWatcherStatus()
   useGeminiWatcherStatus()
@@ -28,6 +30,7 @@ function DashboardPage() {
   // Get provider statuses
   const { status: claudeStatusEnum } = useProviderStatus('claude-code')
   const { status: copilotStatusEnum } = useProviderStatus('github-copilot')
+  const { status: cursorStatusEnum } = useProviderStatus('cursor')
   const { status: opencodeStatusEnum } = useProviderStatus('opencode')
   const { status: codexStatusEnum } = useProviderStatus('codex')
   const { status: geminiStatusEnum } = useProviderStatus('gemini-code')
@@ -57,14 +60,20 @@ function DashboardPage() {
 
   const duration = formatDuration(totalDurationMs)
 
-  // Get active providers (show all 5 providers with their status)
-  const activeProviders = [
+  // Get active providers (filter to show only enabled providers)
+  const allProviders = [
     { id: 'claude-code', name: 'Claude Code', status: claudeStatusEnum },
+    { id: 'cursor', name: 'Cursor', status: cursorStatusEnum },
     { id: 'github-copilot', name: 'GitHub Copilot', status: copilotStatusEnum },
     { id: 'opencode', name: 'OpenCode', status: opencodeStatusEnum },
     { id: 'codex', name: 'Codex', status: codexStatusEnum },
     { id: 'gemini-code', name: 'Gemini Code', status: geminiStatusEnum },
   ]
+
+  // Filter to show only providers that are not disabled or not-installed
+  const activeProviders = allProviders.filter(
+    provider => provider.status !== 'disabled' && provider.status !== 'not-installed'
+  )
 
   // Get latest 5 sessions
   const latestSessions = sessions.slice(0, 5)
@@ -112,25 +121,46 @@ function DashboardPage() {
         >
           <div className="card-body">
             <h2 className="card-title text-base">Active Providers</h2>
-            <div className="flex flex-col gap-3 mt-2">
-              {activeProviders.map(provider => (
-                <Link
-                  key={provider.id}
-                  to={`/provider/${provider.id}`}
-                  className="flex items-center gap-3 hover:bg-base-200 transition-colors"
-                  data-tour={provider.id === 'claude-code' ? 'claude-code-provider' : undefined}
-                >
-                  <ProviderIcon providerId={provider.id} size={32} />
-                  <span className="text-base font-medium">{provider.name}</span>
-                  <ProviderStatusIndicator
-                    status={provider.status}
-                    size={20}
-                    showTooltip={true}
-                    className="ml-auto"
-                  />
-                </Link>
-              ))}
-            </div>
+            {activeProviders.length > 0 ? (
+              <div className="flex flex-col gap-3 mt-2">
+                {activeProviders.map(provider => (
+                  <Link
+                    key={provider.id}
+                    to={`/provider/${provider.id}`}
+                    className="flex items-center gap-3 hover:bg-base-200 transition-colors"
+                    data-tour={provider.id === 'claude-code' ? 'claude-code-provider' : undefined}
+                  >
+                    <ProviderIcon providerId={provider.id} size={32} />
+                    <span className="text-base font-medium">{provider.name}</span>
+                    <ProviderStatusIndicator
+                      status={provider.status}
+                      size={20}
+                      showTooltip={true}
+                      className="ml-auto"
+                    />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-sm text-base-content/70 mb-4">
+                  Enable one of these providers to begin:
+                </p>
+                <div className="flex items-center justify-center gap-4 flex-wrap">
+                  {allProviders.map(provider => (
+                    <Link
+                      key={provider.id}
+                      to={`/provider/${provider.id}`}
+                      className="flex flex-col items-center gap-2 hover:opacity-70 transition-opacity"
+                      title={`Configure ${provider.name}`}
+                    >
+                      <ProviderIcon providerId={provider.id} size={40} />
+                      <span className="text-xs text-base-content/60">{provider.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -434,7 +434,7 @@ pub fn mark_session_synced(session_id: &str, server_session_id: Option<&str>) ->
         params![now, server_session_id, session_id],
     )?;
 
-    log_info(
+    log_debug(
         "database",
         &format!("✓ Marked session {} as synced", session_id),
     )

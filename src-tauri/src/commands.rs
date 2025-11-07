@@ -1364,20 +1364,21 @@ pub async fn get_session_content(
     _session_id: String,
 ) -> Result<String, String> {
     use std::path::PathBuf;
+    use tracing::debug;
 
     let path = PathBuf::from(&file_path);
-
-    eprintln!("🔥 get_session_content called:");
-    eprintln!("   provider: {}", provider);
-    eprintln!("   file_path: {}", file_path);
-    eprintln!("   path exists: {}", path.exists());
 
     // All providers now use cached JSONL files - read directly
     // OpenCode sessions are aggregated to ~/.guideai/cache/opencode/{session_id}.jsonl
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read session file for {}: {}", provider, e))?;
 
-    eprintln!("   content length: {} bytes", content.len());
+    debug!(
+        provider = %provider,
+        path = %path.display(),
+        content_length = content.len(),
+        "Loaded session content"
+    );
 
     Ok(content)
 }
@@ -1570,6 +1571,53 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                 }
                 Err(e) => {
                     error!(error = %e, "Failed to scan GitHub Copilot projects");
+                }
+            }
+        }
+    }
+
+    // Try to start Cursor watcher if enabled
+    if let Ok(cursor_config) = load_provider_config("cursor") {
+        if cursor_config.enabled {
+            // Check if chats directory exists
+            let chats_path = shellexpand::tilde("~/.cursor/chats").to_string();
+            if !std::path::Path::new(&chats_path).exists() {
+                error!(
+                    provider = "cursor",
+                    directory = %chats_path,
+                    "Cannot start watcher: directory does not exist"
+                );
+            } else {
+                // Scan for projects
+                match crate::providers::scan_projects("cursor", &cursor_config.home_directory) {
+                    Ok(projects) => {
+                        let projects_to_watch = if cursor_config.project_selection == "ALL" {
+                            projects.iter().map(|p| p.name.clone()).collect()
+                        } else {
+                            cursor_config.selected_projects
+                        };
+
+                        if !projects_to_watch.is_empty() {
+                            match CursorWatcher::new(
+                                projects_to_watch,
+                                Arc::clone(&app_state.upload_queue),
+                                app_state.event_bus.clone(),
+                            ) {
+                                Ok(watcher) => {
+                                    if let Ok(mut watchers) = app_state.watchers.lock() {
+                                        watchers.insert("cursor".to_string(), Watcher::Cursor(watcher));
+                                        info!("Cursor watcher started automatically");
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(error = %e, "Failed to start Cursor watcher");
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!(error = %e, "Failed to scan Cursor projects");
+                    }
                 }
             }
         }

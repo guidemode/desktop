@@ -4,7 +4,7 @@
 
 use crate::config::GuideAIConfig;
 use crate::database::{get_full_session_by_id, get_session_metrics, get_session_rating};
-use crate::logging::log_info;
+use crate::logging::{log_debug, log_info};
 use crate::project_metadata::extract_project_metadata;
 use crate::upload_queue::compression::compress_file_content;
 use crate::upload_queue::types::UploadItem;
@@ -288,7 +288,7 @@ pub async fn upload_v2(
         ));
     }
 
-    log_info(
+    log_debug(
         "upload-queue",
         &format!("✓ Uploaded session via v2 for {}", session_id),
     )
