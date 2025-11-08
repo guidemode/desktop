@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn test_simple_message_decode() {
         // Example from our analysis: user message blob
-        let data = vec![
+        let _data = vec![
             0x0a, 0x4b, // Field 1, length 75
             b'T', b'e', b's', b't', b' ', b'm', b'e', b's', b's', b'a', b'g', b'e',
         ];

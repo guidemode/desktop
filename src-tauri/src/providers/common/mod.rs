@@ -20,5 +20,4 @@ pub use constants::*;
 pub use file_utils::*;
 pub use session_info::SessionInfo;
 pub use session_state::SessionStateManager;
-pub use timing::{extract_timing_from_jsonl, TimingData};
 pub use watcher_status::WatcherStatus;

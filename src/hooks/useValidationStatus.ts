@@ -3,7 +3,7 @@ import {
   validateJSONL,
 } from '@guideai-dev/session-processing/validation'
 import { invoke } from '@tauri-apps/api/core'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 export type ValidationStatus = 'valid' | 'errors' | 'warnings' | 'unknown' | 'loading'
 
@@ -26,7 +26,7 @@ export function useValidationStatus(
   const [result, setResult] = useState<JSONLValidationResult | null>(null)
   const [isValidating, setIsValidating] = useState(false)
 
-  const validate = async () => {
+  const validate = useCallback(async () => {
     if (!filePath || !provider || !sessionId) {
       setStatus('unknown')
       return
@@ -67,14 +67,14 @@ export function useValidationStatus(
     } finally {
       setIsValidating(false)
     }
-  }
+  }, [filePath, provider, sessionId])
 
   // Auto-validate on mount and when dependencies change
   useEffect(() => {
     if (filePath && provider && sessionId) {
       validate()
     }
-  }, [filePath, provider, sessionId])
+  }, [validate, filePath, provider, sessionId])
 
   return { status, result, validate, isValidating }
 }

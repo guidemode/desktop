@@ -85,7 +85,15 @@ export function useProviderStatus(providerId: string): UseProviderStatusResult {
           refetch: async () => {},
         }
     }
-  }, [providerId, claudeWatcher, copilotWatcher, cursorWatcher, opencodeWatcher, codexWatcher, geminiWatcher])
+  }, [
+    providerId,
+    claudeWatcher,
+    copilotWatcher,
+    cursorWatcher,
+    opencodeWatcher,
+    codexWatcher,
+    geminiWatcher,
+  ])
 
   // Get provider config from React Query (single source of truth)
   const {

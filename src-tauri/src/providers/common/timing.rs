@@ -10,6 +10,7 @@ use std::path::Path;
 /// Type alias for timing data tuple
 ///
 /// Returns (start_time, end_time, duration_ms)
+#[allow(dead_code)]
 pub type TimingData = (
     Option<DateTime<Utc>>, // start_time
     Option<DateTime<Utc>>, // end_time
@@ -45,6 +46,7 @@ pub type TimingData = (
 /// let file_path = Path::new("~/.guideai/sessions/claude-code/myproject/session.jsonl");
 /// let (start, end, duration) = extract_timing_from_jsonl(file_path)?;
 /// ```
+#[allow(dead_code)]
 pub fn extract_timing_from_jsonl(file_path: &Path) -> Result<TimingData, String> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("Failed to read snapshot file: {}", e))?;

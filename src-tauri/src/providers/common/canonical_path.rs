@@ -153,27 +153,17 @@ mod tests {
 
     #[test]
     fn test_get_canonical_path_structure() {
-        // Test that path structure is correct
-        let path = get_canonical_path("test-provider", Some("/tmp/test"), "session123").unwrap();
-        let path_str = path.to_string_lossy();
-
-        // Should contain sessions directory
-        assert!(path_str.contains("sessions"));
-
-        // Should contain provider
-        assert!(path_str.contains("test-provider"));
-
-        // Should end with session ID
-        assert!(path_str.ends_with("session123.jsonl"));
+        // Test that path returns error when CWD can't be extracted
+        let result = get_canonical_path("test-provider", Some("/tmp/test"), "session123");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Cannot determine project name"));
     }
 
     #[test]
     fn test_get_canonical_path_without_cwd() {
-        // Should use "unknown" when no CWD provided
-        let path = get_canonical_path("test-provider", None, "session456").unwrap();
-        let path_str = path.to_string_lossy();
-
-        assert!(path_str.contains("unknown"));
-        assert!(path_str.ends_with("session456.jsonl"));
+        // Should return error when no CWD provided
+        let result = get_canonical_path("test-provider", None, "session456");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No CWD available"));
     }
 }

@@ -5,7 +5,7 @@ import {
 import { XCircleIcon } from '@heroicons/react/24/outline'
 import { invoke } from '@tauri-apps/api/core'
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ValidationBadge } from './ValidationBadge'
 
 interface ValidationReportProps {
@@ -24,7 +24,7 @@ export function ValidationReport({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const validateSession = async () => {
+  const validateSession = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -48,11 +48,11 @@ export function ValidationReport({
     } finally {
       setLoading(false)
     }
-  }
+  }, [provider, filePath, sessionId])
 
   useEffect(() => {
     validateSession()
-  }, [sessionId, filePath])
+  }, [validateSession])
 
   if (loading) {
     return (

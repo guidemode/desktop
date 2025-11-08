@@ -89,8 +89,8 @@ describe('useSessionProcessing', () => {
         metrics: {
           interruption_rate: 0.1,
           session_length_minutes: 15,
+          total_interruptions: 2,
           metadata: {
-            total_interruptions: 2,
             total_responses: 6,
           },
         },

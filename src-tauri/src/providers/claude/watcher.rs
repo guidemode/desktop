@@ -471,9 +471,12 @@ mod tests {
         let hidden_file = project_path.join(".tmpABCDEF.jsonl");
         fs::write(&hidden_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path"}"#).unwrap();
 
-        // Create a normal file
+        // Create a normal file with a valid git repository CWD
         let normal_file = project_path.join("session-123.jsonl");
-        fs::write(&normal_file, r#"{"sessionId":"session-123","timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path","type":"user"}"#).unwrap();
+        let test_cwd = project_path.to_string_lossy();
+        // Create a minimal .git directory so project metadata extraction works
+        fs::create_dir_all(project_path.join(".git")).unwrap();
+        fs::write(&normal_file, format!(r#"{{"sessionId":"session-123","timestamp":"2025-01-01T10:00:00.000Z","cwd":"{}","type":"user"}}"#, test_cwd)).unwrap();
 
         // Test hidden file is ignored
         let hidden_event = Event {
