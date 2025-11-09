@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import Login from '../components/Login'
 import { useAuth } from '../hooks/useAuth'
 import { useOnboarding } from '../hooks/useOnboarding'
@@ -8,6 +8,7 @@ import { useConfigStore } from '../stores/configStore'
 
 function SettingsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, logout } = useAuth()
   const { aiApiKeys, setAiApiKey, deleteAiApiKey, systemConfig, updateSystemConfig } =
     useConfigStore()
@@ -42,6 +43,14 @@ function SettingsPage() {
     }, 100)
   }
 
+  // Auto-trigger download when navigating from header Update button
+  useEffect(() => {
+    const state = location.state as { autoDownload?: boolean } | null
+    if (state?.autoDownload && hasUpdate && !isDownloading && !isInstalling) {
+      downloadAndInstall()
+    }
+  }, [location.state, hasUpdate, isDownloading, isInstalling, downloadAndInstall])
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-start justify-between">
@@ -63,6 +72,67 @@ function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Update Available Section - Shown at top when update is available */}
+        {hasUpdate && (
+          <div className="card bg-base-100 shadow-sm border border-warning">
+            <div className="card-body">
+              <h2 className="card-title text-warning">Update Available</h2>
+
+              <div className="alert alert-warning">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="font-bold">Version {latestVersion} is now available</h3>
+                  <div className="text-sm">
+                    You're currently running version {currentVersion}. Click below to download and install the update.
+                  </div>
+                </div>
+              </div>
+
+              {isDownloading || isInstalling ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>{isInstalling ? 'Installing...' : 'Downloading...'}</span>
+                    <span>{downloadProgress}%</span>
+                  </div>
+                  <progress
+                    className="progress progress-success w-full"
+                    value={downloadProgress}
+                    max="100"
+                  />
+                  {isInstalling && (
+                    <p className="text-sm text-base-content/70">
+                      The app will restart automatically after installation completes.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={downloadAndInstall}
+                  className="btn btn-success btn-block gap-2"
+                  disabled={isDownloading || isInstalling}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+                  Download and Install Update
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Account Section */}
         <div className="card bg-base-100 shadow-sm border border-base-300">
           <div className="card-body">
@@ -555,57 +625,6 @@ function SettingsPage() {
               </>
             )}
 
-            {hasUpdate && (
-              <>
-                <div className="divider" />
-                <div className="alert alert-success">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                  <div className="flex-1">
-                    <h3 className="font-bold">Update Available</h3>
-                    <div className="text-sm">
-                      Version {latestVersion} is now available. Click below to download and install.
-                    </div>
-                  </div>
-                </div>
-
-                {isDownloading || isInstalling ? (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>{isInstalling ? 'Installing...' : 'Downloading...'}</span>
-                      <span>{downloadProgress}%</span>
-                    </div>
-                    <progress
-                      className="progress progress-success w-full"
-                      value={downloadProgress}
-                      max="100"
-                    />
-                  </div>
-                ) : (
-                  <button
-                    onClick={downloadAndInstall}
-                    className="btn btn-success btn-block"
-                    disabled={isDownloading || isInstalling}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    Download and Install Update
-                  </button>
-                )}
-              </>
-            )}
 
             {!hasUpdate && !isChecking && (
               <>

@@ -69,7 +69,7 @@ function Header() {
           {/* Update Available Notification */}
           {hasUpdate && (
             <button
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate('/settings', { state: { autoDownload: true } })}
               className="btn btn-warning btn-sm gap-1"
               title={`Update available: v${latestVersion}`}
             >
