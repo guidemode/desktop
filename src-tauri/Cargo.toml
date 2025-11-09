@@ -9,30 +9,9 @@ default-run = "guideai-desktop"
 edition = "2021"
 rust-version = "1.89"
 
-[[bin]]
-name = "cursor_analysis"
-path = "src/bin/cursor_analysis.rs"
-required-features = ["dev-tools"]
-
-[[bin]]
-name = "cursor_protobuf_decoder"
-path = "src/bin/cursor_protobuf_decoder.rs"
-required-features = ["dev-tools"]
-
-[[bin]]
-name = "inspect_cursor"
-path = "src/bin/inspect_cursor.rs"
-required-features = ["dev-tools"]
-
-[[bin]]
-name = "cursor_hex_inspector"
-path = "src/bin/cursor_hex_inspector.rs"
-required-features = ["dev-tools"]
-
-[[bin]]
-name = "cursor_blob_analyzer"
-path = "src/bin/cursor_blob_analyzer.rs"
-required-features = ["dev-tools"]
+# Development/debugging tools (cursor analysis) have been moved to ../dev-tools/
+# This keeps them completely separate from the Tauri build process
+# See ../dev-tools/README.md for usage instructions
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -117,5 +96,3 @@ tempfile = "3.0"
 # If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.
 # DO NOT REMOVE!!
 custom-protocol = [ "tauri/custom-protocol" ]
-# Enable development/debugging tools (cursor analysis binaries)
-dev-tools = []

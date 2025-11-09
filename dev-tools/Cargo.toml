@@ -1,0 +1,35 @@
+[package]
+name = "guideai-dev-tools"
+version = "0.1.0"
+edition = "2021"
+
+# Cursor analysis and debugging utilities
+# These are kept separate from the main Tauri app to avoid build conflicts
+
+[[bin]]
+name = "cursor_analysis"
+path = "cursor_analysis.rs"
+
+[[bin]]
+name = "cursor_protobuf_decoder"
+path = "cursor_protobuf_decoder.rs"
+
+[[bin]]
+name = "inspect_cursor"
+path = "inspect_cursor.rs"
+
+[[bin]]
+name = "cursor_hex_inspector"
+path = "cursor_hex_inspector.rs"
+
+[[bin]]
+name = "cursor_blob_analyzer"
+path = "cursor_blob_analyzer.rs"
+
+[dependencies]
+# Copy minimal dependencies needed by the tools
+prost = "0.13"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }

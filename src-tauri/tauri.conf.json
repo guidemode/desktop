@@ -75,7 +75,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": "all"
+    "targets": "all",
+    "externalBin": []
   },
   "plugins": {
     "sql": {
