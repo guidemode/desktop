@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  GeminiAPIClient,
+  type GeminiModel,
+  OpenAIAPIClient,
+  type OpenAIModel,
+} from '@guideai-dev/session-processing/ai-models'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Login from '../components/Login'
 import { useAuth } from '../hooks/useAuth'
 import { useOnboarding } from '../hooks/useOnboarding'
 import { useUpdater } from '../hooks/useUpdater'
 import { useConfigStore } from '../stores/configStore'
-import {
-  GeminiAPIClient,
-  OpenAIAPIClient,
-  type GeminiModel,
-  type OpenAIModel,
-} from '@guideai-dev/session-processing/ai-models'
 
 function SettingsPage() {
   const navigate = useNavigate()
@@ -177,7 +177,8 @@ function SettingsPage() {
                 <div className="flex-1">
                   <h3 className="font-bold">Version {latestVersion} is now available</h3>
                   <div className="text-sm">
-                    You're currently running version {currentVersion}. Click below to download and install the update.
+                    You're currently running version {currentVersion}. Click below to download and
+                    install the update.
                   </div>
                 </div>
               </div>
@@ -925,7 +926,6 @@ function SettingsPage() {
                 </div>
               </>
             )}
-
 
             {!hasUpdate && !isChecking && (
               <>
