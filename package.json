@@ -1,6 +1,6 @@
 {
   "name": "@guidemode/desktop",
-  "version": "0.1.44",
+  "version": "0.1.45",
   "description": "GuideMode desktop menubar application",
   "type": "module",
   "scripts": {
