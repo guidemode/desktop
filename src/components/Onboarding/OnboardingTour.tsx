@@ -12,11 +12,11 @@ import { useOnboarding } from '../../hooks/useOnboarding'
 
 // Global styles for Joyride arrow to match border (base-300 color)
 const joyrideStyles = `
-  [data-theme="guideai-light"] .__floater__arrow polygon {
+  [data-theme="guidemode-light"] .__floater__arrow polygon {
     fill: #e2e8f0 !important;
   }
 
-  [data-theme="guideai-dark"] .__floater__arrow polygon {
+  [data-theme="guidemode-dark"] .__floater__arrow polygon {
     fill: #475569 !important;
   }
 `
@@ -98,7 +98,7 @@ export function OnboardingTour() {
       target: 'body',
       content: (
         <div>
-          <h3 className="text-lg font-bold mb-2">Welcome to GuideAI!</h3>
+          <h3 className="text-lg font-bold mb-2">Welcome to GuideMode!</h3>
           <p>
             Let's take a quick tour to help you get started tracking and analyzing your AI coding
             sessions.
@@ -115,7 +115,7 @@ export function OnboardingTour() {
         <div>
           <h3 className="text-lg font-bold mb-2">Active Providers</h3>
           <p>
-            GuideAI can track sessions from multiple AI coding assistants like Claude Code, GitHub
+            GuideMode can track sessions from multiple AI coding assistants like Claude Code, GitHub
             Copilot, and more.
           </p>
           <p className="mt-2">Let's configure Claude Code as an example.</p>
@@ -158,8 +158,8 @@ export function OnboardingTour() {
         <div>
           <h3 className="text-lg font-bold mb-2">Enable Provider</h3>
           <p>
-            Toggle this on to start tracking Claude Code sessions. GuideAI will automatically watch
-            for new sessions.
+            Toggle this on to start tracking Claude Code sessions. GuideMode will automatically
+            watch for new sessions.
           </p>
         </div>
       ),
@@ -272,7 +272,7 @@ export function OnboardingTour() {
             quality scores.
           </p>
           <p className="mt-2 text-sm text-base-content/70">
-            Keys are stored locally and used only on your machine—never sent to GuideAI servers.
+            Keys are stored locally and used only on your machine—never sent to GuideMode servers.
           </p>
         </div>
       ),
@@ -285,7 +285,7 @@ export function OnboardingTour() {
         <div>
           <h3 className="text-lg font-bold mb-2">Sync to Cloud</h3>
           <p>
-            To sync your sessions to the GuideAI cloud, sign in with GitHub, Google, GitLab, or
+            To sync your sessions to the GuideMode cloud, sign in with GitHub, Google, GitLab, or
             email.
           </p>
           <p className="mt-2">Once logged in, you can choose sync options on each provider page:</p>

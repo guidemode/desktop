@@ -3,9 +3,9 @@ import {
   type GeminiModel,
   OpenAIAPIClient,
   type OpenAIModel,
-} from '@guideai-dev/session-processing/ai-models'
+} from '@guidemode/session-processing/ai-models'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Login from '../components/Login'
 import { useAuth } from '../hooks/useAuth'
@@ -61,7 +61,7 @@ function SettingsPage() {
     await logout()
   }
 
-  const fetchGeminiModels = async (apiKey: string) => {
+  const fetchGeminiModels = useCallback(async (apiKey: string) => {
     setLoadingGeminiModels(true)
     try {
       const client = new GeminiAPIClient({ apiKey, fetch: tauriFetch })
@@ -78,9 +78,9 @@ function SettingsPage() {
     } finally {
       setLoadingGeminiModels(false)
     }
-  }
+  }, [])
 
-  const fetchOpenAIModels = async (apiKey: string) => {
+  const fetchOpenAIModels = useCallback(async (apiKey: string) => {
     setLoadingOpenaiModels(true)
     try {
       const client = new OpenAIAPIClient({ apiKey, fetch: tauriFetch })
@@ -110,7 +110,7 @@ function SettingsPage() {
     } finally {
       setLoadingOpenaiModels(false)
     }
-  }
+  }, [])
 
   const handleRestartTour = () => {
     navigate('/')
@@ -136,7 +136,7 @@ function SettingsPage() {
     if (aiApiKeys.openai) {
       fetchOpenAIModels(aiApiKeys.openai)
     }
-  }, [aiApiKeys.gemini, aiApiKeys.openai])
+  }, [aiApiKeys.gemini, aiApiKeys.openai, fetchGeminiModels, fetchOpenAIModels])
 
   return (
     <div className="p-6">
@@ -300,7 +300,7 @@ function SettingsPage() {
             <h2 className="card-title">AI Processing</h2>
             <p className="text-sm text-base-content/70 mb-4">
               Configure API keys to enable AI-powered session summaries and quality assessments.
-              Keys are stored locally and never sent to GuideAI servers.
+              Keys are stored locally and never sent to GuideMode servers.
             </p>
 
             <div className="space-y-6">
@@ -479,7 +479,7 @@ function SettingsPage() {
                       <span className="label-text text-sm">Gemini Model</span>
                       {loadingGeminiModels && (
                         <span className="label-text-alt text-xs">
-                          <span className="loading loading-spinner loading-xs mr-1"></span>
+                          <span className="loading loading-spinner loading-xs mr-1" />
                           Loading models...
                         </span>
                       )}
@@ -606,7 +606,7 @@ function SettingsPage() {
                       <span className="label-text text-sm">OpenAI Model</span>
                       {loadingOpenaiModels && (
                         <span className="label-text-alt text-xs">
-                          <span className="loading loading-spinner loading-xs mr-1"></span>
+                          <span className="loading loading-spinner loading-xs mr-1" />
                           Loading models...
                         </span>
                       )}
@@ -732,8 +732,8 @@ function SettingsPage() {
           <div className="card-body">
             <h2 className="card-title">Help & Tour</h2>
             <p className="text-sm text-base-content/70 mb-4">
-              Take a guided tour of GuideAI to learn how to configure providers, sync sessions, and
-              view analytics.
+              Take a guided tour of GuideMode to learn how to configure providers, sync sessions,
+              and view analytics.
             </p>
 
             <div className="flex items-center justify-between p-4 bg-base-200 rounded-lg">
@@ -741,8 +741,8 @@ function SettingsPage() {
                 <div className="font-medium">Onboarding Tour</div>
                 <div className="text-sm text-base-content/60 mt-1">
                   {hasCompletedTour
-                    ? 'Restart the tour to see how to use GuideAI'
-                    : 'Start the tour to learn about GuideAI features'}
+                    ? 'Restart the tour to see how to use GuideMode'
+                    : 'Start the tour to learn about GuideMode features'}
                 </div>
               </div>
               <button onClick={handleRestartTour} className="btn btn-primary">

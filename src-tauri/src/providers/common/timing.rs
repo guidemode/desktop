@@ -43,7 +43,7 @@ pub type TimingData = (
 /// use std::path::Path;
 /// use crate::providers::common::timing::extract_timing_from_jsonl;
 ///
-/// let file_path = Path::new("~/.guideai/sessions/claude-code/myproject/session.jsonl");
+/// let file_path = Path::new("~/.guidemode/sessions/claude-code/myproject/session.jsonl");
 /// let (start, end, duration) = extract_timing_from_jsonl(file_path)?;
 /// ```
 #[allow(dead_code)]

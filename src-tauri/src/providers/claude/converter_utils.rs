@@ -100,7 +100,7 @@ pub fn convert_to_canonical_file(
     }
 
     // Get project-organized canonical path
-    // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+    // Uses ~/.guidemode/sessions/{provider}/{project}/{session_id}.jsonl
     let canonical_path = get_canonical_path("claude-code", cwd_value.as_deref(), session_id)?;
 
     // Write converted canonical JSONL

@@ -51,7 +51,7 @@ export function createMockSession(overrides?: Partial<LocalSession>): LocalSessi
 export function createMockConfig() {
 	return {
 		apiKey: 'test-api-key',
-		serverUrl: 'https://test.guideai.dev',
+		serverUrl: 'https://test.guidemode.dev',
 		username: 'testuser',
 		tenantId: 'tenant-123',
 		tenantName: 'Test Org',

@@ -1,7 +1,4 @@
-import {
-  type JSONLValidationResult,
-  validateJSONL,
-} from '@guideai-dev/session-processing/validation'
+import { type JSONLValidationResult, validateJSONL } from '@guidemode/session-processing/validation'
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useState } from 'react'
 

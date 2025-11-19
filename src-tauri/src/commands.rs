@@ -1,7 +1,7 @@
 use crate::auth_server::{AuthError, AuthServer};
 use crate::config::{
     clear_config, delete_provider_config, ensure_logs_dir, load_config, load_provider_config,
-    save_config, save_provider_config, ActivityLogEntry, GuideAIConfig, ProjectInfo,
+    save_config, save_provider_config, ActivityLogEntry, GuideModeConfig, ProjectInfo,
     ProviderConfig,
 };
 use crate::logging::{read_provider_logs, LogEntry};
@@ -19,12 +19,12 @@ use std::time::Duration;
 use tauri::State;
 
 #[tauri::command]
-pub async fn load_config_command() -> Result<GuideAIConfig, String> {
+pub async fn load_config_command() -> Result<GuideModeConfig, String> {
     load_config().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn save_config_command(config: GuideAIConfig) -> Result<(), String> {
+pub async fn save_config_command(config: GuideModeConfig) -> Result<(), String> {
     save_config(&config).map_err(|e| e.to_string())
 }
 
@@ -98,7 +98,7 @@ pub async fn login_command(
         info!(username = %user_info.username, "Session verified successfully");
 
         // Save the complete configuration
-        let config = GuideAIConfig {
+        let config = GuideModeConfig {
             api_key: Some(auth_data.api_key.clone()),
             server_url: Some(server_url.clone()),
             username: Some(user_info.username.clone()),
@@ -171,7 +171,7 @@ pub async fn logout_command(state: State<'_, AppState>) -> Result<(), String> {
     clear_config_command().await?;
 
     // Clear upload queue config by setting an empty config
-    let empty_config = GuideAIConfig {
+    let empty_config = GuideModeConfig {
         api_key: None,
         server_url: None,
         username: None,
@@ -1370,7 +1370,7 @@ pub async fn get_session_content(
     let path = PathBuf::from(&file_path);
 
     // All providers now use cached JSONL files - read directly
-    // OpenCode sessions are aggregated to ~/.guideai/cache/opencode/{session_id}.jsonl
+    // OpenCode sessions are aggregated to ~/.guidemode/cache/opencode/{session_id}.jsonl
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read session file for {}: {}", provider, e))?;
 
@@ -1858,7 +1858,7 @@ async fn migrate_codex(dry_run: bool) -> Result<MigrationReport, String> {
 
     let home = std::env::var("HOME").map_err(|_| "HOME environment variable not set")?;
     let sessions_dir = PathBuf::from(&home).join(".codex/sessions");
-    let cache_dir = PathBuf::from(&home).join(".guideai/cache/canonical/codex");
+    let cache_dir = PathBuf::from(&home).join(".guidemode/cache/canonical/codex");
 
     if !sessions_dir.exists() {
         return Err(format!(

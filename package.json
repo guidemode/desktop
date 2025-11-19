@@ -1,7 +1,7 @@
 {
-  "name": "@guideai-dev/desktop",
+  "name": "@guidemode/desktop",
   "version": "0.1.44",
-  "description": "GuideAI desktop menubar application",
+  "description": "GuideMode desktop menubar application",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -43,8 +43,8 @@
     "@git-diff-view/core": "^0.0.32",
     "@git-diff-view/file": "^0.0.32",
     "@git-diff-view/react": "^0.0.32",
-    "@guideai-dev/session-processing": "workspace:*",
-    "@guideai-dev/types": "workspace:*",
+    "@guidemode/session-processing": "workspace:*",
+    "@guidemode/types": "workspace:*",
     "@heroicons/react": "^2.2.0",
     "@tanstack/react-query": "^5.87.4",
     "@tanstack/react-virtual": "^3.13.12",
@@ -91,7 +91,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/guideai-dev/desktop.git"
+    "url": "https://github.com/guidemode/desktop.git"
   },
   "keywords": ["ai", "guide", "desktop", "tauri", "menubar"]
 }

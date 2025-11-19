@@ -10,6 +10,7 @@ import { useDebouncedCoreMetrics } from './hooks/useDebouncedCoreMetrics'
 import { useDelayedAiProcessing } from './hooks/useDelayedAiProcessing'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionIngest } from './hooks/useSessionIngest'
+import { useTheme } from './hooks/useTheme'
 import DashboardPage from './pages/DashboardPage'
 import LogsPage from './pages/LogsPage'
 import OverviewPage from './pages/OverviewPage'
@@ -83,12 +84,7 @@ function AppContent() {
 function App() {
   const { isLoading } = useAuth()
   const { isReady: isDbReady, error: dbError } = useDatabase()
-
-  // Get theme from localStorage or default to light
-  const theme =
-    typeof window !== 'undefined'
-      ? localStorage.getItem('theme') || 'guideai-light'
-      : 'guideai-light'
+  const { theme } = useTheme()
 
   if (isLoading || !isDbReady) {
     return (

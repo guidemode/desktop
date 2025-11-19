@@ -168,7 +168,7 @@ fn transform_provider_log_to_claude_format(provider: &str, log_content: &str) ->
 }
 
 fn transform_app_log(log_content: &str) -> Option<LogEntry> {
-    // Parse tracing format: "2025-10-03T19:29:51.226423Z  INFO guideai_desktop::logging: message provider=\"name\""
+    // Parse tracing format: "2025-10-03T19:29:51.226423Z  INFO guidemode_desktop::logging: message provider=\"name\""
     let parts: Vec<&str> = log_content.splitn(3, ' ').collect();
     if parts.len() < 3 {
         return None;

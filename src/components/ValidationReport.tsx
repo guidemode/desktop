@@ -1,7 +1,4 @@
-import {
-  type JSONLValidationResult,
-  validateJSONL,
-} from '@guideai-dev/session-processing/validation'
+import { type JSONLValidationResult, validateJSONL } from '@guidemode/session-processing/validation'
 import { XCircleIcon } from '@heroicons/react/24/outline'
 import { invoke } from '@tauri-apps/api/core'
 import type React from 'react'
@@ -125,7 +122,7 @@ export function ValidationReport({
             <div className="space-y-1">
               <h4 className="text-xs font-semibold text-warning">Warnings ({warnings.length})</h4>
               <ul className="space-y-1 max-h-40 overflow-y-auto">
-                {warnings.map((warning, i) => (
+                {warnings.map((warning: any, i: number) => (
                   <li key={i} className="text-xs p-2 bg-warning/10 rounded">
                     <span className="font-mono text-warning">Line {warning.line}</span>
                     <span className="mx-1">•</span>

@@ -3,7 +3,7 @@ import {
   type ProcessedTimeline,
   messageProcessorRegistry,
   parserRegistry,
-} from '@guideai-dev/session-processing/ui'
+} from '@guidemode/session-processing/ui'
 import { useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 

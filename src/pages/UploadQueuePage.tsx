@@ -145,7 +145,7 @@ function UploadQueuePage() {
         <div className="card bg-base-100 shadow-sm border border-base-300">
           <div className="card-body">
             <p className="text-base-content/70">
-              Uploading to the GuideAI server is only possible if you are logged in.{' '}
+              Uploading to the GuideMode server is only possible if you are logged in.{' '}
               <Link to="/settings" className="link link-primary">
                 Go to settings to log in
               </Link>

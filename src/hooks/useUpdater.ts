@@ -87,7 +87,7 @@ export function useUpdater(): UseUpdaterReturn {
         target = `windows-${arch}`
       }
 
-      const expectedUrl = `https://install.guideai.dev/desktop/${target}/latest.json`
+      const expectedUrl = `https://install.guidemode.dev/desktop/${target}/latest.json`
       await logUpdaterEvent('INFO', 'Checking for updates', {
         platform,
         arch,

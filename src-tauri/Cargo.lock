@@ -1732,7 +1732,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "guideai-desktop"
+name = "guidemode-desktop"
 version = "0.1.44"
 dependencies = [
  "anyhow",

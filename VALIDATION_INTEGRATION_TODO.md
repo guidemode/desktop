@@ -265,7 +265,7 @@ export function ValidationReport({ sessionId }: ValidationReportProps) {
   const validateSession = async () => {
     setLoading(true)
     try {
-      const filePath = `~/.guideai/sessions/${provider}/${project}/${sessionId}.jsonl`
+      const filePath = `~/.guidemode/sessions/${provider}/${project}/${sessionId}.jsonl`
       const validationResult = await invoke('validate_canonical_file', { filePath })
       setResult(validationResult)
     } catch (error) {

@@ -3,7 +3,7 @@
 //! Handles the processing loop, database polling, and upload orchestration.
 //! Refactored from 297-line monolithic function into focused methods.
 
-use crate::config::GuideAIConfig;
+use crate::config::GuideModeConfig;
 use crate::database::{get_unsynced_sessions, mark_session_sync_failed, mark_session_synced};
 use crate::logging::{log_error, log_info, log_warn};
 use chrono::{DateTime, Utc};
@@ -30,7 +30,7 @@ pub struct UploadProcessor {
     failed_items: Arc<Mutex<Vec<UploadItem>>>,
     uploaded_hashes: Arc<Mutex<IndexSet<String>>>,
     is_running: Arc<Mutex<bool>>,
-    config: Arc<Mutex<Option<GuideAIConfig>>>,
+    config: Arc<Mutex<Option<GuideModeConfig>>>,
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
     semaphore: Arc<Semaphore>,
 }
@@ -44,7 +44,7 @@ impl UploadProcessor {
         failed_items: Arc<Mutex<Vec<UploadItem>>>,
         uploaded_hashes: Arc<Mutex<IndexSet<String>>>,
         is_running: Arc<Mutex<bool>>,
-        config: Arc<Mutex<Option<GuideAIConfig>>>,
+        config: Arc<Mutex<Option<GuideModeConfig>>>,
         app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
         semaphore: Arc<Semaphore>,
     ) -> Self {
@@ -305,7 +305,7 @@ fn decrement_counter(counter: &Arc<Mutex<usize>>) {
     }
 }
 
-fn get_config(config: &Arc<Mutex<Option<GuideAIConfig>>>) -> Option<GuideAIConfig> {
+fn get_config(config: &Arc<Mutex<Option<GuideModeConfig>>>) -> Option<GuideModeConfig> {
     config.lock().ok().and_then(|c| c.clone())
 }
 

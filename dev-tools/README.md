@@ -1,6 +1,6 @@
-# GuideAI Desktop Dev Tools
+# GuideMode Desktop Dev Tools
 
-Development and debugging utilities for the GuideAI desktop app, focused on Cursor provider analysis.
+Development and debugging utilities for the GuideMode desktop app, focused on Cursor provider analysis.
 
 ## Tools
 

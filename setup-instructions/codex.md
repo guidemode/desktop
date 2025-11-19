@@ -16,7 +16,7 @@ OpenAI Codex provides AI-powered code completion and assistance.
 Codex stores configuration and sessions in:
 - **All platforms**: `~/.codex/`
 
-GuideAI will automatically detect sessions in this directory once Codex is configured and in use.
+GuideMode will automatically detect sessions in this directory once Codex is configured and in use.
 
 ### Note
 

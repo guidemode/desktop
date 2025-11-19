@@ -155,7 +155,7 @@ function ValidateButton({ filePath }) {
 import { invoke } from '@tauri-apps/api/core'
 
 async function validateAllSessions(provider: string) {
-  const directory = `~/.guideai/sessions/${provider}/`
+  const directory = `~/.guidemode/sessions/${provider}/`
 
   const results = await invoke('validate_session_directory', {
     directory,
@@ -229,7 +229,7 @@ pub async fn validate_session_directory(
 **Usage:**
 ```tsx
 const results = await invoke('validate_session_directory', {
-  directory: '~/.guideai/sessions/cursor/',
+  directory: '~/.guidemode/sessions/cursor/',
   provider: 'cursor' // optional filter
 })
 ```
@@ -273,7 +273,7 @@ Array of `ValidationResult` objects (same structure as single file validation).
 ### Test with Valid Session
 ```bash
 # Via CLI
-pnpm cli validate ~/.guideai/sessions/codex/project/session.jsonl
+pnpm cli validate ~/.guidemode/sessions/codex/project/session.jsonl
 
 # Should show all valid
 ```

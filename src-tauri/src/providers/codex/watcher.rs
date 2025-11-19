@@ -296,7 +296,7 @@ impl CodexWatcher {
         let cwd = extract_cwd_from_canonical_content(&canonical_content);
 
         // Get project-organized canonical path
-        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+        // Uses ~/.guidemode/sessions/{provider}/{project}/{session_id}.jsonl
         let canonical_path = get_canonical_path(PROVIDER_ID, cwd.as_deref(), session_id)?;
 
         // Write to project-organized path

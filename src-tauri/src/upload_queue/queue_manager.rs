@@ -2,7 +2,7 @@
 //!
 //! Manages queue state and database integration for upload items.
 
-use crate::config::GuideAIConfig;
+use crate::config::GuideModeConfig;
 use crate::database::{
     clear_failed_sessions, get_failed_sessions, get_unsynced_sessions, get_upload_stats,
     remove_session_by_id, retry_failed_sessions, retry_session_by_id,
@@ -100,7 +100,7 @@ pub fn add_item(
 pub fn add_historical_session(
     queue: &Arc<Mutex<VecDeque<UploadItem>>>,
     uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
-    _config: &Arc<Mutex<Option<GuideAIConfig>>>,
+    _config: &Arc<Mutex<Option<GuideModeConfig>>>,
     session: &SessionInfo,
 ) -> Result<(), String> {
     // Handle sessions with in-memory content vs file-based sessions differently
@@ -479,7 +479,7 @@ pub fn is_file_already_uploaded(
 #[allow(dead_code)]
 async fn _upload_project_metadata_static_legacy(
     metadata: &crate::project_metadata::ProjectMetadata,
-    config: Option<GuideAIConfig>,
+    config: Option<GuideModeConfig>,
 ) -> Result<(), String> {
     use super::types::ProjectUploadRequest;
 

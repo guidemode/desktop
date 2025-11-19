@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useOnboarding } from '../../hooks/useOnboarding'
+import { useTheme } from '../../hooks/useTheme'
 import { useUpdater } from '../../hooks/useUpdater'
 
 function Header() {
@@ -9,24 +10,12 @@ function Header() {
   const navigate = useNavigate()
   const { hasUpdate, latestVersion, checkForUpdates } = useUpdater()
   const { startTour } = useOnboarding()
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'guideai-light'
-  })
-
-  useEffect(() => {
-    // Update document data-theme attribute
-    document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('theme', theme)
-  }, [theme])
+  const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
     // Check for updates on mount
     checkForUpdates()
   }, [checkForUpdates])
-
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'guideai-dark' ? 'guideai-light' : 'guideai-dark'))
-  }
 
   const handleLogout = async () => {
     await logout()
@@ -54,13 +43,13 @@ function Header() {
             <div className="w-8 rounded">
               <img
                 src="/logo-44-optimized.png"
-                alt="GuideAI"
+                alt="GuideMode"
                 className="w-full h-full object-contain"
               />
             </div>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-primary">GuideAI</h1>
+            <h1 className="text-xl font-bold text-primary">GuideMode</h1>
           </div>
         </div>
 
@@ -87,7 +76,7 @@ function Header() {
 
           {/* Docs Link */}
           <a
-            href="https://docs.guideai.dev"
+            href="https://docs.guidemode.dev"
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-ghost btn-sm btn-circle"
@@ -123,9 +112,9 @@ function Header() {
           <button
             onClick={toggleTheme}
             className="btn btn-ghost btn-sm btn-circle"
-            title={theme === 'guideai-dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'guidemode-dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'guideai-dark' ? (
+            {theme === 'guidemode-dark' ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"

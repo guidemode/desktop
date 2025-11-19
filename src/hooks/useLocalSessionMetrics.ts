@@ -1,4 +1,4 @@
-import type { SessionMetricsUI } from '@guideai-dev/session-processing/ui'
+import type { SessionMetricsUI } from '@guidemode/session-processing/ui'
 import { useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 

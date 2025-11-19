@@ -1,6 +1,6 @@
-import { DateFilter, SessionCard } from '@guideai-dev/session-processing/ui'
-import type { SessionRating } from '@guideai-dev/session-processing/ui'
-import type { DateFilterValue } from '@guideai-dev/session-processing/ui'
+import { DateFilter, SessionCard } from '@guidemode/session-processing/ui'
+import type { SessionRating } from '@guidemode/session-processing/ui'
+import type { DateFilterValue } from '@guidemode/session-processing/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -219,7 +219,7 @@ export default function SessionsPage() {
       })
 
       // Parse session using the content hook's parser
-      const { ProcessorRegistry } = await import('@guideai-dev/session-processing/processors')
+      const { ProcessorRegistry } = await import('@guidemode/session-processing/processors')
       const registry = new ProcessorRegistry()
       const processor = registry.getProcessor(provider)
 

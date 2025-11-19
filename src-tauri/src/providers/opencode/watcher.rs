@@ -198,7 +198,7 @@ impl OpenCodeWatcher {
         let cwd = extract_cwd_from_canonical_content(&canonical_jsonl);
 
         // Get project-organized canonical path
-        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+        // Uses ~/.guidemode/sessions/{provider}/{project}/{session_id}.jsonl
         let jsonl_path = get_canonical_path(PROVIDER_ID, cwd.as_deref(), session_id)
             .map_err(|e| format!("Failed to get canonical path: {}", e))?;
 

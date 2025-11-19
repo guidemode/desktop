@@ -1,11 +1,11 @@
 [package]
-name = "guideai-desktop"
+name = "guidemode-desktop"
 version = "0.1.44"
-description = "GuideAI Desktop Menubar App"
-authors = ["GuideAI Team"]
+description = "GuideMode Desktop Menubar App"
+authors = ["GuideMode Team"]
 license = "MIT"
 repository = ""
-default-run = "guideai-desktop"
+default-run = "guidemode-desktop"
 edition = "2021"
 rust-version = "1.89"
 

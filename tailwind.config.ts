@@ -6,9 +6,9 @@ export default defineConfig({
     './**/*.{js,ts,jsx,tsx}',
     './index.html',
     // Session processing package source files (via symlink in app's node_modules)
-    '../node_modules/@guideai-dev/session-processing/src/**/*.{js,ts,jsx,tsx}',
+    '../node_modules/@guidemode/session-processing/src/**/*.{js,ts,jsx,tsx}',
     // Session processing package built files
-    '../node_modules/@guideai-dev/session-processing/dist/esm/**/*.{js,jsx}',
+    '../node_modules/@guidemode/session-processing/dist/esm/**/*.{js,jsx}',
   ],
   // Safelist: These classes are needed because:
   // 1. DaisyUI component base classes (card, stat, etc.) - required for v4 compatibility

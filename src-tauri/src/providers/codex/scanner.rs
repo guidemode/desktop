@@ -222,19 +222,27 @@ mod tests {
     #[test]
     fn test_parse_codex_session() {
         let temp_dir = tempdir().unwrap();
+
+        // Create a fake project directory for the CWD
+        let project_dir = temp_dir.path().join("guidemode");
+        fs::create_dir_all(&project_dir).unwrap();
+
         let file_path = temp_dir
             .path()
             .join("rollout-2025-09-28T10-23-35-test.jsonl");
 
-        let content = r#"{"timestamp":"2025-09-28T08:23:35.126Z","type":"session_meta","payload":{"id":"01998f6b-8fc9-7782-8d57-ca53fbfd057a","timestamp":"2025-09-28T08:23:35.113Z","cwd":"/Users/cliftonc/work/guideai","originator":"codex_cli_rs","cli_version":"0.42.0","instructions":null}}
-{"timestamp":"2025-09-28T08:24:16.297Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Hello"}]}}"#;
+        let content = format!(
+            r#"{{"timestamp":"2025-09-28T08:23:35.126Z","type":"session_meta","payload":{{"id":"01998f6b-8fc9-7782-8d57-ca53fbfd057a","timestamp":"2025-09-28T08:23:35.113Z","cwd":"{}","originator":"codex_cli_rs","cli_version":"0.42.0","instructions":null}}}}
+{{"timestamp":"2025-09-28T08:24:16.297Z","type":"response_item","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"Hello"}}]}}}}"#,
+            project_dir.display()
+        );
 
         fs::write(&file_path, content).unwrap();
 
         let result = parse_codex_session(&file_path, None).unwrap().unwrap();
 
         assert_eq!(result.session_id, "01998f6b-8fc9-7782-8d57-ca53fbfd057a");
-        assert_eq!(result.project_name, "guideai");
+        assert_eq!(result.project_name, "guidemode");
         assert_eq!(result.provider, "codex");
         assert!(result.session_start_time.is_some());
         assert!(result.session_end_time.is_some());

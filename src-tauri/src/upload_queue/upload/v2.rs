@@ -2,7 +2,7 @@
 //!
 //! Uploads full session content with gzip compression and hash-based deduplication.
 
-use crate::config::GuideAIConfig;
+use crate::config::GuideModeConfig;
 use crate::database::{get_full_session_by_id, get_session_metrics, get_session_rating};
 use crate::logging::{log_debug, log_info};
 use crate::project_metadata::extract_project_metadata;
@@ -62,7 +62,7 @@ pub async fn upload_v2(
     item: &UploadItem,
     session_id: &str,
     file_hash: &str,
-    config: GuideAIConfig,
+    config: GuideModeConfig,
 ) -> Result<(), String> {
     let api_key = config.api_key.clone().ok_or("No API key configured")?;
     let server_url = config

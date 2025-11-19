@@ -1,23 +1,23 @@
-use guideai_desktop::providers::gemini::utils::{
+use guidemode_desktop::providers::gemini::utils::{
     extract_candidate_paths_from_content, find_matching_path, infer_cwd_from_session, verify_hash,
 };
-use guideai_desktop::providers::gemini::parser::{GeminiMessage, GeminiSession, Thought, ToolCall};
+use guidemode_desktop::providers::gemini::parser::{GeminiMessage, GeminiSession, Thought, ToolCall};
 use serde_json::json;
 use std::collections::HashMap;
 
 #[test]
 fn test_extract_candidate_paths_from_content() {
     let content = r#"
---- /Users/cliftonc/work/guideai/CLAUDE.md ---
+--- /Users/cliftonc/work/guidemode/CLAUDE.md ---
 Some content here
---- /Users/cliftonc/work/guideai/apps/desktop/CLAUDE.md ---
+--- /Users/cliftonc/work/guidemode/apps/desktop/CLAUDE.md ---
 More content
 "#;
 
     let paths = extract_candidate_paths_from_content(content);
     assert_eq!(paths.len(), 2);
-    assert!(paths.contains(&"/Users/cliftonc/work/guideai/CLAUDE.md".to_string()));
-    assert!(paths.contains(&"/Users/cliftonc/work/guideai/apps/desktop/CLAUDE.md".to_string()));
+    assert!(paths.contains(&"/Users/cliftonc/work/guidemode/CLAUDE.md".to_string()));
+    assert!(paths.contains(&"/Users/cliftonc/work/guidemode/apps/desktop/CLAUDE.md".to_string()));
 }
 
 #[test]
@@ -39,22 +39,22 @@ fn test_extract_candidate_paths_multiple_per_line() {
 
 #[test]
 fn test_find_matching_path_exact_match() {
-    // Hash for "/Users/cliftonc/work/guideai"
-    let expected_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
-    let full_path = "/Users/cliftonc/work/guideai/CLAUDE.md";
+    // Hash for "/Users/cliftonc/work/guidemode"
+    let expected_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
+    let full_path = "/Users/cliftonc/work/guidemode/CLAUDE.md";
 
     let result = find_matching_path(full_path, expected_hash);
-    assert_eq!(result, Some("/Users/cliftonc/work/guideai".to_string()));
+    assert_eq!(result, Some("/Users/cliftonc/work/guidemode".to_string()));
 }
 
 #[test]
 fn test_find_matching_path_nested_file() {
-    // Hash for "/Users/cliftonc/work/guideai"
-    let expected_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
-    let full_path = "/Users/cliftonc/work/guideai/apps/desktop/src/main.rs";
+    // Hash for "/Users/cliftonc/work/guidemode"
+    let expected_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
+    let full_path = "/Users/cliftonc/work/guidemode/apps/desktop/src/main.rs";
 
     let result = find_matching_path(full_path, expected_hash);
-    assert_eq!(result, Some("/Users/cliftonc/work/guideai".to_string()));
+    assert_eq!(result, Some("/Users/cliftonc/work/guidemode".to_string()));
 }
 
 #[test]
@@ -69,16 +69,16 @@ fn test_find_matching_path_no_match() {
 
 #[test]
 fn test_verify_hash() {
-    // Known hash for "/Users/cliftonc/work/guideai"
-    let workdir = "/Users/cliftonc/work/guideai";
-    let expected_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+    // Known hash for "/Users/cliftonc/work/guidemode"
+    let workdir = "/Users/cliftonc/work/guidemode";
+    let expected_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
 
     assert!(verify_hash(workdir, expected_hash));
 }
 
 #[test]
 fn test_verify_hash_mismatch() {
-    let workdir = "/Users/cliftonc/work/guideai";
+    let workdir = "/Users/cliftonc/work/guidemode";
     let wrong_hash = "0000000000000000000000000000000000000000000000000000000000000000";
 
     assert!(!verify_hash(workdir, wrong_hash));
@@ -88,7 +88,7 @@ fn test_verify_hash_mismatch() {
 fn test_infer_cwd_from_session_with_thoughts() {
     // This test validates CWD extraction from Extended Thinking (thoughts field)
     // Simulates a real Gemini Code session where file paths appear in thoughts
-    let project_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+    let project_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
 
     let session = GeminiSession {
         session_id: "test-session-123".to_string(),
@@ -122,7 +122,7 @@ fn test_infer_cwd_from_session_with_thoughts() {
                     },
                     Thought {
                         subject: "Analyzing Files".to_string(),
-                        description: "I've located `file_watcher.rs` at /Users/cliftonc/work/guideai/apps/desktop/src-tauri/src/file_watcher.rs, confirming my hypothesis.".to_string(),
+                        description: "I've located `file_watcher.rs` at /Users/cliftonc/work/guidemode/apps/desktop/src-tauri/src/file_watcher.rs, confirming my hypothesis.".to_string(),
                         timestamp: "2025-10-19T03:18:38.136Z".to_string(),
                     },
                 ]),
@@ -133,13 +133,13 @@ fn test_infer_cwd_from_session_with_thoughts() {
     };
 
     let result = infer_cwd_from_session(&session, project_hash);
-    assert_eq!(result, Some("/Users/cliftonc/work/guideai".to_string()));
+    assert_eq!(result, Some("/Users/cliftonc/work/guidemode".to_string()));
 }
 
 #[test]
 fn test_infer_cwd_from_session_with_content() {
     // Test CWD extraction from message content (original behavior)
-    let project_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+    let project_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
 
     let session = GeminiSession {
         session_id: "test-session-456".to_string(),
@@ -150,7 +150,7 @@ fn test_infer_cwd_from_session_with_content() {
             id: "msg-1".to_string(),
             timestamp: "2025-10-19T00:01:00.000Z".to_string(),
             message_type: "user".to_string(),
-            content: "Reading file /Users/cliftonc/work/guideai/CLAUDE.md".to_string(),
+            content: "Reading file /Users/cliftonc/work/guidemode/CLAUDE.md".to_string(),
             tool_calls: None,
             thoughts: None,
             tokens: None,
@@ -159,13 +159,13 @@ fn test_infer_cwd_from_session_with_content() {
     };
 
     let result = infer_cwd_from_session(&session, project_hash);
-    assert_eq!(result, Some("/Users/cliftonc/work/guideai".to_string()));
+    assert_eq!(result, Some("/Users/cliftonc/work/guidemode".to_string()));
 }
 
 #[test]
 fn test_infer_cwd_from_session_no_match() {
     // Test when no file paths match the hash
-    let project_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+    let project_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
 
     let session = GeminiSession {
         session_id: "test-session-789".to_string(),
@@ -191,13 +191,13 @@ fn test_infer_cwd_from_session_no_match() {
 #[test]
 fn test_infer_cwd_from_tool_calls() {
     // Test CWD extraction from tool call arguments (Priority 1 - most reliable)
-    let project_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+    let project_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
 
     let tool_call = ToolCall {
         id: "read_file-1234567890".to_string(),
         name: "read_file".to_string(),
         args: Some(json!({
-            "absolute_path": "/Users/cliftonc/work/guideai/apps/desktop/CLAUDE.md"
+            "absolute_path": "/Users/cliftonc/work/guidemode/apps/desktop/CLAUDE.md"
         })),
         result: None,
         status: Some("success".to_string()),
@@ -222,21 +222,21 @@ fn test_infer_cwd_from_tool_calls() {
     };
 
     let result = infer_cwd_from_session(&session, project_hash);
-    assert_eq!(result, Some("/Users/cliftonc/work/guideai".to_string()));
+    assert_eq!(result, Some("/Users/cliftonc/work/guidemode".to_string()));
 }
 
 #[test]
 fn test_infer_cwd_from_tool_calls_paths_array() {
     // Test CWD extraction from tool call with paths array (read_many_files)
-    let project_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+    let project_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
 
     let tool_call = ToolCall {
         id: "read_many-9876543210".to_string(),
         name: "read_many_files".to_string(),
         args: Some(json!({
             "paths": [
-                "/Users/cliftonc/work/guideai/package.json",
-                "/Users/cliftonc/work/guideai/apps/desktop/package.json"
+                "/Users/cliftonc/work/guidemode/package.json",
+                "/Users/cliftonc/work/guidemode/apps/desktop/package.json"
             ]
         })),
         result: None,
@@ -262,20 +262,20 @@ fn test_infer_cwd_from_tool_calls_paths_array() {
     };
 
     let result = infer_cwd_from_session(&session, project_hash);
-    assert_eq!(result, Some("/Users/cliftonc/work/guideai".to_string()));
+    assert_eq!(result, Some("/Users/cliftonc/work/guidemode".to_string()));
 }
 
 #[test]
 fn test_cwd_priority_tool_calls_over_thoughts() {
     // Test that tool calls have priority over thoughts when both exist
-    let project_hash = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+    let project_hash = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
 
     // Tool call with correct path
     let tool_call = ToolCall {
         id: "tool-123".to_string(),
         name: "read_file".to_string(),
         args: Some(json!({
-            "absolute_path": "/Users/cliftonc/work/guideai/CLAUDE.md"
+            "absolute_path": "/Users/cliftonc/work/guidemode/CLAUDE.md"
         })),
         result: None,
         status: Some("success".to_string()),
@@ -305,5 +305,5 @@ fn test_cwd_priority_tool_calls_over_thoughts() {
 
     let result = infer_cwd_from_session(&session, project_hash);
     // Should find the correct path from tool call, not from thoughts or content
-    assert_eq!(result, Some("/Users/cliftonc/work/guideai".to_string()));
+    assert_eq!(result, Some("/Users/cliftonc/work/guidemode".to_string()));
 }

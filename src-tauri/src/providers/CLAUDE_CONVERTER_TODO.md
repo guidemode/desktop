@@ -179,7 +179,7 @@ After implementation, validate with CLI:
 
 ```bash
 # Test converted Claude sessions
-pnpm cli validate ~/.guideai/sessions/claude-code/ --provider claude-code
+pnpm cli validate ~/.guidemode/sessions/claude-code/ --provider claude-code
 
 # Should show 100% valid (like Codex)
 # ✓ All validations passed!

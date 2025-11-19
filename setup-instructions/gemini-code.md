@@ -7,7 +7,7 @@
 
 ## Critical Configuration Required
 
-For GuideAI to properly track Gemini sessions, you **must** configure the following settings in Gemini Code, you can do this via the `/settings` command in a session:
+For GuideMode to properly track Gemini sessions, you **must** configure the following settings in Gemini Code, you can do this via the `/settings` command in a session:
 
 1. **Session Retention**: true
 
@@ -30,4 +30,4 @@ These settings should result in your `~/.gemini/settings.json` containing entrie
 }
 ```
 
-⚠️ **Without these settings, GuideAI will not be able to track your Gemini sessions correctly.**
+⚠️ **Without these settings, GuideMode will not be able to track your Gemini sessions correctly.**

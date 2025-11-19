@@ -152,7 +152,7 @@ export const useConfigStore = create<ConfigState>()(
       clearError: () => set({ error: null }),
     }),
     {
-      name: 'guideai-config-storage',
+      name: 'guidemode-config-storage',
       // Persist AI API keys and system config, not provider configs (those are in Tauri backend)
       partialize: state => ({
         aiApiKeys: state.aiApiKeys,

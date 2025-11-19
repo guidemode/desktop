@@ -13,7 +13,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => invoke(...args),
 }))
 
-vi.mock('@guideai-dev/session-processing/ui', () => ({
+vi.mock('@guidemode/session-processing/ui', () => ({
   parserRegistry: {
     getParser: (...args: unknown[]) => getParser(...args),
   },

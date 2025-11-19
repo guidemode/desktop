@@ -5,7 +5,7 @@
  * This ensures type safety and consistency across the desktop app.
  */
 
-import type { SessionMetricsData } from '@guideai-dev/types'
+import type { SessionMetricsData } from '@guidemode/types'
 
 /**
  * SQL Row Types (snake_case to match database column names)

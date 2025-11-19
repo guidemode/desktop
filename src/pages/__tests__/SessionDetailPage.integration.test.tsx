@@ -126,9 +126,9 @@ vi.mock('../../stores/sessionActivityStore', () => ({
     selector ? selector(sessionActivityStore) : sessionActivityStore,
 }))
 
-vi.mock('@guideai-dev/session-processing/ui', async () => {
-  const actual = await vi.importActual<typeof import('@guideai-dev/session-processing/ui')>(
-    '@guideai-dev/session-processing/ui'
+vi.mock('@guidemode/session-processing/ui', async () => {
+  const actual = await vi.importActual<typeof import('@guidemode/session-processing/ui')>(
+    '@guidemode/session-processing/ui'
   )
 
   return {

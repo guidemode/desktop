@@ -16,7 +16,7 @@
 /// - Corruption detection
 /// - Comparison with expected schema
 
-use guideai_desktop::providers::cursor::{db, protobuf::CursorMessage};
+use guidemode_desktop::providers::cursor::{db, protobuf::CursorMessage};
 use rusqlite::Connection;
 use std::path::PathBuf;
 
@@ -104,8 +104,8 @@ fn analyze_blob(data: &[u8], blob_id: &str) -> Result<(), Box<dyn std::error::Er
         Ok(msg) => {
             println!("✓ Decoded successfully");
             println!("Format: {}", match &msg {
-                guideai_desktop::providers::cursor::protobuf::CursorMessage::Protobuf(_) => "Protobuf",
-                guideai_desktop::providers::cursor::protobuf::CursorMessage::Json(_) => "JSON",
+                guidemode_desktop::providers::cursor::protobuf::CursorMessage::Protobuf(_) => "Protobuf",
+                guidemode_desktop::providers::cursor::protobuf::CursorMessage::Json(_) => "JSON",
             });
             println!("Role: {}", msg.get_role());
             println!("ID: {}\n", msg.get_id());
@@ -166,7 +166,7 @@ fn classify_blob(data: &[u8]) -> &'static str {
 
 /// Detect corruption patterns
 fn detect_corruption(msg: &CursorMessage) -> bool {
-    use guideai_desktop::providers::cursor::protobuf::CursorMessage;
+    use guidemode_desktop::providers::cursor::protobuf::CursorMessage;
 
     match msg {
         CursorMessage::Protobuf(blob) => {

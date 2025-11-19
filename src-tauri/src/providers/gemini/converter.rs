@@ -308,7 +308,7 @@ pub fn convert_to_canonical_file(
     let canonical_content = canonical_lines.join("\n");
 
     // Get project-organized canonical path using inferred CWD
-    // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+    // Uses ~/.guidemode/sessions/{provider}/{project}/{session_id}.jsonl
     let canonical_path = get_canonical_path(PROVIDER_ID, cwd.as_deref(), session_id)
         .map_err(|e| anyhow::anyhow!("Failed to get canonical path: {}", e))?;
 

@@ -85,7 +85,7 @@ stop_processing()
 ### validation.rs
 - `validate_jsonl_timestamps()` - Ensures chronological order
 - File size and content validation
-- **All uploads use canonical JSONL format** from `~/.guideai/sessions/{provider}/`
+- **All uploads use canonical JSONL format** from `~/.guidemode/sessions/{provider}/`
 
 ### hashing.rs
 - `calculate_file_hash_sha256()` - Hash files for deduplication

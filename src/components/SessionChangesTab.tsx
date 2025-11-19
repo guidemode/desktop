@@ -333,7 +333,7 @@ function FileDiffCard({ file, expanded, onToggle, viewMode }: FileDiffCardProps)
   }
 
   // Get current theme from document
-  const theme = document.documentElement.dataset.theme || 'guideai-dark'
+  const theme = document.documentElement.dataset.theme || 'guidemode-dark'
   const diffTheme = theme.includes('light') ? 'light' : 'dark'
 
   // Validate and clean hunks

@@ -35,7 +35,7 @@ fn main() {
         .plugin(
             tauri_plugin_sql::Builder::new()
                 .add_migrations(
-                    "sqlite:guideai.db",
+                    "sqlite:guidemode.db",
                     vec![
                         tauri_plugin_sql::Migration {
                             version: 1,

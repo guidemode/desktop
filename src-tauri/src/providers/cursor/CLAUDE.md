@@ -162,7 +162,7 @@ fn get_content_with_raw_fallback(blob: &CursorBlob, raw_data: &[u8]) -> String {
 
 ### 4. Output
 
-**Canonical path**: `~/.guideai/sessions/cursor/{project}/{session_id}.jsonl`
+**Canonical path**: `~/.guidemode/sessions/cursor/{project}/{session_id}.jsonl`
 
 Each line is a `CanonicalMessage` JSON object with:
 - Unified structure across all providers
@@ -176,15 +176,15 @@ Each line is a `CanonicalMessage` JSON object with:
 Cursor doesn't store CWD in message blobs. We derive it from the projects directory:
 
 ```
-~/.cursor/projects/Users-cliftonc-work-guideai/
+~/.cursor/projects/Users-cliftonc-work-guidemode/
                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
                    CWD with / → - substitution
 ```
 
 **Algorithm**:
 1. Hash directory name: `0d265392dfc786bc1af0df28bb21fea3`
-2. Reverse project name to CWD: `Users-cliftonc-work-guideai` → `/Users/cliftonc/work/guideai`
-3. Verify MD5 match: `md5("/Users/cliftonc/work/guideai") == hash`
+2. Reverse project name to CWD: `Users-cliftonc-work-guidemode` → `/Users/cliftonc/work/guidemode`
+3. Verify MD5 match: `md5("/Users/cliftonc/work/guidemode") == hash`
 
 ---
 
@@ -327,7 +327,7 @@ Blob 3/32: 232bb144...
 
 4. **Test canonical output**:
    ```bash
-   cat ~/.guideai/sessions/cursor/project/session.jsonl | jq '.message.content'
+   cat ~/.guidemode/sessions/cursor/project/session.jsonl | jq '.message.content'
    ```
    Verify no corruption in final canonical format.
 
@@ -374,7 +374,7 @@ cargo run --bin inspect_cursor -- list
 cargo run --bin inspect_cursor -- session ~/.cursor/chats/.../store.db
 
 # Verify canonical output
-cat ~/.guideai/sessions/cursor/project/*.jsonl | jq .
+cat ~/.guidemode/sessions/cursor/project/*.jsonl | jq .
 ```
 
 ---

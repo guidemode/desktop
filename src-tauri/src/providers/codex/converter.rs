@@ -613,13 +613,13 @@ mod tests {
             "payload": {
                 "id": "019a005e-c8fc-7512-8e78-c2322cbf0875",
                 "timestamp": "2025-10-20T06:46:43.196Z",
-                "cwd": "/Users/cliftonc/work/guideai",
+                "cwd": "/Users/cliftonc/work/guidemode",
                 "originator": "codex_cli_rs",
                 "cli_version": "0.45.0",
                 "git": {
                     "commit_hash": "77a017",
                     "branch": "main",
-                    "repository_url": "git@github.com:guideai-dev/guideai.git"
+                    "repository_url": "git@github.com:guidemode/guidemode.git"
                 }
             }
         }"#;
@@ -627,7 +627,7 @@ mod tests {
         let msg: CodexMessage = serde_json::from_str(json).unwrap();
         assert_eq!(msg.message_type, "session_meta");
         assert_eq!(msg.get_session_id(), Some("019a005e-c8fc-7512-8e78-c2322cbf0875".to_string()));
-        assert_eq!(msg.get_cwd(), Some("/Users/cliftonc/work/guideai".to_string()));
+        assert_eq!(msg.get_cwd(), Some("/Users/cliftonc/work/guidemode".to_string()));
         assert_eq!(msg.get_git_branch(), Some("main".to_string()));
     }
 

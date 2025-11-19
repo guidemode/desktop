@@ -45,7 +45,7 @@ pub fn sanitize_project_name(name: &str) -> String {
 }
 
 /// Get canonical path for a session file, organized by project
-/// Path format: ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+/// Path format: ~/.guidemode/sessions/{provider}/{project}/{session_id}.jsonl
 ///
 /// If CWD is provided, attempts to extract project name using project_metadata.
 /// Falls back to "unknown" if CWD is None or project extraction fails.
@@ -57,7 +57,7 @@ pub fn get_canonical_path(
     // Get base sessions directory
     let sessions_base = dirs::home_dir()
         .ok_or("Failed to get home directory")?
-        .join(".guideai")
+        .join(".guidemode")
         .join("sessions")
         .join(provider_id);
 

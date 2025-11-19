@@ -1,4 +1,4 @@
-import type { SessionRating } from '@guideai-dev/session-processing/ui'
+import type { SessionRating } from '@guidemode/session-processing/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 

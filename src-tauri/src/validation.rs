@@ -1,16 +1,16 @@
-use crate::error::GuideAIError;
+use crate::error::GuideModeError;
 use std::path::{Path, PathBuf};
 
 /// Maximum file size for session uploads (100MB)
 pub const MAX_SESSION_FILE_SIZE: u64 = 100 * 1024 * 1024;
 
 /// Allowed base directories for file operations
-fn get_allowed_directories() -> Result<Vec<PathBuf>, GuideAIError> {
+fn get_allowed_directories() -> Result<Vec<PathBuf>, GuideModeError> {
     let home_dir = dirs::home_dir()
-        .ok_or_else(|| GuideAIError::Validation("Could not find home directory".to_string()))?;
+        .ok_or_else(|| GuideModeError::Validation("Could not find home directory".to_string()))?;
 
     let mut allowed = vec![
-        home_dir.join(".guideai"), // GuideAI config and logs
+        home_dir.join(".guidemode"), // GuideMode config and logs
         home_dir.join(".claude"),  // Claude Code sessions
         home_dir.join(".codex"),   // Codex sessions
     ];
@@ -45,11 +45,11 @@ fn get_allowed_directories() -> Result<Vec<PathBuf>, GuideAIError> {
 /// - Checking it starts with one of the allowed directories
 /// - Rejecting paths with ".." components
 /// - Rejecting paths outside the allowed directories
-pub fn validate_file_path(path: &Path) -> Result<PathBuf, GuideAIError> {
+pub fn validate_file_path(path: &Path) -> Result<PathBuf, GuideModeError> {
     // Check for ".." components before canonicalization
     for component in path.components() {
         if let std::path::Component::ParentDir = component {
-            return Err(GuideAIError::Validation(format!(
+            return Err(GuideModeError::Validation(format!(
                 "Path contains '..' component: {}",
                 path.display()
             )));
@@ -58,7 +58,7 @@ pub fn validate_file_path(path: &Path) -> Result<PathBuf, GuideAIError> {
 
     // Get canonical path (resolves symlinks and relative paths)
     let canonical = path.canonicalize().map_err(|e| {
-        GuideAIError::Validation(format!(
+        GuideModeError::Validation(format!(
             "Failed to resolve path '{}': {}",
             path.display(),
             e
@@ -72,7 +72,7 @@ pub fn validate_file_path(path: &Path) -> Result<PathBuf, GuideAIError> {
         .any(|allowed_dir| canonical.starts_with(allowed_dir));
 
     if !is_allowed {
-        return Err(GuideAIError::Validation(format!(
+        return Err(GuideModeError::Validation(format!(
             "Path is outside allowed directories: {}",
             canonical.display()
         )));
@@ -82,9 +82,9 @@ pub fn validate_file_path(path: &Path) -> Result<PathBuf, GuideAIError> {
 }
 
 /// Validate file size is within the specified limit
-pub fn validate_file_size(path: &Path, max_size: u64) -> Result<u64, GuideAIError> {
+pub fn validate_file_size(path: &Path, max_size: u64) -> Result<u64, GuideModeError> {
     let metadata = std::fs::metadata(path).map_err(|e| {
-        GuideAIError::Validation(format!(
+        GuideModeError::Validation(format!(
             "Failed to get file metadata for '{}': {}",
             path.display(),
             e
@@ -94,7 +94,7 @@ pub fn validate_file_size(path: &Path, max_size: u64) -> Result<u64, GuideAIErro
     let size = metadata.len();
 
     if size > max_size {
-        return Err(GuideAIError::Validation(format!(
+        return Err(GuideModeError::Validation(format!(
             "File size ({} bytes) exceeds maximum allowed size ({} bytes): {}",
             size,
             max_size,
@@ -106,7 +106,7 @@ pub fn validate_file_size(path: &Path, max_size: u64) -> Result<u64, GuideAIErro
 }
 
 /// Validate both path and size for session files
-pub fn validate_session_file(path: &Path) -> Result<(PathBuf, u64), GuideAIError> {
+pub fn validate_session_file(path: &Path) -> Result<(PathBuf, u64), GuideModeError> {
     let canonical_path = validate_file_path(path)?;
     let size = validate_file_size(&canonical_path, MAX_SESSION_FILE_SIZE)?;
     Ok((canonical_path, size))
@@ -159,7 +159,7 @@ mod tests {
         let dirs = dirs.unwrap();
         assert!(!dirs.is_empty());
 
-        // Should include .guideai, .claude, .codex, and opencode
+        // Should include .guidemode, .claude, .codex, and opencode
         assert!(dirs.len() >= 4);
     }
 }

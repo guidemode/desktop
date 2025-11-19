@@ -5,7 +5,7 @@ let dbInstance: Database | null = null
 /**
  * Initialize the local SQLite database
  * Database is stored in Tauri's app data directory
- * (e.g., ~/Library/Application Support/com.guideai.desktop/ on macOS)
+ * (e.g., ~/Library/Application Support/com.guidemode.desktop/ on macOS)
  */
 export async function initializeDatabase() {
   if (dbInstance) {
@@ -14,7 +14,7 @@ export async function initializeDatabase() {
 
   try {
     // Connect to SQLite database (plugin handles the path)
-    dbInstance = await Database.load('sqlite:guideai.db')
+    dbInstance = await Database.load('sqlite:guidemode.db')
 
     console.log('✓ Local database initialized successfully')
     return dbInstance

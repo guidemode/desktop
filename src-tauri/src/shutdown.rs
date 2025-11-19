@@ -4,7 +4,7 @@ use tokio::sync::broadcast;
 ///
 /// Usage:
 /// ```no_run
-/// use guideai_desktop::shutdown::ShutdownCoordinator;
+/// use guidemode_desktop::shutdown::ShutdownCoordinator;
 /// use tokio::sync::mpsc;
 ///
 /// # async fn example() {

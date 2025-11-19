@@ -17,7 +17,7 @@
 
 **How it works:**
 1. Uses existing `get_session_content` Tauri command to read file
-2. Calls `validateJSONL()` from `@guideai-dev/session-processing/validation` directly
+2. Calls `validateJSONL()` from `@guidemode/session-processing/validation` directly
 3. Returns `JSONLValidationResult` with errors, warnings, and stats
 4. **100% TypeScript** - no Rust commands, no CLI subprocess, no overhead
 
@@ -101,7 +101,7 @@
 3. **Click Icon**: View raw JSONL (future: show validation report here)
 4. **Debug**: If red, use CLI to see detailed errors:
    ```bash
-   pnpm cli validate ~/.guideai/sessions/cursor/project/session.jsonl --verbose
+   pnpm cli validate ~/.guidemode/sessions/cursor/project/session.jsonl --verbose
    ```
 
 ### Testing
@@ -109,7 +109,7 @@
 **Test with valid session:**
 ```bash
 # Should show green DEBUG icon
-pnpm cli validate ~/.guideai/sessions/codex/project/session.jsonl
+pnpm cli validate ~/.guidemode/sessions/codex/project/session.jsonl
 ```
 
 **Test with invalid session:**
@@ -141,7 +141,7 @@ Instead:
 ### Why Use TypeScript Library Directly?
 
 We call the validation library directly from React rather than adding Rust commands:
-1. **DRY**: Reuse existing `@guideai-dev/session-processing/validation` library
+1. **DRY**: Reuse existing `@guidemode/session-processing/validation` library
 2. **No subprocess overhead**: No CLI spawning, no JSON parsing, instant results
 3. **Consistency**: Same validation logic everywhere (CLI, desktop, server)
 4. **Maintainability**: Single source of truth for validation rules
@@ -152,7 +152,7 @@ We call the validation library directly from React rather than adding Rust comma
 
 Initial implementation used Rust → CLI subprocess → JSON parsing. This was **terrible** because:
 - ❌ Spawns Node.js process for every validation
-- ❌ Hardcoded CLI path (`~/work/guideai/packages/cli/dist/esm/cli.js`)
+- ❌ Hardcoded CLI path (`~/work/guidemode/packages/cli/dist/esm/cli.js`)
 - ❌ JSON parsing overhead
 - ❌ Error handling complexity
 - ❌ Slower than direct library call
@@ -221,7 +221,7 @@ Add "Validate All" button to provider settings:
 ```tsx
 <button onClick={async () => {
   const results = await invoke('validate_session_directory', {
-    directory: '~/.guideai/sessions/cursor/',
+    directory: '~/.guidemode/sessions/cursor/',
     provider: 'cursor'
   })
   // Show summary
@@ -254,7 +254,7 @@ Add "Validate All" button to provider settings:
 
 ## Known Limitations
 
-1. **CLI Path Hardcoded**: Currently uses `~/work/guideai/packages/cli/dist/esm/cli.js`
+1. **CLI Path Hardcoded**: Currently uses `~/work/guidemode/packages/cli/dist/esm/cli.js`
    - **Fix**: Make configurable or bundle CLI with desktop app
 
 2. **Validation on Every Load**: Re-validates session every time detail page opens
@@ -269,7 +269,7 @@ Add "Validate All" button to provider settings:
 ## Deployment Notes
 
 ### Before Release
-1. Ensure CLI package is built: `pnpm --filter @guideai-dev/cli build`
+1. Ensure CLI package is built: `pnpm --filter @guidemode/cli build`
 2. Test with real Cursor/Codex sessions
 3. Verify DEBUG icon colors display correctly
 4. Update user documentation

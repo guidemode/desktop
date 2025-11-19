@@ -381,20 +381,20 @@ mod tests {
     fn test_ssh_to_https_conversion() {
         // Test GitHub SSH URL format (git@github.com:owner/repo.git)
         assert_eq!(
-            convert_ssh_to_https("git@github.com:guideai-dev/guideai.git"),
-            "https://github.com/guideai-dev/guideai.git"
+            convert_ssh_to_https("git@github.com:guidemode/guidemode.git"),
+            "https://github.com/guidemode/guidemode.git"
         );
 
         // Test SSH protocol format (ssh://git@github.com/owner/repo.git)
         assert_eq!(
-            convert_ssh_to_https("ssh://git@github.com/guideai-dev/guideai.git"),
-            "https://github.com/guideai-dev/guideai.git"
+            convert_ssh_to_https("ssh://git@github.com/guidemode/guidemode.git"),
+            "https://github.com/guidemode/guidemode.git"
         );
 
         // Test HTTPS URL (should remain unchanged)
         assert_eq!(
-            convert_ssh_to_https("https://github.com/guideai-dev/guideai.git"),
-            "https://github.com/guideai-dev/guideai.git"
+            convert_ssh_to_https("https://github.com/guidemode/guidemode.git"),
+            "https://github.com/guidemode/guidemode.git"
         );
 
         // Test non-GitHub URL (should remain unchanged)
@@ -414,7 +414,7 @@ mod tests {
         // Write SSH URL to config
         fs::write(
             &git_config,
-            "[remote \"origin\"]\n\turl = git@github.com:guideai-dev/guideai.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n",
+            "[remote \"origin\"]\n\turl = git@github.com:guidemode/guidemode.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n",
         ).unwrap();
 
         let metadata = extract_project_metadata(temp_dir.path().to_str().unwrap()).unwrap();
@@ -422,7 +422,7 @@ mod tests {
         // Should be converted to HTTPS
         assert_eq!(
             metadata.git_remote_url,
-            Some("https://github.com/guideai-dev/guideai.git".to_string())
+            Some("https://github.com/guidemode/guidemode.git".to_string())
         );
     }
 }

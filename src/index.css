@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @plugin "daisyui";
-@source "../node_modules/@guideai-dev/session-processing/src/**/*.{js,ts,jsx,tsx}";
+@source "../node_modules/@guidemode/session-processing/src/**/*.{js,ts,jsx,tsx}";
 
 /* Force responsive utilities that are missing in Tailwind v4 + DaisyUI */
 @layer utilities {
@@ -29,9 +29,9 @@
   }
 }
 
-/* GuideAI Light Theme */
+/* GuideMode Light Theme */
 @plugin "daisyui/theme" {
-  name: "guideai-light";
+  name: "guidemode-light";
   default: true;
   color-scheme: light;
   --color-primary: #0891b2;
@@ -56,9 +56,9 @@
   --color-error-content: #ffffff;
 }
 
-/* GuideAI Dark Theme */
+/* GuideMode Dark Theme */
 @plugin "daisyui/theme" {
-  name: "guideai-dark";
+  name: "guidemode-dark";
   color-scheme: dark;
   --color-primary: #22d3ee;
   --color-primary-content: #0c4a6e;
@@ -112,7 +112,7 @@
 }
 
 /* Colorful gradient backgrounds for main content area */
-[data-theme="guideai-light"] .main-gradient {
+[data-theme="guidemode-light"] .main-gradient {
   background: linear-gradient(
     135deg,
     #dbeafe 0%,    /* blue-100 */
@@ -123,7 +123,7 @@
   );
 }
 
-[data-theme="guideai-dark"] .main-gradient {
+[data-theme="guidemode-dark"] .main-gradient {
   background: linear-gradient(
     135deg,
     #020617 0%,    /* slate-950 */
@@ -163,135 +163,135 @@ pre[class*="language-"] {
 }
 
 /* Light theme colors */
-[data-theme="guideai-light"] code[class*="language-"],
-[data-theme="guideai-light"] pre[class*="language-"] {
+[data-theme="guidemode-light"] code[class*="language-"],
+[data-theme="guidemode-light"] pre[class*="language-"] {
   color: #000;
   background: #f5f2f0;
 }
 
-[data-theme="guideai-light"] .token.comment,
-[data-theme="guideai-light"] .token.prolog,
-[data-theme="guideai-light"] .token.doctype,
-[data-theme="guideai-light"] .token.cdata {
+[data-theme="guidemode-light"] .token.comment,
+[data-theme="guidemode-light"] .token.prolog,
+[data-theme="guidemode-light"] .token.doctype,
+[data-theme="guidemode-light"] .token.cdata {
   color: #708090;
 }
 
-[data-theme="guideai-light"] .token.punctuation {
+[data-theme="guidemode-light"] .token.punctuation {
   color: #999;
 }
 
-[data-theme="guideai-light"] .token.property,
-[data-theme="guideai-light"] .token.tag,
-[data-theme="guideai-light"] .token.boolean,
-[data-theme="guideai-light"] .token.number,
-[data-theme="guideai-light"] .token.constant,
-[data-theme="guideai-light"] .token.symbol,
-[data-theme="guideai-light"] .token.deleted {
+[data-theme="guidemode-light"] .token.property,
+[data-theme="guidemode-light"] .token.tag,
+[data-theme="guidemode-light"] .token.boolean,
+[data-theme="guidemode-light"] .token.number,
+[data-theme="guidemode-light"] .token.constant,
+[data-theme="guidemode-light"] .token.symbol,
+[data-theme="guidemode-light"] .token.deleted {
   color: #905;
 }
 
-[data-theme="guideai-light"] .token.selector,
-[data-theme="guideai-light"] .token.attr-name,
-[data-theme="guideai-light"] .token.string,
-[data-theme="guideai-light"] .token.char,
-[data-theme="guideai-light"] .token.builtin,
-[data-theme="guideai-light"] .token.inserted {
+[data-theme="guidemode-light"] .token.selector,
+[data-theme="guidemode-light"] .token.attr-name,
+[data-theme="guidemode-light"] .token.string,
+[data-theme="guidemode-light"] .token.char,
+[data-theme="guidemode-light"] .token.builtin,
+[data-theme="guidemode-light"] .token.inserted {
   color: #690;
 }
 
-[data-theme="guideai-light"] .token.operator,
-[data-theme="guideai-light"] .token.entity,
-[data-theme="guideai-light"] .token.url {
+[data-theme="guidemode-light"] .token.operator,
+[data-theme="guidemode-light"] .token.entity,
+[data-theme="guidemode-light"] .token.url {
   color: #9a6e3a;
 }
 
-[data-theme="guideai-light"] .token.atrule,
-[data-theme="guideai-light"] .token.attr-value,
-[data-theme="guideai-light"] .token.keyword {
+[data-theme="guidemode-light"] .token.atrule,
+[data-theme="guidemode-light"] .token.attr-value,
+[data-theme="guidemode-light"] .token.keyword {
   color: #07a;
 }
 
-[data-theme="guideai-light"] .token.function,
-[data-theme="guideai-light"] .token.class-name {
+[data-theme="guidemode-light"] .token.function,
+[data-theme="guidemode-light"] .token.class-name {
   color: #dd4a68;
 }
 
-[data-theme="guideai-light"] .token.regex,
-[data-theme="guideai-light"] .token.important,
-[data-theme="guideai-light"] .token.variable {
+[data-theme="guidemode-light"] .token.regex,
+[data-theme="guidemode-light"] .token.important,
+[data-theme="guidemode-light"] .token.variable {
   color: #e90;
 }
 
 /* Dark theme colors (Okaidia-inspired) */
-[data-theme="guideai-dark"] code[class*="language-"],
-[data-theme="guideai-dark"] pre[class*="language-"] {
+[data-theme="guidemode-dark"] code[class*="language-"],
+[data-theme="guidemode-dark"] pre[class*="language-"] {
   color: #f8f8f2;
   background: #1e1e1e;
 }
 
-[data-theme="guideai-dark"] .token.comment,
-[data-theme="guideai-dark"] .token.prolog,
-[data-theme="guideai-dark"] .token.doctype,
-[data-theme="guideai-dark"] .token.cdata {
+[data-theme="guidemode-dark"] .token.comment,
+[data-theme="guidemode-dark"] .token.prolog,
+[data-theme="guidemode-dark"] .token.doctype,
+[data-theme="guidemode-dark"] .token.cdata {
   color: #8292a2;
 }
 
-[data-theme="guideai-dark"] .token.punctuation {
+[data-theme="guidemode-dark"] .token.punctuation {
   color: #f8f8f2;
 }
 
-[data-theme="guideai-dark"] .token.property,
-[data-theme="guideai-dark"] .token.tag,
-[data-theme="guideai-dark"] .token.constant,
-[data-theme="guideai-dark"] .token.symbol,
-[data-theme="guideai-dark"] .token.deleted {
+[data-theme="guidemode-dark"] .token.property,
+[data-theme="guidemode-dark"] .token.tag,
+[data-theme="guidemode-dark"] .token.constant,
+[data-theme="guidemode-dark"] .token.symbol,
+[data-theme="guidemode-dark"] .token.deleted {
   color: #f92672;
 }
 
-[data-theme="guideai-dark"] .token.boolean,
-[data-theme="guideai-dark"] .token.number {
+[data-theme="guidemode-dark"] .token.boolean,
+[data-theme="guidemode-dark"] .token.number {
   color: #ae81ff;
 }
 
-[data-theme="guideai-dark"] .token.selector,
-[data-theme="guideai-dark"] .token.attr-name,
-[data-theme="guideai-dark"] .token.string,
-[data-theme="guideai-dark"] .token.char,
-[data-theme="guideai-dark"] .token.builtin,
-[data-theme="guideai-dark"] .token.inserted {
+[data-theme="guidemode-dark"] .token.selector,
+[data-theme="guidemode-dark"] .token.attr-name,
+[data-theme="guidemode-dark"] .token.string,
+[data-theme="guidemode-dark"] .token.char,
+[data-theme="guidemode-dark"] .token.builtin,
+[data-theme="guidemode-dark"] .token.inserted {
   color: #a6e22e;
 }
 
-[data-theme="guideai-dark"] .token.operator,
-[data-theme="guideai-dark"] .token.entity,
-[data-theme="guideai-dark"] .token.url {
+[data-theme="guidemode-dark"] .token.operator,
+[data-theme="guidemode-dark"] .token.entity,
+[data-theme="guidemode-dark"] .token.url {
   color: #f8f8f2;
 }
 
-[data-theme="guideai-dark"] .token.atrule,
-[data-theme="guideai-dark"] .token.attr-value,
-[data-theme="guideai-dark"] .token.keyword {
+[data-theme="guidemode-dark"] .token.atrule,
+[data-theme="guidemode-dark"] .token.attr-value,
+[data-theme="guidemode-dark"] .token.keyword {
   color: #66d9ef;
 }
 
-[data-theme="guideai-dark"] .token.function,
-[data-theme="guideai-dark"] .token.class-name {
+[data-theme="guidemode-dark"] .token.function,
+[data-theme="guidemode-dark"] .token.class-name {
   color: #e6db74;
 }
 
-[data-theme="guideai-dark"] .token.regex,
-[data-theme="guideai-dark"] .token.important,
-[data-theme="guideai-dark"] .token.variable {
+[data-theme="guidemode-dark"] .token.regex,
+[data-theme="guidemode-dark"] .token.important,
+[data-theme="guidemode-dark"] .token.variable {
   color: #fd971f;
 }
 
 /* Inline code blocks */
-[data-theme="guideai-light"] .markdown-rendered code:not([class*="language-"]) {
+[data-theme="guidemode-light"] .markdown-rendered code:not([class*="language-"]) {
   background-color: #f5f2f0;
   color: black;
 }
 
-[data-theme="guideai-dark"] .markdown-rendered code:not([class*="language-"]) {
+[data-theme="guidemode-dark"] .markdown-rendered code:not([class*="language-"]) {
   background-color: #1e1e1e;
   color: #d4d4d4;
 }
@@ -303,7 +303,7 @@ pre[class*="language-"] {
 }
 
 /* Enhanced diff view colors - use correct variable names with trailing -- */
-[data-theme="guideai-light"] .diff-view-wrapper {
+[data-theme="guidemode-light"] .diff-view-wrapper {
   /* Addition line colors */
   --diff-add-content--: #dcfce7;
   --diff-add-lineNumber--: #bbf7d0;
@@ -321,7 +321,7 @@ pre[class*="language-"] {
   --diff-hunk-content--: #e0e7ff;
 }
 
-[data-theme="guideai-dark"] .diff-view-wrapper {
+[data-theme="guidemode-dark"] .diff-view-wrapper {
   /* Addition line colors */
   --diff-add-content--: #14532d;
   --diff-add-lineNumber--: #166534;

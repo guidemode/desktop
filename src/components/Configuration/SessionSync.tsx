@@ -71,7 +71,7 @@ function SessionSync({ agent }: SessionSyncProps) {
         </div>
 
         <p className="text-sm text-base-content/70 mb-4">
-          Upload your historical {agent.name} sessions to GuideAI for analytics and insights. Only
+          Upload your historical {agent.name} sessions to GuideMode for analytics and insights. Only
           sessions from selected projects will be included.
         </p>
 
@@ -275,7 +275,7 @@ function SessionSync({ agent }: SessionSyncProps) {
         {/* Help Text */}
         <div className="text-xs text-base-content/60 mt-3">
           This will scan your local {agent.name} directories for session files and upload them to
-          GuideAI. Duplicate sessions will be automatically detected and skipped.
+          GuideMode. Duplicate sessions will be automatically detected and skipped.
         </div>
       </div>
     </div>

@@ -24,4 +24,4 @@ Claude Code stores sessions in:
 - **macOS/Linux**: `~/.claude/`
 - **Windows**: `~/.claude/` (works with WSL/Git Bash)
 
-GuideAI will automatically detect sessions in this directory once Claude Code is installed and you've started using it.
+GuideMode will automatically detect sessions in this directory once Claude Code is installed and you've started using it.

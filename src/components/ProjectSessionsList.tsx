@@ -1,5 +1,5 @@
-import { DateFilter, SessionCard } from '@guideai-dev/session-processing/ui'
-import type { DateFilterValue, SessionRating } from '@guideai-dev/session-processing/ui'
+import { DateFilter, SessionCard } from '@guidemode/session-processing/ui'
+import type { DateFilterValue, SessionRating } from '@guidemode/session-processing/ui'
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'

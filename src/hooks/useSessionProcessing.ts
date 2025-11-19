@@ -1,4 +1,4 @@
-import type { ProcessorContext, ProcessorResult } from '@guideai-dev/session-processing/processors'
+import type { ProcessorContext, ProcessorResult } from '@guidemode/session-processing/processors'
 import type {
   ContextManagementMetrics,
   EngagementMetrics,
@@ -7,7 +7,7 @@ import type {
   PerformanceMetrics,
   QualityMetrics,
   UsageMetrics,
-} from '@guideai-dev/types'
+} from '@guidemode/types'
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useState } from 'react'
 import type { SessionMetricsRow } from '../utils/dbMappers'
@@ -89,7 +89,7 @@ export function useSessionProcessing() {
 
       try {
         // Dynamic import to avoid bundling issues
-        const { ProcessorRegistry } = await import('@guideai-dev/session-processing/processors')
+        const { ProcessorRegistry } = await import('@guidemode/session-processing/processors')
         const registry = new ProcessorRegistry()
 
         // Get processor for provider

@@ -24,4 +24,4 @@ GitHub Copilot CLI provides AI-powered command line assistance.
 GitHub Copilot stores sessions in:
 - **All platforms**: `~/.copilot/`
 
-GuideAI will automatically detect sessions in this directory once you start using Copilot CLI.
+GuideMode will automatically detect sessions in this directory once you start using Copilot CLI.

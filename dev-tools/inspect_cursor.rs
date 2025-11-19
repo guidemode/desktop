@@ -19,7 +19,7 @@
 ///   # List all Cursor sessions
 ///   cargo run --bin inspect_cursor -- list
 
-use guideai_desktop::providers::cursor::{debug, discover_sessions};
+use guidemode_desktop::providers::cursor::{debug, discover_sessions};
 use std::path::PathBuf;
 
 fn main() {

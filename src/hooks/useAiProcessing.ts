@@ -2,14 +2,14 @@ import {
   ClaudeModelAdapter,
   GeminiModelAdapter,
   OpenAIModelAdapter,
-} from '@guideai-dev/session-processing/ai-models'
+} from '@guidemode/session-processing/ai-models'
 import {
   IntentExtractionTask,
   QualityAssessmentTask,
   SessionPhaseAnalysisTask,
   SessionSummaryTask,
-} from '@guideai-dev/session-processing/ai-models'
-import type { ParsedSession } from '@guideai-dev/session-processing/processors'
+} from '@guidemode/session-processing/ai-models'
+import type { ParsedSession } from '@guidemode/session-processing/processors'
 import { invoke } from '@tauri-apps/api/core'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useCallback, useState } from 'react'
@@ -64,7 +64,7 @@ export function useAiProcessing() {
         // Claude Code parser uses 'user_input' and 'assistant_response', but AI tasks expect 'user' and 'assistant'
         const normalizedSession: ParsedSession = {
           ...parsedSession,
-          messages: parsedSession.messages.map(msg => ({
+          messages: parsedSession.messages.map((msg: any) => ({
             ...msg,
             type:
               msg.type === 'user_input'

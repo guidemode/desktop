@@ -12,7 +12,7 @@ export interface User {
   avatarUrl?: string
 }
 
-export interface GuideAIConfig {
+export interface GuideModeConfig {
   apiKey?: string
   serverUrl?: string
   username?: string
@@ -27,7 +27,7 @@ export function useAuth() {
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['auth', 'config'],
-    queryFn: async (): Promise<GuideAIConfig> => {
+    queryFn: async (): Promise<GuideModeConfig> => {
       return await invoke('load_config_command')
     },
   })

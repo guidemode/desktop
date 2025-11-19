@@ -16,4 +16,4 @@ OpenCode stores sessions in:
 - **macOS/Linux**: `~/.local/share/opencode/`
 - **Windows**: `%LOCALAPPDATA%/opencode/`
 
-GuideAI will automatically detect sessions in this directory once OpenCode is installed and configured.
+GuideMode will automatically detect sessions in this directory once OpenCode is installed and configured.

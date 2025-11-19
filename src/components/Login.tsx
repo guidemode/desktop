@@ -3,7 +3,7 @@ import type React from 'react'
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
-const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL?.trim() || 'https://be.guideai.dev'
+const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL?.trim() || 'https://app.guidemode.dev'
 
 export default function Login() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL)
@@ -18,20 +18,20 @@ export default function Login() {
   return (
     <div className="card bg-base-200 shadow-lg">
       <div className="card-body">
-        {/* GuideAI Header */}
+        {/* GuideMode Header */}
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="avatar">
               <div className="w-8 rounded">
                 <img
                   src="/logo-32-optimized.png"
-                  alt="GuideAI"
+                  alt="GuideMode"
                   className="w-full h-full object-contain"
                 />
               </div>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-primary">GuideAI</h1>
+              <h1 className="text-xl font-bold text-primary">GuideMode</h1>
             </div>
           </div>
           <h2 className="text-base font-medium text-base-content/80">Sign In to Continue</h2>
@@ -48,7 +48,7 @@ export default function Login() {
                 className="input input-bordered input-sm"
                 value={serverUrl}
                 onChange={e => setServerUrl(e.target.value)}
-                placeholder="https://api.guideai.com"
+                placeholder="https://api.guidemode.com"
                 disabled={isLoggingIn}
               />
             </div>

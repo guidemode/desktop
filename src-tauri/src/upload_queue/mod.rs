@@ -10,7 +10,7 @@ mod validation;
 // Re-export types and constants from submodules
 pub use types::*;
 
-use crate::config::GuideAIConfig;
+use crate::config::GuideModeConfig;
 use crate::project_metadata::ProjectMetadata;
 use crate::providers::SessionInfo;
 use indexmap::IndexSet;
@@ -33,7 +33,7 @@ pub struct UploadQueue {
     failed_items: Arc<Mutex<Vec<UploadItem>>>,
     uploaded_hashes: Arc<Mutex<IndexSet<String>>>, // Track uploaded file hashes (SHA256) with insertion order
     is_running: Arc<Mutex<bool>>,
-    config: Arc<Mutex<Option<GuideAIConfig>>>,
+    config: Arc<Mutex<Option<GuideModeConfig>>>,
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
     upload_semaphore: Arc<Semaphore>, // Limit concurrent uploads
 }
@@ -73,7 +73,7 @@ impl UploadQueue {
         }
     }
 
-    pub fn set_config(&self, config: GuideAIConfig) {
+    pub fn set_config(&self, config: GuideModeConfig) {
         if let Ok(mut config_guard) = self.config.lock() {
             *config_guard = Some(config);
         }
@@ -242,9 +242,9 @@ mod tests {
 
         let queue = UploadQueue::new();
 
-        // Create temp file in allowed directory (~/.guideai/test)
+        // Create temp file in allowed directory (~/.guidemode/test)
         let home = dirs::home_dir().unwrap();
-        let test_dir = home.join(".guideai").join("test");
+        let test_dir = home.join(".guidemode").join("test");
         fs::create_dir_all(&test_dir).unwrap();
 
         let test_file = test_dir.join("test_session.jsonl");
@@ -324,9 +324,9 @@ mod tests {
 
         let queue = UploadQueue::new();
 
-        // Create temp file in allowed directory (~/.guideai/test)
+        // Create temp file in allowed directory (~/.guidemode/test)
         let home = dirs::home_dir().unwrap();
-        let test_dir = home.join(".guideai").join("test");
+        let test_dir = home.join(".guidemode").join("test");
         fs::create_dir_all(&test_dir).unwrap();
 
         let test_file = test_dir.join("test_session_no_timestamps.jsonl");

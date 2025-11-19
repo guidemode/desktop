@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct GuideAIConfig {
+pub struct GuideModeConfig {
     #[serde(rename = "apiKey")]
     pub api_key: Option<String>,
     #[serde(rename = "serverUrl")]
@@ -20,7 +20,7 @@ pub struct GuideAIConfig {
 
 pub fn get_config_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     if let Some(home_dir) = dirs::home_dir() {
-        Ok(home_dir.join(".guideai"))
+        Ok(home_dir.join(".guidemode"))
     } else {
         Err("Could not find home directory".into())
     }
@@ -48,21 +48,21 @@ pub fn ensure_config_dir() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn load_config() -> Result<GuideAIConfig, Box<dyn std::error::Error>> {
+pub fn load_config() -> Result<GuideModeConfig, Box<dyn std::error::Error>> {
     ensure_config_dir()?;
 
     let config_file = get_config_file_path()?;
 
     if config_file.exists() {
         let content = fs::read_to_string(config_file)?;
-        let config: GuideAIConfig = serde_json::from_str(&content)?;
+        let config: GuideModeConfig = serde_json::from_str(&content)?;
         Ok(config)
     } else {
-        Ok(GuideAIConfig::default())
+        Ok(GuideModeConfig::default())
     }
 }
 
-pub fn save_config(config: &GuideAIConfig) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_config(config: &GuideModeConfig) -> Result<(), Box<dyn std::error::Error>> {
     ensure_config_dir()?;
 
     let config_file = get_config_file_path()?;
@@ -84,7 +84,7 @@ pub fn save_config(config: &GuideAIConfig) -> Result<(), Box<dyn std::error::Err
 }
 
 pub fn clear_config() -> Result<(), Box<dyn std::error::Error>> {
-    let default_config = GuideAIConfig::default();
+    let default_config = GuideModeConfig::default();
     save_config(&default_config)
 }
 

@@ -1,8 +1,8 @@
 use thiserror::Error;
 
-/// GuideAI Desktop application errors
+/// GuideMode Desktop application errors
 #[derive(Debug, Error)]
-pub enum GuideAIError {
+pub enum GuideModeError {
     /// Database-related errors
     #[error("Database error: {0}")]
     Database(#[from] rusqlite::Error),
@@ -44,43 +44,43 @@ pub enum GuideAIError {
     Other(String),
 }
 
-/// Convert GuideAIError to String for Tauri commands
+/// Convert GuideModeError to String for Tauri commands
 /// Tauri commands can only return String errors to the frontend
-impl From<GuideAIError> for String {
-    fn from(err: GuideAIError) -> String {
+impl From<GuideModeError> for String {
+    fn from(err: GuideModeError) -> String {
         err.to_string()
     }
 }
 
-/// Helper to convert Box<dyn std::error::Error> to GuideAIError
-impl From<Box<dyn std::error::Error>> for GuideAIError {
+/// Helper to convert Box<dyn std::error::Error> to GuideModeError
+impl From<Box<dyn std::error::Error>> for GuideModeError {
     fn from(err: Box<dyn std::error::Error>) -> Self {
-        GuideAIError::Other(err.to_string())
+        GuideModeError::Other(err.to_string())
     }
 }
 
 /// Helper trait for adding context to errors
 #[allow(dead_code)]
 pub trait ErrorContext<T> {
-    fn context(self, msg: &str) -> Result<T, GuideAIError>;
+    fn context(self, msg: &str) -> Result<T, GuideModeError>;
 }
 
-impl<T, E: Into<GuideAIError>> ErrorContext<T> for Result<T, E> {
-    fn context(self, msg: &str) -> Result<T, GuideAIError> {
+impl<T, E: Into<GuideModeError>> ErrorContext<T> for Result<T, E> {
+    fn context(self, msg: &str) -> Result<T, GuideModeError> {
         self.map_err(|e| {
-            let err: GuideAIError = e.into();
+            let err: GuideModeError = e.into();
             match err {
-                GuideAIError::Other(s) => GuideAIError::Other(format!("{}: {}", msg, s)),
-                GuideAIError::Database(e) => GuideAIError::Database(e),
-                GuideAIError::Config(s) => GuideAIError::Config(format!("{}: {}", msg, s)),
-                GuideAIError::Upload(s) => GuideAIError::Upload(format!("{}: {}", msg, s)),
-                GuideAIError::Auth(s) => GuideAIError::Auth(format!("{}: {}", msg, s)),
-                GuideAIError::Validation(s) => GuideAIError::Validation(format!("{}: {}", msg, s)),
-                GuideAIError::Io(e) => GuideAIError::Io(e),
-                GuideAIError::Json(e) => GuideAIError::Json(e),
-                GuideAIError::Http(e) => GuideAIError::Http(e),
-                GuideAIError::LockPoisoned(s) => {
-                    GuideAIError::LockPoisoned(format!("{}: {}", msg, s))
+                GuideModeError::Other(s) => GuideModeError::Other(format!("{}: {}", msg, s)),
+                GuideModeError::Database(e) => GuideModeError::Database(e),
+                GuideModeError::Config(s) => GuideModeError::Config(format!("{}: {}", msg, s)),
+                GuideModeError::Upload(s) => GuideModeError::Upload(format!("{}: {}", msg, s)),
+                GuideModeError::Auth(s) => GuideModeError::Auth(format!("{}: {}", msg, s)),
+                GuideModeError::Validation(s) => GuideModeError::Validation(format!("{}: {}", msg, s)),
+                GuideModeError::Io(e) => GuideModeError::Io(e),
+                GuideModeError::Json(e) => GuideModeError::Json(e),
+                GuideModeError::Http(e) => GuideModeError::Http(e),
+                GuideModeError::LockPoisoned(s) => {
+                    GuideModeError::LockPoisoned(format!("{}: {}", msg, s))
                 }
             }
         })
@@ -93,13 +93,13 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let err = GuideAIError::Validation("Invalid path".to_string());
+        let err = GuideModeError::Validation("Invalid path".to_string());
         assert_eq!(err.to_string(), "Validation error: Invalid path");
     }
 
     #[test]
     fn test_error_conversion_to_string() {
-        let err = GuideAIError::Config("Missing API key".to_string());
+        let err = GuideModeError::Config("Missing API key".to_string());
         let s: String = err.into();
         assert_eq!(s, "Configuration error: Missing API key");
     }

@@ -1,4 +1,4 @@
-import { SessionCard } from '@guideai-dev/session-processing/ui'
+import { SessionCard } from '@guidemode/session-processing/ui'
 import { Link, useNavigate } from 'react-router-dom'
 import ProviderStatusIndicator from '../components/ProviderStatusIndicator'
 import ProviderIcon from '../components/icons/ProviderIcon'
@@ -86,7 +86,7 @@ function DashboardPage() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-base-content">Dashboard</h1>
-        <p className="text-sm text-base-content/70 mt-1">Welcome to GuideAI Desktop Manager</p>
+        <p className="text-sm text-base-content/70 mt-1">Welcome to GuideMode Desktop Manager</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -186,7 +186,7 @@ function DashboardPage() {
             ) : (
               <div className="mt-2">
                 <p className="text-sm text-base-content/60 mb-3">
-                  Sign in to sync your coding sessions to GuideAI cloud
+                  Sign in to sync your coding sessions to GuideMode cloud
                 </p>
                 <Link to="/settings" className="btn btn-primary btn-sm">
                   Sign In to Sync

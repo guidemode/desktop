@@ -360,7 +360,7 @@ impl GeminiWatcher {
     }
 
     /// Extract project name from JSONL file by reading CWD field
-    /// Returns the last path component of the CWD (e.g., "/Users/cliftonc/work/guideai" -> "guideai")
+    /// Returns the last path component of the CWD (e.g., "/Users/cliftonc/work/guidemode" -> "guidemode")
     fn extract_project_name_from_jsonl(jsonl_path: &PathBuf) -> Option<String> {
         // Read first few lines to find CWD
         let content = fs::read_to_string(jsonl_path).ok()?;

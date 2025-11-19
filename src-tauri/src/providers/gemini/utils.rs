@@ -307,16 +307,16 @@ mod tests {
 
     #[test]
     fn test_verify_hash() {
-        let workdir = "/Users/cliftonc/work/guideai";
-        let expected = "7e95bdea1c91b994ca74439a92c90b82767abc9c0b8566e20ab60b2a797fc332";
+        let workdir = "/Users/cliftonc/work/guidemode";
+        let expected = "277996b93ab2729878c409f6bbc1aa9fd3e741575b334969086150a208f5e277";
         assert!(verify_hash(workdir, expected));
     }
 
     #[test]
     fn test_get_project_name() {
-        let workdir = "/Users/cliftonc/work/guideai";
+        let workdir = "/Users/cliftonc/work/guidemode";
         let name = get_project_name_from_path(workdir).unwrap();
-        assert_eq!(name, "guideai");
+        assert_eq!(name, "guidemode");
     }
 
     // Tests for CWD extraction are now in tests/gemini_cwd_extraction.rs

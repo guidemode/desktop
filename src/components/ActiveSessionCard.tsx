@@ -2,9 +2,9 @@ import {
   TimelineGroup as TimelineGroupComponent,
   TimelineMessage as TimelineMessageComponent,
   isTimelineGroup,
-} from '@guideai-dev/session-processing/ui'
-import { RatingBadge } from '@guideai-dev/session-processing/ui'
-import type { SessionRating } from '@guideai-dev/session-processing/ui'
+} from '@guidemode/session-processing/ui'
+import { RatingBadge } from '@guidemode/session-processing/ui'
+import type { SessionRating } from '@guidemode/session-processing/ui'
 import {
   ArrowDownIcon,
   ArrowUpIcon,

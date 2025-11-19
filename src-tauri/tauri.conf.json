@@ -1,7 +1,7 @@
 {
-  "productName": "GuideAI Desktop",
+  "productName": "GuideMode Desktop",
   "version": "0.1.44",
-  "identifier": "com.guideai.desktop",
+  "identifier": "com.guidemode.desktop",
   "build": {
     "beforeBuildCommand": "pnpm build",
     "beforeDevCommand": "pnpm dev",
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "GuideAI",
+        "title": "GuideMode",
         "fullscreen": false,
         "height": 768,
         "width": 1024,
@@ -36,6 +36,7 @@
             "core:default",
             "core:event:allow-listen",
             "core:event:allow-emit",
+            "core:window:allow-set-theme",
             "sql:default",
             "sql:allow-load",
             "sql:allow-execute",
@@ -48,7 +49,7 @@
               "identifier": "http:default",
               "allow": [
                 {
-                  "url": "https://install.guideai.dev/*"
+                  "url": "https://install.guidemode.dev/*"
                 },
                 {
                   "url": "https://api.anthropic.com/*"
@@ -76,7 +77,7 @@
     "active": true,
     "category": "DeveloperTool",
     "createUpdaterArtifacts": "v1Compatible",
-    "publisher": "GuideAI",
+    "publisher": "GuideMode",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -89,14 +90,14 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:guideai.db"]
+      "preload": ["sqlite:guidemode.db"]
     },
     "shell": {
       "open": true
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2RjIyNTZEQzU4REUyREMKUldUYzRvM0ZiU1h5RnV2TTM2aGx0MFYyVS9xM1U3aUhGZjNseWJBZjZBMmRzUXdmL1lWQVRTbEsK",
-      "endpoints": ["https://install.guideai.dev/desktop/{{target}}-{{arch}}/latest.json"]
+      "endpoints": ["https://install.guidemode.dev/desktop/{{target}}-{{arch}}/latest.json"]
     }
   }
 }

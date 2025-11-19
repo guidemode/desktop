@@ -44,7 +44,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       setStepIndex: (index: number) => set({ currentStepIndex: index }),
     }),
     {
-      name: 'guideai-onboarding-storage',
+      name: 'guidemode-onboarding-storage',
     }
   )
 )

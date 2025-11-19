@@ -2,7 +2,7 @@
 //!
 //! Uploads session metadata and metrics, skipping JSONL transcript.
 
-use crate::config::GuideAIConfig;
+use crate::config::GuideModeConfig;
 use crate::database::{
     get_full_session_by_id, get_session_metrics, get_session_rating, SessionMetrics,
 };
@@ -13,7 +13,7 @@ use chrono::DateTime;
 use serde_json::Value;
 
 /// Upload session metadata and metrics only (no JSONL transcript)
-pub async fn upload_metrics_only(item: &UploadItem, config: GuideAIConfig) -> Result<(), String> {
+pub async fn upload_metrics_only(item: &UploadItem, config: GuideModeConfig) -> Result<(), String> {
     let api_key = config.api_key.clone().ok_or("No API key configured")?;
     let server_url = config
         .server_url

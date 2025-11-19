@@ -6,7 +6,7 @@
 //!
 //! This module is kept for backward compatibility and legacy code paths only.
 
-use crate::config::GuideAIConfig;
+use crate::config::GuideModeConfig;
 use crate::logging::log_info;
 use crate::project_metadata::ProjectMetadata;
 use crate::upload_queue::types::ProjectUploadRequest;
@@ -23,7 +23,7 @@ use crate::upload_queue::types::ProjectUploadRequest;
 )]
 pub async fn upload_project_metadata_static(
     metadata: &ProjectMetadata,
-    config: Option<GuideAIConfig>,
+    config: Option<GuideModeConfig>,
 ) -> Result<(), String> {
     let config = config.ok_or("No configuration available")?;
     let api_key = config.api_key.ok_or("No API key configured")?;

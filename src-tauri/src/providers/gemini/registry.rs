@@ -7,10 +7,10 @@ use std::path::PathBuf;
 /// Maps project hash to its working directory and metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeminiProjectEntry {
-    /// The working directory path (e.g., "/Users/cliftonc/work/guideai")
+    /// The working directory path (e.g., "/Users/cliftonc/work/guidemode")
     pub cwd: String,
 
-    /// Human-readable project name (extracted from CWD, e.g., "guideai")
+    /// Human-readable project name (extracted from CWD, e.g., "guidemode")
     pub name: String,
 
     /// Last time this project was seen (ISO 8601 timestamp)
@@ -19,7 +19,7 @@ pub struct GeminiProjectEntry {
 }
 
 /// Registry that maps Gemini project hashes to their metadata
-/// Stored at ~/.guideai/providers/gemini-code-projects.json
+/// Stored at ~/.guidemode/providers/gemini-code-projects.json
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GeminiProjectRegistry {
     /// Map of hash -> project entry

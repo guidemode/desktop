@@ -94,14 +94,14 @@ pub fn init_database() -> Result<()> {
 /// Get the database file path (same location as tauri-plugin-sql uses)
 fn get_db_path() -> Result<std::path::PathBuf> {
     // Use Tauri's app data directory (same as plugin)
-    // On macOS: ~/Library/Application Support/com.guideai.desktop/
-    // On Linux: ~/.local/share/com.guideai.desktop/
-    // On Windows: %APPDATA%/com.guideai.desktop/
+    // On macOS: ~/Library/Application Support/com.guidemode.desktop/
+    // On Linux: ~/.local/share/com.guidemode.desktop/
+    // On Windows: %APPDATA%/com.guidemode.desktop/
     let app_dir = dirs::data_local_dir()
         .ok_or_else(|| rusqlite::Error::InvalidPath(std::path::PathBuf::from("app_data")))?
-        .join("com.guideai.desktop");
+        .join("com.guidemode.desktop");
 
-    Ok(app_dir.join("guideai.db"))
+    Ok(app_dir.join("guidemode.db"))
 }
 
 /// Insert a session into the database

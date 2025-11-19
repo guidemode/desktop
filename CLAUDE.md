@@ -1,4 +1,4 @@
-# Desktop - GuideAI Menubar Application
+# Desktop - GuideMode Menubar Application
 
 Cross-platform desktop menubar application built with Tauri, React, TypeScript, and Tailwind CSS.
 
@@ -62,7 +62,7 @@ apps/desktop/
 **CRITICAL**: The `src/index.css` file must be kept in sync with `apps/server/src/ui/index.css`.
 
 **Required to match:**
-- Theme definitions (guideai-light and guideai-dark)
+- Theme definitions (guidemode-light and guidemode-dark)
 - All CSS custom properties and color values
 - Base styles and border compatibility rules
 - Main gradient definitions
@@ -231,7 +231,7 @@ tokio::select! {
 
 **Location:** `src/providers/canonical/mod.rs`
 
-The canonical format is GuideAI's universal message format that all AI providers (Claude Code, Gemini, Copilot, Codex, OpenCode) convert to. This simplifies downstream processing—instead of 5+ provider-specific parsers, we have one canonical parser.
+The canonical format is GuideMode's universal message format that all AI providers (Claude Code, Gemini, Copilot, Codex, OpenCode) convert to. This simplifies downstream processing—instead of 5+ provider-specific parsers, we have one canonical parser.
 
 **Key Benefits:**
 - Single TypeScript parser handles all providers
@@ -281,7 +281,7 @@ pub trait ToCanonical {
 
 **Implementations:** `src/providers/{provider}/converter.rs`
 
-**Canonical Output:** `~/.guideai/sessions/{provider}/{project}/{session}.jsonl`
+**Canonical Output:** `~/.guidemode/sessions/{provider}/{project}/{session}.jsonl`
 
 #### Adding New Providers
 
@@ -329,7 +329,7 @@ Each AI provider (Claude, Copilot, OpenCode, Codex, Gemini) has a dedicated file
 - Monitor provider-specific file paths
 - Detect session file changes (size, timestamp)
 - **Convert native format to canonical JSONL** using `ToCanonical` trait
-- Write to canonical path (`~/.guideai/sessions/{provider}/{project}/`)
+- Write to canonical path (`~/.guidemode/sessions/{provider}/{project}/`)
 - Extract metadata (CWD, git info, timing)
 - Publish `SessionEvent` to EventBus
 - Track session state in memory
@@ -369,7 +369,7 @@ Asynchronous upload processing with modular architecture (see `upload_queue/CLAU
 ## Configuration
 
 ### Shared Config with CLI
-- **Location**: `~/.guideai/config.json`
+- **Location**: `~/.guidemode/config.json`
 - **Format**: JSON with camelCase fields
 - **Permissions**: 600 (read/write for owner only)
 - **Structure**:
@@ -388,17 +388,17 @@ Asynchronous upload processing with modular architecture (see `upload_queue/CLAU
 The desktop app uses Vite's environment variable system with the following files:
 
 - **`.env`** - Shared defaults (committed to git)
-  - `VITE_SERVER_URL=https://be.guideai.dev`
+  - `VITE_SERVER_URL=https://app.guidemode.dev`
   - Loaded in all modes (dev and production)
 
 - **`.env.local`** - Local development overrides (NOT committed)
   - Your personal server URL for development
-  - Example: `VITE_SERVER_URL=https://clifton.guideai.dev`
+  - Example: `VITE_SERVER_URL=https://clifton.guidemode.dev`
   - Takes priority over `.env`
   - Copy from `.env.example` to get started
 
 - **`.env.production`** - Production-specific settings (committed)
-  - `VITE_SERVER_URL=https://be.guideai.dev`
+  - `VITE_SERVER_URL=https://app.guidemode.dev`
   - Only loaded during `vite build` (production builds)
 
 **Loading Priority (highest to lowest):**
@@ -613,9 +613,9 @@ pnpm format:rust
 To check the desktop app from the workspace root:
 
 ```bash
-pnpm --filter @guideai-dev/desktop typecheck
-pnpm --filter @guideai-dev/desktop lint
-pnpm --filter @guideai-dev/desktop test
+pnpm --filter @guidemode/desktop typecheck
+pnpm --filter @guidemode/desktop lint
+pnpm --filter @guidemode/desktop test
 ```
 
 ## Features
@@ -629,7 +629,7 @@ pnpm --filter @guideai-dev/desktop test
 ### User Interface
 - **Menubar Integration**: Native system tray icon
 - **Responsive Design**: Compact 350x400 window
-- **Theme**: Custom GuideAI theme with DaisyUI
+- **Theme**: Custom GuideMode theme with DaisyUI
 - **Loading States**: Skeleton screens and spinners
 
 ### System Integration
@@ -652,7 +652,7 @@ pnpm --filter @guideai-dev/desktop test
 ## Dependencies
 
 ### Frontend
-- `@guideai/types`: Shared TypeScript definitions
+- `@guidemode/types`: Shared TypeScript definitions
 - `@heroicons/react`: Icon components
 - `@tanstack/react-query`: Data fetching and caching
 - `@tauri-apps/api`: Tauri frontend bindings
@@ -689,7 +689,7 @@ pnpm tauri:build
 
 - **Frontend**: Browser DevTools (F12 in dev mode)
 - **Backend**: Rust logs in terminal
-- **Config**: Check `~/.guideai/config.json`
+- **Config**: Check `~/.guidemode/config.json`
 
 ## Key Architectural Decisions
 
@@ -726,7 +726,7 @@ pnpm tauri:build
 - **Private APIs**: Enabled for advanced window management
 - **System Tray**: Native menubar integration
 - **Permissions**: File system access for config
-- **Paths**: Uses `~/.guideai/` for config, provider-specific paths for data
+- **Paths**: Uses `~/.guidemode/` for config, provider-specific paths for data
   - Claude Code: `~/.claude/projects/`
   - OpenCode: `~/.local/share/opencode/storage/`
   - Codex: `~/.codex/config.toml`
@@ -736,7 +736,7 @@ pnpm tauri:build
 - **Window Management**: Focus and positioning
 - **Path Resolution**: Cross-platform path handling via `shellexpand` and `dirs` crates
 - **Paths**: Platform-specific defaults
-  - Config: `C:\Users\<username>\.guideai\`
+  - Config: `C:\Users\<username>\.guidemode\`
   - Claude Code: `C:\Users\<username>\.claude\projects\` (WSL compatible)
   - OpenCode: `C:\Users\<username>\AppData\Local\opencode\` (via `%LOCALAPPDATA%`)
   - Codex: `C:\Users\<username>\.codex\config.toml` (WSL compatible)
@@ -750,11 +750,11 @@ pnpm tauri:build
   - OpenCode: `~/.local/share/opencode/storage/` or `$XDG_DATA_HOME/opencode/`
   - Codex: `~/.codex/config.toml`
 
-## Integration with GuideAI Ecosystem
+## Integration with GuideMode Ecosystem
 
 - **CLI Compatibility**: Shares authentication state
 - **Server Communication**: Uses same OAuth endpoints
-- **Type Safety**: Shared types from `@guideai/types`
+- **Type Safety**: Shared types from `@guidemode/types`
 - **Consistent UI**: Matches server app design language
 
 ## Completed Improvements

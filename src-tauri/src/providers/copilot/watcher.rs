@@ -253,7 +253,7 @@ impl CopilotWatcher {
         let parsed = parser.parse_session(copilot_file)?;
 
         // Get project-organized canonical path using CWD from parsed session
-        // Uses ~/.guideai/sessions/{provider}/{project}/{session_id}.jsonl
+        // Uses ~/.guidemode/sessions/{provider}/{project}/{session_id}.jsonl
         let canonical_path = get_canonical_path(PROVIDER_ID, parsed.cwd.as_deref(), session_id)?;
 
         // Write canonical JSONL to project-organized path

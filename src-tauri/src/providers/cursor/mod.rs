@@ -246,7 +246,7 @@ pub fn get_db_path_for_session(session_id: &str) -> Result<PathBuf, String> {
 ///
 /// Cursor stores projects in ~/.cursor/projects with folder names that are
 /// the CWD path with the leading / removed and remaining / replaced with -
-/// Example: /Users/cliftonc/work/guideai -> Users-cliftonc-work-guideai
+/// Example: /Users/cliftonc/work/guidemode -> Users-cliftonc-work-guidemode
 pub fn find_cwd_for_session(session_hash: &str) -> Option<String> {
     let projects_path = shellexpand::tilde("~/.cursor/projects").to_string();
     let projects_dir = Path::new(&projects_path);
@@ -264,7 +264,7 @@ pub fn find_cwd_for_session(session_hash: &str) -> Option<String> {
             }
 
             // Convert project folder name back to CWD
-            // Example: Users-cliftonc-work-guideai -> /Users/cliftonc/work/guideai
+            // Example: Users-cliftonc-work-guidemode -> /Users/cliftonc/work/guidemode
             if let Some(folder_name) = project_path.file_name().and_then(|n| n.to_str()) {
                 let cwd = format!("/{}", folder_name.replace('-', "/"));
 

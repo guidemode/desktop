@@ -1,4 +1,4 @@
-import { ProcessorRegistry } from '@guideai-dev/session-processing/processors'
+import { ProcessorRegistry } from '@guidemode/session-processing/processors'
 import { useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef } from 'react'

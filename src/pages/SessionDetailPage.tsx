@@ -9,8 +9,8 @@ import {
   VirtualizedMessageList,
   extractTodosAuto,
   isTimelineGroup,
-} from '@guideai-dev/session-processing/ui'
-import type { SessionRating } from '@guideai-dev/session-processing/ui'
+} from '@guidemode/session-processing/ui'
+import type { SessionRating } from '@guidemode/session-processing/ui'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -486,7 +486,7 @@ export default function SessionDetailPage() {
 
     try {
       // Parse session content
-      const { ProcessorRegistry } = await import('@guideai-dev/session-processing/processors')
+      const { ProcessorRegistry } = await import('@guidemode/session-processing/processors')
       const registry = new ProcessorRegistry()
       const processor = registry.getProcessor(session.provider)
 

@@ -1,4 +1,4 @@
-import type { AgentSession } from '@guideai-dev/types'
+import type { AgentSession } from '@guidemode/types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useState } from 'react'

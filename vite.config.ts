@@ -19,7 +19,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@guideai/types': path.resolve(__dirname, '../../packages/types/src'),
+      '@guidemode/types': path.resolve(__dirname, '../../packages/types/src'),
     },
   },
   test: {

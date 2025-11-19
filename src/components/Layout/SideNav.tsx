@@ -149,7 +149,7 @@ function SideNav() {
     navigate(path)
   }
 
-  const handleVisitGuideAI = async () => {
+  const handleVisitGuideMode = async () => {
     if (user?.serverUrl) {
       await open(user.serverUrl)
     }
@@ -274,23 +274,23 @@ function SideNav() {
           </div>
         </div>
 
-        {/* Visit GuideAI - Bottom Section */}
+        {/* Visit GuideMode - Bottom Section */}
         {user && (
           <div className="mt-6 pt-4 border-t border-base-300">
             <button
-              onClick={handleVisitGuideAI}
+              onClick={handleVisitGuideMode}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-all bg-base-200 hover:bg-base-300 border border-base-300"
             >
               <div className="avatar">
                 <div className="w-5 rounded">
                   <img
                     src="/logo-32-optimized.png"
-                    alt="GuideAI"
+                    alt="GuideMode"
                     className="w-full h-full object-contain"
                   />
                 </div>
               </div>
-              <span className="font-semibold text-base-content">Visit GuideAI</span>
+              <span className="font-semibold text-base-content">Visit GuideMode</span>
               <svg
                 className="w-4 h-4 text-base-content/60"
                 fill="none"

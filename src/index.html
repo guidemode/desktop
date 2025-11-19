@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GuideAI</title>
+    <title>GuideMode</title>
     <style>
       /* Use system font stack to match the app */
       body {
@@ -99,12 +99,12 @@
       // Apply saved theme immediately to prevent flash
       (function() {
         const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'guideai-dark') {
+        if (savedTheme === 'guidemode-dark') {
           document.documentElement.style.setProperty('--loading-bg', 'linear-gradient(135deg, #020617 0%, #020617 25%, #0f172a 50%, #020617 75%, #020617 100%)');
           document.documentElement.style.setProperty('--loading-text', '#e2e8f0');
           document.documentElement.style.setProperty('--loading-spinner-bg', 'rgba(226, 232, 240, 0.3)');
           document.documentElement.style.setProperty('--loading-spinner-fg', '#22d3ee');
-        } else if (savedTheme === 'guideai-light') {
+        } else if (savedTheme === 'guidemode-light') {
           document.documentElement.style.setProperty('--loading-bg', 'linear-gradient(135deg, #dbeafe 0%, #d1fae5 25%, #ccfbf1 50%, #e0e7ff 75%, #fae8ff 100%)');
           document.documentElement.style.setProperty('--loading-text', '#0f172a');
           document.documentElement.style.setProperty('--loading-spinner-bg', 'rgba(15, 23, 42, 0.2)');
@@ -117,9 +117,9 @@
     <div id="loading-screen">
       <div class="loading-header">
         <div class="loading-logo">
-          <img src="/logo-128.png" alt="GuideAI Logo" />
+          <img src="/logo-128.png" alt="GuideMode Logo" />
         </div>
-        <div class="loading-text">GuideAI</div>
+        <div class="loading-text">GuideMode</div>
       </div>
       <div class="loading-spinner"></div>
     </div>

@@ -257,7 +257,7 @@ function ContextFileCard({ file, expanded, onToggle, usageStats }: ContextFileCa
   const [depsChecked, setDepsChecked] = useState(false)
 
   // Get theme for code highlighting
-  const theme = document.documentElement.dataset.theme || 'guideai-dark'
+  const theme = document.documentElement.dataset.theme || 'guidemode-dark'
   const isDark = theme.includes('dark')
 
   // Load syntax highlighter dependencies when file is expanded

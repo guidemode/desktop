@@ -10,7 +10,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }))
 
-vi.mock('@guideai-dev/session-processing/processors', () => ({
+vi.mock('@guidemode/session-processing/processors', () => ({
   ProcessorRegistry: class {
     getProcessor(provider: string) {
       return mockGetProcessor(provider)

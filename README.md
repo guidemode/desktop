@@ -1,10 +1,10 @@
-# GuideAI Desktop
+# GuideMode Desktop
 
 > **Your AI coding sessions, captured automatically.**
 
-![GuideAI Desktop Session Detail](https://www.guideai.dev/session_detail.png)
+![GuideMode Desktop Session Detail](https://www.guidemode.dev/session_detail.png)
 
-A lightweight menubar app that watches your AI coding sessions and uploads them to GuideAI for analytics. Works with Claude Code, Gemini, GitHub Copilot, Codex, and OpenCode.
+A lightweight menubar app that watches your AI coding sessions and uploads them to GuideMode for analytics. Works with Claude Code, Gemini, GitHub Copilot, Codex, and OpenCode.
 
 ## Why Use This?
 
@@ -31,9 +31,9 @@ A lightweight menubar app that watches your AI coding sessions and uploads them 
 
 ### Download
 
-- 🍎 [**macOS**](https://install.guideai.dev/desktop/latest/GuideAI-Desktop-macOS.dmg) (Universal - Intel & Apple Silicon)
-- 🪟 [**Windows**](https://install.guideai.dev/desktop/latest/GuideAI-Desktop-windows.msi) (Windows 10+)
-- 🐧 [**Linux**](https://install.guideai.dev/desktop/latest/GuideAI-Desktop-linux.deb) (.deb)
+- 🍎 [**macOS**](https://install.guidemode.dev/desktop/latest/GuideMode-Desktop-macOS.dmg) (Universal - Intel & Apple Silicon)
+- 🪟 [**Windows**](https://install.guidemode.dev/desktop/latest/GuideMode-Desktop-windows.msi) (Windows 10+)
+- 🐧 [**Linux**](https://install.guidemode.dev/desktop/latest/GuideMode-Desktop-linux.deb) (.deb)
 
 ### First Launch
 
@@ -43,7 +43,7 @@ A lightweight menubar app that watches your AI coding sessions and uploads them 
 4. Configure which AI tools to watch
 5. Start coding!
 
-That's it. GuideAI handles the rest automatically.
+That's it. GuideMode handles the rest automatically.
 
 ## Features
 
@@ -65,7 +65,7 @@ That's it. GuideAI handles the rest automatically.
 
 **Setup:**
 ```bash
-git clone https://github.com/guideai-dev/desktop.git
+git clone https://github.com/guidemode-dev/desktop.git
 cd desktop
 pnpm install
 pnpm tauri:dev
@@ -86,12 +86,12 @@ pnpm tauri:dev
 
 ## Configuration
 
-Config file: `~/.guideai/config.json`
+Config file: `~/.guidemode/config.json`
 
 ```json
 {
   "apiKey": "your-api-key",
-  "serverUrl": "https://be.guideai.dev",
+  "serverUrl": "https://app.guidemode.dev",
   "username": "your-username",
   "tenantId": "your-tenant-id"
 }
@@ -113,18 +113,18 @@ Config file: `~/.guideai/config.json`
 
 ## Support
 
-- 🐛 [**Report Issues**](https://github.com/guideai-dev/desktop/issues)
-- 💬 [**Discussions**](https://github.com/guideai-dev/desktop/discussions)
-- 📧 **Email**: support@guideai.dev
-- 📚 **Docs**: https://docs.guideai.dev
+- 🐛 [**Report Issues**](https://github.com/guidemode-dev/desktop/issues)
+- 💬 [**Discussions**](https://github.com/guidemode-dev/desktop/discussions)
+- 📧 **Email**: support@guidemode.dev
+- 📚 **Docs**: https://docs.guidemode.dev
 
 ## Related Packages
 
-Part of the GuideAI ecosystem:
+Part of the GuideMode ecosystem:
 
-- [@guideai-dev/session-processing](https://github.com/guideai-dev/session-processing) - Analytics engine
-- [@guideai-dev/types](https://github.com/guideai-dev/types) - Shared types
-- [@guideai-dev/cli](https://github.com/guideai-dev/cli) - Command-line tool
+- [@guidemode/session-processing](https://github.com/guidemode-dev/session-processing) - Analytics engine
+- [@guidemode/types](https://github.com/guidemode-dev/types) - Shared types
+- [@guidemode/cli](https://github.com/guidemode-dev/cli) - Command-line tool
 
 ## License
 

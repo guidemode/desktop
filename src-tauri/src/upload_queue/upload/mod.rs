@@ -19,14 +19,14 @@ pub use project::upload_project_metadata_static;
 // Re-export retry utilities
 pub use retry::{calculate_backoff, classify_error, schedule_retry, should_retry, ErrorType};
 
-use crate::config::GuideAIConfig;
+use crate::config::GuideModeConfig;
 use crate::upload_queue::hashing::{calculate_content_hash_sha256, calculate_file_hash_sha256};
 use crate::upload_queue::types::UploadItem;
 
 /// Process an upload item by routing to the appropriate upload method based on sync mode
 pub async fn process_upload_item(
     item: &UploadItem,
-    config: Option<GuideAIConfig>,
+    config: Option<GuideModeConfig>,
 ) -> Result<(), String> {
     let config = config.ok_or("No configuration available")?;
 

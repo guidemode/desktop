@@ -42,30 +42,30 @@ The validation system is built into the workspace. Make sure you have built the 
 
 ```bash
 # Build types and session-processing packages
-pnpm --filter @guideai-dev/types build
-pnpm --filter @guideai-dev/session-processing build
-pnpm --filter @guideai-dev/cli build
+pnpm --filter @guidemode/types build
+pnpm --filter @guidemode/session-processing build
+pnpm --filter @guidemode/cli build
 ```
 
 ### Validate a Single File
 
 ```bash
 # Validate a canonical JSONL file
-pnpm cli validate ~/.guideai/sessions/cursor/my-project/session-123.jsonl
+pnpm cli validate ~/.guidemode/sessions/cursor/my-project/session-123.jsonl
 ```
 
 ### Validate All Sessions for a Provider
 
 ```bash
 # Validate all Cursor sessions
-pnpm cli validate ~/.guideai/sessions/cursor/ --provider cursor
+pnpm cli validate ~/.guidemode/sessions/cursor/ --provider cursor
 ```
 
 ### Watch Mode (for TDD)
 
 ```bash
 # Watch and re-validate on file changes (coming soon)
-pnpm cli validate ~/.guideai/sessions/cursor/ --watch
+pnpm cli validate ~/.guidemode/sessions/cursor/ --watch
 ```
 
 ---
@@ -305,7 +305,7 @@ Data quality checks:
 
 ```bash
 # Create test fixtures directory
-mkdir -p ~/.guideai/sessions/new-provider/test-project/
+mkdir -p ~/.guidemode/sessions/new-provider/test-project/
 
 # Your converter will write here during development
 ```
@@ -347,10 +347,10 @@ impl ToCanonical for NewProviderMessage {
 cargo run --bin scan_new_provider
 
 # Terminal 2: Validate output continuously
-pnpm cli validate ~/.guideai/sessions/new-provider/ --provider new-provider
+pnpm cli validate ~/.guidemode/sessions/new-provider/ --provider new-provider
 
 # Or for specific session:
-pnpm cli validate ~/.guideai/sessions/new-provider/test-project/session-123.jsonl --verbose
+pnpm cli validate ~/.guidemode/sessions/new-provider/test-project/session-123.jsonl --verbose
 ```
 
 ### Step 4: Fix Errors Iteratively
@@ -401,7 +401,7 @@ Session Info:
 # .github/workflows/validate-providers.yml
 - name: Validate Canonical Output
   run: |
-    pnpm cli validate ~/.guideai/sessions/ --strict --json > validation-report.json
+    pnpm cli validate ~/.guidemode/sessions/ --strict --json > validation-report.json
     # Exit code 1 if any errors
 ```
 
@@ -549,19 +549,19 @@ pnpm cli validate <path>
 
 ```bash
 # Validate single file
-pnpm cli validate ~/.guideai/sessions/cursor/project/session.jsonl
+pnpm cli validate ~/.guidemode/sessions/cursor/project/session.jsonl
 
 # Validate all sessions for a provider
-pnpm cli validate ~/.guideai/sessions/cursor/ --provider cursor
+pnpm cli validate ~/.guidemode/sessions/cursor/ --provider cursor
 
 # Strict mode (warnings fail build)
-pnpm cli validate ~/.guideai/sessions/ --strict
+pnpm cli validate ~/.guidemode/sessions/ --strict
 
 # JSON output for CI
-pnpm cli validate ~/.guideai/sessions/ --json > report.json
+pnpm cli validate ~/.guidemode/sessions/ --json > report.json
 
 # Verbose errors with details
-pnpm cli validate ~/.guideai/sessions/cursor/session.jsonl --verbose
+pnpm cli validate ~/.guidemode/sessions/cursor/session.jsonl --verbose
 ```
 
 ### Output Formats
