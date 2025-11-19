@@ -62,9 +62,13 @@ impl CursorWatcher {
             return Err("Cursor provider is not enabled".into());
         }
 
+        // Get base path from config
+        let base_path = shellexpand::tilde(&config.home_directory).to_string();
+        let base_path = Path::new(&base_path);
+
         // Part 1: Run initial scan of existing sessions
         tracing::info!("📊 Scanning existing Cursor sessions...");
-        match scan_existing_sessions(&event_bus) {
+        match scan_existing_sessions(base_path, &event_bus) {
             Ok(result) => {
                 tracing::info!(
                     "✨ Initial scan complete: {} sessions, {} messages",
@@ -78,14 +82,13 @@ impl CursorWatcher {
         }
 
         // Part 2: Setup directory watcher for new sessions
-        let chats_path = shellexpand::tilde("~/.cursor/chats").to_string();
-        let chats_dir = std::path::Path::new(&chats_path);
+        let chats_dir = base_path.join("chats");
 
         if !chats_dir.exists() {
-            return Err(format!("Cursor chats directory not found: {}", chats_path).into());
+            return Err(format!("Cursor chats directory not found: {}", chats_dir.display()).into());
         }
 
-        tracing::info!("📁 Watching Cursor chats directory: {}", chats_path);
+        tracing::info!("📁 Watching Cursor chats directory: {}", chats_dir.display());
 
         let (tx, rx) = mpsc::channel();
         let mut watcher = RecommendedWatcher::new(
@@ -94,16 +97,17 @@ impl CursorWatcher {
         )?;
 
         // Watch the chats directory recursively for new sessions
-        watcher.watch(chats_dir, RecursiveMode::Recursive)?;
+        watcher.watch(&chats_dir, RecursiveMode::Recursive)?;
 
         // Part 3: Start hybrid event loop (filesystem + database polling)
         let is_running = Arc::new(Mutex::new(true));
         let is_running_clone = is_running.clone();
         let upload_queue_clone = upload_queue.clone();
         let event_bus_clone = event_bus.clone();
+        let base_path_clone = base_path.to_path_buf();
 
         let poll_thread = thread::spawn(move || {
-            Self::hybrid_event_loop(rx, is_running_clone, upload_queue_clone, event_bus_clone);
+            Self::hybrid_event_loop(rx, is_running_clone, upload_queue_clone, event_bus_clone, base_path_clone);
         });
 
         Ok(CursorWatcher {
@@ -119,6 +123,7 @@ impl CursorWatcher {
         is_running: Arc<Mutex<bool>>,
         _upload_queue: Arc<UploadQueue>,
         event_bus: EventBus,
+        base_path: PathBuf,
     ) {
         let mut session_trackers: HashMap<String, SessionTracker> = HashMap::new();
         let mut last_poll = SystemTime::now();
@@ -137,7 +142,7 @@ impl CursorWatcher {
                         tracing::info!("🆕 New Cursor session detected: {}", session_id);
 
                         // Try to process immediately
-                        match Self::process_new_session(&session_id, &event_bus) {
+                        match Self::process_new_session(&session_id, &event_bus, &base_path) {
                             Ok(()) => {
                                 tracing::debug!("✅ Processed new session: {}", session_id);
                             }
@@ -161,7 +166,7 @@ impl CursorWatcher {
 
             // Part 2: Smart polling (only active sessions from our database)
             if last_poll.elapsed().unwrap_or(Duration::ZERO) >= POLL_INTERVAL {
-                Self::poll_active_sessions(&mut session_trackers, &event_bus);
+                Self::poll_active_sessions(&mut session_trackers, &event_bus, &base_path);
                 last_poll = SystemTime::now();
             }
         }
@@ -189,9 +194,10 @@ impl CursorWatcher {
     fn process_new_session(
         session_id: &str,
         event_bus: &EventBus,
+        base_path: &Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Re-discover sessions to find the new one
-        let sessions = discover_sessions()?;
+        let sessions = discover_sessions(base_path)?;
 
         let session = sessions
             .into_iter()
@@ -262,6 +268,7 @@ impl CursorWatcher {
     fn poll_active_sessions(
         session_trackers: &mut HashMap<String, SessionTracker>,
         event_bus: &EventBus,
+        base_path: &Path,
     ) {
         // Query OUR database for recently active Cursor sessions
         let active_sessions = match Self::get_active_sessions_from_db() {
@@ -285,7 +292,7 @@ impl CursorWatcher {
             // Get or create tracker
             let tracker = session_trackers.entry(session_id.clone()).or_insert_with(|| {
                 // Try to get DB path for this session
-                let db_path = get_db_path_for_session(&session_id).unwrap_or_default();
+                let db_path = get_db_path_for_session(&session_id, base_path).unwrap_or_default();
 
                 // Phase 1 Fix: Initialize with current data_version to prevent false positives
                 let initial_version = if db_path.exists() {
@@ -321,7 +328,7 @@ impl CursorWatcher {
                         tracing::info!("🔄 Session {} has content changes, reprocessing", session_id);
 
                         // Reprocess session
-                        if let Err(e) = Self::process_new_session(&session_id, event_bus) {
+                        if let Err(e) = Self::process_new_session(&session_id, event_bus, base_path) {
                             tracing::warn!("Failed to reprocess session {}: {:?}", session_id, e);
                         }
                     } else {

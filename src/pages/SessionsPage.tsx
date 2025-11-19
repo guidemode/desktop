@@ -632,7 +632,7 @@ export default function SessionsPage() {
         >
           <option value="all">All Providers</option>
           <option value="claude-code">Claude Code</option>
-          <option value="cursor">Cursor</option>
+          <option value="cursor">Cursor CLI</option>
           <option value="github-copilot">GitHub Copilot</option>
           <option value="opencode">OpenCode</option>
           <option value="codex">Codex</option>

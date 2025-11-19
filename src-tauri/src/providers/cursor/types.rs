@@ -27,6 +27,8 @@ pub struct CursorSession {
     pub metadata: SessionMetadata,
 
     /// Parent hash directory name (MD5 of CWD)
+    /// Kept for compatibility but no longer actively used
+    #[allow(dead_code)]
     pub hash: String,
 
     /// Current working directory (derived from projects directory)

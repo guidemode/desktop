@@ -353,7 +353,8 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
       await invoke('scan_historical_sessions', { providerId: agent.id })
     } catch (err) {
       console.error('Failed to start rescan:', err)
-      toast.error(`Failed to start rescan: ${(err as Error).message}`)
+      const errorMessage = (err as Error).message || String(err) || 'Unknown error occurred'
+      toast.error(`Failed to start rescan: ${errorMessage}`)
       setIsScanning(false)
     }
   }
@@ -370,13 +371,15 @@ function AgentConfig({ agent, headerActions }: AgentConfigProps) {
           await invoke('scan_historical_sessions', { providerId: agent.id })
         } catch (err) {
           console.error('Failed to start rescan:', err)
-          toast.error(`Failed to start rescan: ${(err as Error).message}`)
+          const errorMessage = (err as Error).message || String(err) || 'Unknown error occurred'
+          toast.error(`Failed to start rescan: ${errorMessage}`)
           setIsScanning(false)
         }
       }, 500)
     } catch (err) {
       console.error('Failed to clear sessions:', err)
-      toast.error(`Failed to clear sessions: ${(err as Error).message}`)
+      const errorMessage = (err as Error).message || String(err) || 'Unknown error occurred'
+      toast.error(`Failed to clear sessions: ${errorMessage}`)
       setIsScanning(false)
     }
   }

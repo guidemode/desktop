@@ -219,6 +219,7 @@ pub async fn load_setup_instructions_command(file_name: String) -> Result<String
         }
         "opencode.md" => Ok(include_str!("../../setup-instructions/opencode.md").to_string()),
         "codex.md" => Ok(include_str!("../../setup-instructions/codex.md").to_string()),
+        "cursor.md" => Ok(include_str!("../../setup-instructions/cursor.md").to_string()),
         _ => Err(format!("Unknown setup instructions file: {}", file_name)),
     }
 }

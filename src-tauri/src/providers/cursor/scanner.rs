@@ -41,7 +41,7 @@ struct MessageStats {
 /// Scan all existing Cursor sessions and convert them to canonical format
 ///
 /// This function:
-/// 1. Discovers all Cursor sessions in ~/.cursor/chats
+/// 1. Discovers all Cursor sessions in {base_path}/chats
 /// 2. Opens each session's SQLite database
 /// 3. Decodes protobuf blobs
 /// 4. Converts to canonical JSONL
@@ -50,11 +50,19 @@ struct MessageStats {
 ///
 /// Returns statistics about the scan
 pub fn scan_existing_sessions(
+    base_path: &std::path::Path,
     event_bus: &EventBus,
 ) -> Result<ScanResult, Box<dyn std::error::Error>> {
     tracing::info!("🔍 Starting Cursor session scan");
 
-    let sessions = discover_sessions()?;
+    let sessions = discover_sessions(base_path).map_err(|e| {
+        let chats_dir = base_path.join("chats");
+        format!(
+            "Cursor is not installed or the chats directory was not found at '{}'. Please check your Cursor installation or update the home directory in settings. Original error: {}",
+            chats_dir.display(),
+            e
+        )
+    })?;
 
     tracing::info!("📊 Found {} Cursor sessions to scan", sessions.len());
 
@@ -276,14 +284,22 @@ pub fn write_canonical_file(
 /// Scan Cursor sessions with optional project filtering
 ///
 /// This function matches the API of other providers for use in session_scanner.rs dispatcher.
-/// Unlike other providers, Cursor doesn't use a base_path parameter.
+/// Uses base_path to locate Cursor's chats and projects directories.
 pub fn scan_sessions_filtered(
+    base_path: &std::path::Path,
     selected_projects: Option<&[String]>,
 ) -> Result<Vec<crate::providers::common::SessionInfo>, String> {
     use crate::logging::{log_info, log_warn};
 
     // Discover all Cursor sessions
-    let sessions = discover_sessions().map_err(|e| e.to_string())?;
+    let sessions = discover_sessions(base_path).map_err(|e| {
+        let chats_dir = base_path.join("chats");
+        format!(
+            "Cursor is not installed or the chats directory was not found at '{}'. Please check your Cursor installation or update the home directory in settings. Error: {}",
+            chats_dir.display(),
+            e
+        )
+    })?;
 
     if let Err(e) = log_info("cursor", &format!("📊 Found {} Cursor sessions to scan", sessions.len())) {
         eprintln!("Logging error: {}", e);
@@ -319,7 +335,6 @@ fn scan_single_cursor_session(
     session: &CursorSession,
     selected_projects: Option<&[String]>,
 ) -> Result<Option<crate::providers::common::SessionInfo>, String> {
-    use super::{find_cwd_for_session};
     use crate::providers::common::SessionInfo;
     use chrono::{DateTime, Utc};
     use std::path::Path;
@@ -350,9 +365,9 @@ fn scan_single_cursor_session(
                 // Set session ID (required for UI parser)
                 canonical_msg.session_id = session.session_id.clone();
 
-                // Try to find CWD from projects directory using session hash
+                // Use CWD from session (already discovered)
                 if canonical_msg.cwd.is_none() {
-                    canonical_msg.cwd = find_cwd_for_session(&session.hash);
+                    canonical_msg.cwd = session.cwd.clone();
                 }
                 canonical_messages.push(canonical_msg);
             }

@@ -63,7 +63,7 @@ function DashboardPage() {
   // Get active providers (filter to show only enabled providers)
   const allProviders = [
     { id: 'claude-code', name: 'Claude Code', status: claudeStatusEnum },
-    { id: 'cursor', name: 'Cursor', status: cursorStatusEnum },
+    { id: 'cursor', name: 'Cursor CLI', status: cursorStatusEnum },
     { id: 'github-copilot', name: 'GitHub Copilot', status: copilotStatusEnum },
     { id: 'opencode', name: 'OpenCode', status: opencodeStatusEnum },
     { id: 'codex', name: 'Codex', status: codexStatusEnum },

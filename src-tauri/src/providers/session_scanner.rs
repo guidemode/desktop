@@ -33,7 +33,7 @@ pub fn scan_all_sessions_filtered(
         "opencode" => super::opencode::scanner::scan_sessions_filtered(base_path, selected_projects),
         "codex" => super::codex::scanner::scan_sessions_filtered(base_path, selected_projects),
         "gemini-code" => super::gemini::scanner::scan_sessions_filtered(base_path, selected_projects),
-        "cursor" => super::cursor::scanner::scan_sessions_filtered(selected_projects),
+        "cursor" => super::cursor::scanner::scan_sessions_filtered(base_path, selected_projects),
         _ => Err(format!("Unsupported provider: {}", provider_id)),
     }
 }

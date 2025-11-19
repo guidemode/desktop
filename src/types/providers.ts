@@ -180,7 +180,7 @@ export const CODING_AGENTS: CodingAgent[] = [
   },
   {
     id: 'cursor',
-    name: 'Cursor',
+    name: 'Cursor CLI',
     description: 'AI-powered code editor',
     defaultHomeDirectory: getPlatformDefault('cursor'),
     icon: 'M12 2L2 7l10 5 10-5-10-5z',

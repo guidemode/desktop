@@ -21,29 +21,27 @@ pub use types::CursorSession;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const CURSOR_CHATS_DIR: &str = "~/.cursor/chats";
-
 /// Scan for Cursor sessions and return project information
 ///
 /// This function:
-/// 1. Iterates through hash directories in ~/.cursor/chats
+/// 1. Iterates through hash directories in {base_path}/chats
 /// 2. Finds session directories with store.db files
 /// 3. Attempts to read session metadata for project names
-pub fn scan_projects(_home_directory: &str) -> Result<Vec<crate::config::ProjectInfo>, String> {
-    let chats_path = shellexpand::tilde(CURSOR_CHATS_DIR).to_string();
-    let chats_dir = Path::new(&chats_path);
+pub fn scan_projects(home_directory: &str) -> Result<Vec<crate::config::ProjectInfo>, String> {
+    let base_path = shellexpand::tilde(home_directory).to_string();
+    let chats_dir = Path::new(&base_path).join("chats");
 
     if !chats_dir.exists() {
         return Err(format!(
             "Cursor chats directory not found: {}",
-            chats_path
+            chats_dir.display()
         ));
     }
 
     let mut projects = Vec::new();
 
     // Iterate through hash directories
-    for hash_entry in fs::read_dir(chats_dir).map_err(|e| e.to_string())? {
+    for hash_entry in fs::read_dir(&chats_dir).map_err(|e| e.to_string())? {
         let hash_entry = hash_entry.map_err(|e| e.to_string())?;
         let hash_path = hash_entry.path();
 
@@ -82,7 +80,7 @@ pub fn scan_projects(_home_directory: &str) -> Result<Vec<crate::config::Project
                             .to_rfc3339();
 
                         // Try to find CWD and derive project name
-                        let cwd = find_cwd_for_session(&hash);
+                        let cwd = find_cwd_for_session(&hash, &Path::new(&base_path).join("projects"));
                         let project_name = cwd
                             .as_ref()
                             .and_then(|path| {
@@ -155,12 +153,11 @@ pub fn scan_projects(_home_directory: &str) -> Result<Vec<crate::config::Project
 /// - Database path
 /// - Session metadata (name, timestamps, model, etc.)
 /// - Parent hash
-pub fn discover_sessions() -> Result<Vec<CursorSession>, Box<dyn std::error::Error>> {
-    let chats_path = shellexpand::tilde(CURSOR_CHATS_DIR).to_string();
-    let chats_dir = Path::new(&chats_path);
+pub fn discover_sessions(base_path: &Path) -> Result<Vec<CursorSession>, Box<dyn std::error::Error>> {
+    let chats_dir = base_path.join("chats");
 
     if !chats_dir.exists() {
-        return Err(format!("Cursor chats directory not found: {}", chats_path).into());
+        return Err(format!("Cursor chats directory not found: {}", chats_dir.display()).into());
     }
 
     let mut sessions = Vec::new();
@@ -197,7 +194,7 @@ pub fn discover_sessions() -> Result<Vec<CursorSession>, Box<dyn std::error::Err
                 Ok(conn) => match db::get_session_metadata(&conn) {
                     Ok(metadata) => {
                         // Try to find CWD from projects directory
-                        let cwd = find_cwd_for_session(&hash);
+                        let cwd = find_cwd_for_session(&hash, &base_path.join("projects"));
 
                         sessions.push(CursorSession {
                             session_id,
@@ -232,8 +229,8 @@ pub fn discover_sessions() -> Result<Vec<CursorSession>, Box<dyn std::error::Err
 /// Get the Cursor database path from a session ID
 ///
 /// Note: This requires scanning to find which hash directory contains the session
-pub fn get_db_path_for_session(session_id: &str) -> Result<PathBuf, String> {
-    let sessions = discover_sessions().map_err(|e| e.to_string())?;
+pub fn get_db_path_for_session(session_id: &str, base_path: &Path) -> Result<PathBuf, String> {
+    let sessions = discover_sessions(base_path).map_err(|e| e.to_string())?;
 
     sessions
         .into_iter()
@@ -244,13 +241,10 @@ pub fn get_db_path_for_session(session_id: &str) -> Result<PathBuf, String> {
 
 /// Find the CWD for a Cursor session by checking the projects directory
 ///
-/// Cursor stores projects in ~/.cursor/projects with folder names that are
+/// Cursor stores projects in {base_path}/projects with folder names that are
 /// the CWD path with the leading / removed and remaining / replaced with -
 /// Example: /Users/cliftonc/work/guidemode -> Users-cliftonc-work-guidemode
-pub fn find_cwd_for_session(session_hash: &str) -> Option<String> {
-    let projects_path = shellexpand::tilde("~/.cursor/projects").to_string();
-    let projects_dir = Path::new(&projects_path);
-
+pub fn find_cwd_for_session(session_hash: &str, projects_dir: &Path) -> Option<String> {
     if !projects_dir.exists() {
         return None;
     }
@@ -289,24 +283,26 @@ mod tests {
     fn test_scan_projects() {
         // This test will only work if Cursor is installed
         // Skip if directory doesn't exist
-        let chats_path = shellexpand::tilde(CURSOR_CHATS_DIR).to_string();
-        if !Path::new(&chats_path).exists() {
+        let base_path = shellexpand::tilde("~/.cursor").to_string();
+        let chats_dir = Path::new(&base_path).join("chats");
+        if !chats_dir.exists() {
             return;
         }
 
-        let result = scan_projects("");
+        let result = scan_projects("~/.cursor");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_discover_sessions() {
         // This test will only work if Cursor is installed
-        let chats_path = shellexpand::tilde(CURSOR_CHATS_DIR).to_string();
-        if !Path::new(&chats_path).exists() {
+        let base_path = shellexpand::tilde("~/.cursor").to_string();
+        let chats_dir = Path::new(&base_path).join("chats");
+        if !chats_dir.exists() {
             return;
         }
 
-        let result = discover_sessions();
+        let result = discover_sessions(Path::new(&base_path));
         assert!(result.is_ok());
     }
 }
