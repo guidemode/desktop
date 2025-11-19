@@ -65,7 +65,7 @@ That's it. GuideMode handles the rest automatically.
 
 **Setup:**
 ```bash
-git clone https://github.com/guidemode-dev/desktop.git
+git clone https://github.com/guidemode/desktop.git
 cd desktop
 pnpm install
 pnpm tauri:dev
@@ -113,8 +113,8 @@ Config file: `~/.guidemode/config.json`
 
 ## Support
 
-- 🐛 [**Report Issues**](https://github.com/guidemode-dev/desktop/issues)
-- 💬 [**Discussions**](https://github.com/guidemode-dev/desktop/discussions)
+- 🐛 [**Report Issues**](https://github.com/guidemode/desktop/issues)
+- 💬 [**Discussions**](https://github.com/guidemode/desktop/discussions)
 - 📧 **Email**: support@guidemode.dev
 - 📚 **Docs**: https://docs.guidemode.dev
 
@@ -122,9 +122,9 @@ Config file: `~/.guidemode/config.json`
 
 Part of the GuideMode ecosystem:
 
-- [@guidemode/session-processing](https://github.com/guidemode-dev/session-processing) - Analytics engine
-- [@guidemode/types](https://github.com/guidemode-dev/types) - Shared types
-- [@guidemode/cli](https://github.com/guidemode-dev/cli) - Command-line tool
+- [@guidemode/session-processing](https://github.com/guidemode/session-processing) - Analytics engine
+- [@guidemode/types](https://github.com/guidemode/types) - Shared types
+- [@guidemode/cli](https://github.com/guidemode/cli) - Command-line tool
 
 ## License
 
