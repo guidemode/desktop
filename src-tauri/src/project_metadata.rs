@@ -9,6 +9,24 @@ pub struct ProjectMetadata {
     pub git_remote_url: Option<String>,
     pub cwd: String,
     pub detected_project_type: String,
+    pub source_type: String, // Integration source: local, github, gitlab, bitbucket, jira, azure-devops
+}
+
+/// Detect source type from git remote URL
+/// Returns: local, github, gitlab, bitbucket, azure-devops
+fn detect_source_type(git_remote_url: &Option<String>) -> String {
+    if let Some(url) = git_remote_url {
+        if url.contains("github.com") {
+            return "github".to_string();
+        } else if url.contains("gitlab.com") || url.contains("gitlab.") {
+            return "gitlab".to_string();
+        } else if url.contains("bitbucket.org") || url.contains("bitbucket.") {
+            return "bitbucket".to_string();
+        } else if url.contains("dev.azure.com") || url.contains("visualstudio.com") {
+            return "azure-devops".to_string();
+        }
+    }
+    "local".to_string()
 }
 
 /// Extract project metadata from a directory
@@ -37,11 +55,15 @@ pub fn extract_project_metadata(cwd: &str) -> Result<ProjectMetadata, String> {
     // Extract Git remote URL
     let git_remote_url = extract_git_remote_url(path);
 
+    // Detect source type from git remote URL
+    let source_type = detect_source_type(&git_remote_url);
+
     Ok(ProjectMetadata {
         project_name,
         git_remote_url,
         cwd: cwd.to_string(),
         detected_project_type,
+        source_type,
     })
 }
 
@@ -298,6 +320,7 @@ mod tests {
 
         assert_eq!(metadata.project_name, "test-project");
         assert_eq!(metadata.detected_project_type, "nodejs");
+        assert_eq!(metadata.source_type, "local");
     }
 
     #[test]
@@ -315,6 +338,7 @@ mod tests {
 
         assert_eq!(metadata.project_name, "my-rust-app");
         assert_eq!(metadata.detected_project_type, "rust");
+        assert_eq!(metadata.source_type, "local");
     }
 
     #[test]
@@ -332,6 +356,7 @@ mod tests {
 
         assert_eq!(metadata.project_name, "my-python-app");
         assert_eq!(metadata.detected_project_type, "python");
+        assert_eq!(metadata.source_type, "local");
     }
 
     #[test]
@@ -345,6 +370,7 @@ mod tests {
 
         assert_eq!(metadata.project_name, "my-go-app");
         assert_eq!(metadata.detected_project_type, "go");
+        assert_eq!(metadata.source_type, "local");
     }
 
     #[test]
@@ -365,6 +391,7 @@ mod tests {
             metadata.git_remote_url,
             Some("https://github.com/user/repo.git".to_string())
         );
+        assert_eq!(metadata.source_type, "github");
     }
 
     #[test]
@@ -375,6 +402,7 @@ mod tests {
 
         assert!(metadata.project_name.starts_with(".tmp")); // tempdir creates .tmpXXXXXX dirs
         assert_eq!(metadata.detected_project_type, "generic");
+        assert_eq!(metadata.source_type, "local");
     }
 
     #[test]
@@ -423,6 +451,64 @@ mod tests {
         assert_eq!(
             metadata.git_remote_url,
             Some("https://github.com/guidemode/guidemode.git".to_string())
+        );
+        assert_eq!(metadata.source_type, "github");
+    }
+
+    #[test]
+    fn test_source_type_detection_github() {
+        assert_eq!(
+            detect_source_type(&Some("https://github.com/user/repo.git".to_string())),
+            "github"
+        );
+        assert_eq!(
+            detect_source_type(&Some("git@github.com:user/repo.git".to_string())),
+            "github"
+        );
+    }
+
+    #[test]
+    fn test_source_type_detection_gitlab() {
+        assert_eq!(
+            detect_source_type(&Some("https://gitlab.com/user/repo.git".to_string())),
+            "gitlab"
+        );
+        assert_eq!(
+            detect_source_type(&Some("https://gitlab.example.com/user/repo.git".to_string())),
+            "gitlab"
+        );
+    }
+
+    #[test]
+    fn test_source_type_detection_bitbucket() {
+        assert_eq!(
+            detect_source_type(&Some("https://bitbucket.org/user/repo.git".to_string())),
+            "bitbucket"
+        );
+        assert_eq!(
+            detect_source_type(&Some("https://bitbucket.example.com/user/repo.git".to_string())),
+            "bitbucket"
+        );
+    }
+
+    #[test]
+    fn test_source_type_detection_azure_devops() {
+        assert_eq!(
+            detect_source_type(&Some("https://dev.azure.com/org/project/_git/repo".to_string())),
+            "azure-devops"
+        );
+        assert_eq!(
+            detect_source_type(&Some("https://org.visualstudio.com/project/_git/repo".to_string())),
+            "azure-devops"
+        );
+    }
+
+    #[test]
+    fn test_source_type_detection_local() {
+        assert_eq!(detect_source_type(&None), "local");
+        assert_eq!(
+            detect_source_type(&Some("https://unknown-provider.com/user/repo.git".to_string())),
+            "local"
         );
     }
 }
