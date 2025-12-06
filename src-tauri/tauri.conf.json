@@ -1,6 +1,6 @@
 {
   "productName": "GuideMode Desktop",
-  "version": "0.1.47",
+  "version": "0.1.48",
   "identifier": "com.guidemode.desktop",
   "build": {
     "beforeBuildCommand": "pnpm build",
