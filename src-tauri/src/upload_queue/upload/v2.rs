@@ -120,24 +120,24 @@ pub async fn upload_v2(
     // Get rating if available
     let rating = get_session_rating(session_id).ok().flatten();
 
-    // Extract project metadata if CWD is available (will be embedded in payload)
-    let (final_project_name, project_metadata) = if let Some(ref cwd) = item.cwd {
+    // Extract repository metadata if CWD is available (will be embedded in payload)
+    let (final_repository_name, repository_metadata) = if let Some(ref cwd) = item.cwd {
         match extract_project_metadata(cwd) {
             Ok(metadata) => {
-                // Project metadata will be embedded in the upload payload
-                let project_name = metadata.project_name.clone();
-                (project_name, Some(metadata))
+                // Repository metadata will be embedded in the upload payload
+                let repository_name = metadata.project_name.clone();
+                (repository_name, Some(metadata))
             }
-            Err(_) => (item.project_name.clone(), None),
+            Err(_) => (item.repository_name.clone(), None),
         }
     } else {
-        (item.project_name.clone(), None)
+        (item.repository_name.clone(), None)
     };
 
-    // Prepare upload request with embedded metrics and project metadata
+    // Prepare upload request with embedded metrics and repository metadata
     let mut upload_request = serde_json::json!({
         "provider": session_data.provider,
-        "projectName": final_project_name,
+        "repositoryName": final_repository_name,
         "sessionId": session_data.session_id,
         "fileName": session_data.file_name,
         "filePath": session_data.file_path,
@@ -163,12 +163,12 @@ pub async fn upload_v2(
         "latestCommitHash": session_data.latest_commit_hash,
     });
 
-    // Add project metadata if available
-    if let Some(ref metadata) = project_metadata {
-        upload_request["projectMetadata"] = serde_json::json!({
+    // Add repository metadata if available
+    if let Some(ref metadata) = repository_metadata {
+        upload_request["repositoryMetadata"] = serde_json::json!({
             "gitRemoteUrl": metadata.git_remote_url,
             "cwd": metadata.cwd,
-            "detectedProjectType": metadata.detected_project_type,
+            "detectedRepositoryType": metadata.detected_project_type,
         });
     }
 

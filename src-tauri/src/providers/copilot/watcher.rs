@@ -163,7 +163,7 @@ impl CopilotWatcher {
                         // Publish SessionChanged event to event bus
                         let payload = SessionEventPayload::SessionChanged {
                             session_id: file_event.session_id.clone(),
-                            project_name: file_event.project_name.clone(),
+                            repository_name: file_event.project_name.clone(),
                             file_path: file_event.path.clone(),
                             file_size: file_event.file_size,
                         };

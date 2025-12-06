@@ -20,7 +20,7 @@ pub const MAX_UPLOADED_HASHES: usize = 10_000;
 pub struct UploadItem {
     pub id: String,
     pub provider: String,
-    pub project_name: String,
+    pub repository_name: String,
     pub file_path: PathBuf,
     pub file_name: String,
     pub queued_at: DateTime<Utc>,
@@ -33,7 +33,7 @@ pub struct UploadItem {
     pub session_id: Option<String>,
     // In-memory content for parsed sessions (alternative to file_path)
     pub content: Option<String>,
-    // Working directory for project metadata extraction
+    // Working directory for repository metadata extraction
     pub cwd: Option<String>,
 }
 
@@ -52,12 +52,12 @@ pub struct QueueItems {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectUploadRequest {
-    #[serde(rename = "projectName")]
-    pub project_name: String,
+pub struct RepositoryUploadRequest {
+    #[serde(rename = "repositoryName")]
+    pub repository_name: String,
     #[serde(rename = "gitRemoteUrl")]
     pub git_remote_url: Option<String>,
     pub cwd: String,
-    #[serde(rename = "detectedProjectType")]
-    pub detected_project_type: String,
+    #[serde(rename = "detectedRepositoryType")]
+    pub detected_repository_type: String,
 }

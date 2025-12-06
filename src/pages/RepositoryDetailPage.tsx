@@ -15,17 +15,17 @@ import type { LocalProject } from '../hooks/useLocalProjects'
 
 type TabType = 'sessions' | 'context' | 'changes' | 'claude'
 
-export default function ProjectDetailPage() {
-  const { projectId } = useParams<{ projectId: string }>()
+export default function RepositoryDetailPage() {
+  const { repositoryId } = useParams<{ repositoryId: string }>()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabType>('sessions')
 
-  // Fetch project data
+  // Fetch repository data
   const { data: project, isLoading } = useQuery<LocalProject | null>({
-    queryKey: ['project', projectId],
+    queryKey: ['repository', repositoryId],
     queryFn: async () => {
-      if (!projectId) throw new Error('Project ID is required')
-      const result = await invoke<any>('get_project_by_id', { projectId })
+      if (!repositoryId) throw new Error('Repository ID is required')
+      const result = await invoke<any>('get_repository_by_id', { repositoryId })
 
       if (!result) return null
 
@@ -41,7 +41,7 @@ export default function ProjectDetailPage() {
         sessionCount: result.sessionCount || 0,
       }
     },
-    enabled: !!projectId,
+    enabled: !!repositoryId,
   })
 
   // Check if project has .claude folder
@@ -84,7 +84,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="p-6">
         <div className="alert alert-error">
-          <span>Project not found</span>
+          <span>Repository not found</span>
         </div>
       </div>
     )
@@ -94,14 +94,14 @@ export default function ProjectDetailPage() {
     <div className="p-6 space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Project Detail</h1>
+        <h1 className="text-3xl font-bold">Repository Detail</h1>
         <button
           type="button"
-          onClick={() => navigate('/projects')}
+          onClick={() => navigate('/repositories')}
           className="btn btn-ghost btn-sm gap-2"
         >
           <ArrowLeftIcon className="w-4 h-4" />
-          Back to Projects
+          Back to Repositories
         </button>
       </div>
 

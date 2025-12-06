@@ -10,7 +10,7 @@ import { useSessionActivityStore } from '../stores/sessionActivityStore'
 import ProviderIcon from './icons/ProviderIcon'
 
 interface ProjectSessionsListProps {
-  projectId: string
+  projectId: string // Keep prop name for backward compatibility
 }
 
 const SESSIONS_LIMIT = 50
@@ -23,9 +23,9 @@ export function ProjectSessionsList({ projectId }: ProjectSessionsListProps) {
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({ option: 'all' })
   const [showActiveOnly, setShowActiveOnly] = useState(false)
 
-  // Fetch sessions for this project
+  // Fetch sessions for this repository
   const { sessions, loading } = useLocalSessions({
-    projectId,
+    repositoryId: projectId, // Map projectId prop to repositoryId filter
     dateFilter,
   })
 
@@ -89,7 +89,7 @@ export function ProjectSessionsList({ projectId }: ProjectSessionsListProps) {
     return (
       <div className="card bg-base-100 border border-base-300">
         <div className="card-body items-center text-center py-12">
-          <p className="text-base-content/60">No sessions found for this project</p>
+          <p className="text-base-content/60">No sessions found for this repository</p>
         </div>
       </div>
     )

@@ -255,7 +255,7 @@ impl CursorWatcher {
             PROVIDER_ID,
             SessionEventPayload::SessionChanged {
                 session_id: session.session_id.clone(),
-                project_name: session.project_name(),
+                repository_name: session.project_name(),
                 file_path: canonical_path,
                 file_size,
             },

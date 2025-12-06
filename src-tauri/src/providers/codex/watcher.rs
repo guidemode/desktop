@@ -350,7 +350,7 @@ impl CodexWatcher {
                                 // DatabaseEventHandler will call db_helpers which does smart insert-or-update
                                 let payload = SessionEventPayload::SessionChanged {
                                     session_id: file_event.session_id.clone(),
-                                    project_name: file_event.project_name.clone(),
+                                    repository_name: file_event.project_name.clone(),
                                     file_path: canonical_path,
                                     file_size: canonical_size,
                                 };

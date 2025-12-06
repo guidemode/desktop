@@ -78,7 +78,7 @@ mod tests {
 
         let payload = SessionEventPayload::SessionChanged {
             session_id: "test-session".to_string(),
-            project_name: "test-project".to_string(),
+            repository_name: "test-repository".to_string(),
             file_path: PathBuf::from("/tmp/test.json"),
             file_size: 1024,
         };
@@ -100,7 +100,7 @@ mod tests {
 
         let payload = SessionEventPayload::SessionChanged {
             session_id: "test-session".to_string(),
-            project_name: "test-project".to_string(),
+            repository_name: "test-repository".to_string(),
             file_path: PathBuf::from("/tmp/test.json"),
             file_size: 2048,
         };
@@ -125,7 +125,7 @@ mod tests {
                 "claude",
                 SessionEventPayload::SessionChanged {
                     session_id: "s1".to_string(),
-                    project_name: "p1".to_string(),
+                    repository_name: "r1".to_string(),
                     file_path: PathBuf::from("/tmp/1.json"),
                     file_size: 100,
                 },
@@ -137,7 +137,7 @@ mod tests {
                 "gemini",
                 SessionEventPayload::SessionChanged {
                     session_id: "s2".to_string(),
-                    project_name: "p2".to_string(),
+                    repository_name: "r2".to_string(),
                     file_path: PathBuf::from("/tmp/2.json"),
                     file_size: 200,
                 },

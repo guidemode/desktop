@@ -2,7 +2,7 @@ import { open } from '@tauri-apps/plugin-shell'
 import { Link } from 'react-router-dom'
 import { useLocalProjects } from '../hooks/useLocalProjects'
 
-const PROJECT_TYPE_LABELS: Record<string, string> = {
+const REPO_TYPE_LABELS: Record<string, string> = {
   nodejs: 'Node.js',
   rust: 'Rust',
   python: 'Python',
@@ -10,7 +10,7 @@ const PROJECT_TYPE_LABELS: Record<string, string> = {
   generic: 'Generic',
 }
 
-const PROJECT_TYPE_COLORS: Record<string, string> = {
+const REPO_TYPE_COLORS: Record<string, string> = {
   nodejs: 'badge-success',
   rust: 'badge-error',
   python: 'badge-info',
@@ -18,8 +18,8 @@ const PROJECT_TYPE_COLORS: Record<string, string> = {
   generic: 'badge-neutral',
 }
 
-export default function ProjectsPage() {
-  const { projects, loading, error, refresh } = useLocalProjects()
+export default function RepositoriesPage() {
+  const { projects: repositories, loading, error, refresh } = useLocalProjects()
 
   if (loading) {
     return (
@@ -50,9 +50,9 @@ export default function ProjectsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Projects</h1>
+          <h1 className="text-2xl font-bold">Repositories</h1>
           <p className="text-sm text-base-content/70 mt-1">
-            {projects.length} {projects.length === 1 ? 'project' : 'projects'} found
+            {repositories.length} {repositories.length === 1 ? 'repository' : 'repositories'} found
           </p>
         </div>
         <button onClick={refresh} className="btn btn-sm btn-ghost">
@@ -68,8 +68,8 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {/* Projects Grid */}
-      {projects.length === 0 ? (
+      {/* Repositories Grid */}
+      {repositories.length === 0 ? (
         <div className="text-center py-12">
           <svg
             className="w-16 h-16 mx-auto text-base-content/30 mb-4"
@@ -84,37 +84,39 @@ export default function ProjectsPage() {
               d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
             />
           </svg>
-          <h3 className="text-lg font-semibold mb-2">No projects found</h3>
-          <p className="text-base-content/70">Projects will appear here as sessions are detected</p>
+          <h3 className="text-lg font-semibold mb-2">No repositories found</h3>
+          <p className="text-base-content/70">
+            Repositories will appear here as sessions are detected
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map(project => (
+          {repositories.map(repo => (
             <Link
-              key={project.id}
-              to={`/projects/${encodeURIComponent(project.id)}`}
+              key={repo.id}
+              to={`/repositories/${encodeURIComponent(repo.id)}`}
               className="card bg-base-100 border border-base-300 hover:shadow-lg hover:border-primary/50 transition-all"
             >
               <div className="card-body">
-                {/* Project Header */}
+                {/* Repository Header */}
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="card-title text-lg truncate flex-1">{project.name}</h3>
+                  <h3 className="card-title text-lg truncate flex-1">{repo.name}</h3>
                   <span
-                    className={`badge badge-sm ${PROJECT_TYPE_COLORS[project.type] || 'badge-neutral'}`}
+                    className={`badge badge-sm ${REPO_TYPE_COLORS[repo.type] || 'badge-neutral'}`}
                   >
-                    {PROJECT_TYPE_LABELS[project.type] || project.type}
+                    {REPO_TYPE_LABELS[repo.type] || repo.type}
                   </span>
                 </div>
 
                 {/* GitHub Repo */}
-                {project.githubRepo && (
+                {repo.githubRepo && (
                   <button
                     type="button"
                     onClick={e => {
                       e.preventDefault()
                       e.stopPropagation()
-                      if (project.githubRepo) {
-                        open(project.githubRepo.replace(/\.git$/, ''))
+                      if (repo.githubRepo) {
+                        open(repo.githubRepo.replace(/\.git$/, ''))
                       }
                     }}
                     className="flex items-center gap-2 text-xs text-base-content/60 hover:text-primary transition-colors w-fit mb-2 cursor-pointer"
@@ -127,7 +129,7 @@ export default function ProjectsPage() {
                       />
                     </svg>
                     <span className="truncate">
-                      {project.githubRepo
+                      {repo.githubRepo
                         .replace(/^https?:\/\/github\.com\//, '')
                         .replace(/\.git$/, '')}
                     </span>
@@ -136,16 +138,16 @@ export default function ProjectsPage() {
 
                 {/* Session Count */}
                 <div className="flex items-baseline gap-2 mt-auto pt-3 border-t border-base-300">
-                  <span className="text-2xl font-bold text-primary">{project.sessionCount}</span>
+                  <span className="text-2xl font-bold text-primary">{repo.sessionCount}</span>
                   <span className="text-sm text-base-content/70">
-                    {project.sessionCount === 1 ? 'session' : 'sessions'}
+                    {repo.sessionCount === 1 ? 'session' : 'sessions'}
                   </span>
                 </div>
 
                 {/* Last Updated */}
                 <div className="text-xs text-base-content/60">
                   Last activity:{' '}
-                  {new Date(project.updatedAt).toLocaleDateString('en-US', {
+                  {new Date(repo.updatedAt).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric',

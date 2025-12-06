@@ -57,17 +57,17 @@ impl DatabaseEventHandler {
         match &event.payload {
             SessionEventPayload::SessionChanged {
                 session_id,
-                project_name,
+                repository_name,
                 file_path,
                 file_size,
             } => {
                 // Use db_helpers which does:
                 // - Smart insert-or-update (tries insert, falls back to update)
                 // - Extracts CWD, git info, and timing from file
-                // - Links session to project
+                // - Links session to repository
                 crate::providers::common::db_helpers::insert_session_immediately(
                     &event.provider,
-                    project_name,
+                    repository_name,
                     session_id,
                     file_path,
                     *file_size,

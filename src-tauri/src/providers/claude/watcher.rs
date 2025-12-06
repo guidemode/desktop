@@ -217,7 +217,7 @@ impl ClaudeWatcher {
                         // DatabaseEventHandler will call db_helpers which does smart insert-or-update
                         let payload = SessionEventPayload::SessionChanged {
                             session_id: file_event.session_id.clone(),
-                            project_name: file_event.project_name.clone(),
+                            repository_name: file_event.project_name.clone(),
                             file_path: file_event.path.clone(),
                             file_size: file_event.file_size,
                         };

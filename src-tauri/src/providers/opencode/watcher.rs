@@ -321,7 +321,7 @@ impl OpenCodeWatcher {
                         // DatabaseEventHandler will call db_helpers which does smart insert-or-update
                         let payload = SessionEventPayload::SessionChanged {
                             session_id: session_id.clone(),
-                            project_name: project_name.clone(),
+                            repository_name: project_name.clone(),
                             file_path: jsonl_path.clone(),
                             file_size,
                         };

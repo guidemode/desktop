@@ -165,6 +165,14 @@ fn main() {
                             sql: include_str!("../migrations/020_remove_peak_context_tokens.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 21,
+                            description: "rename_projects_to_repositories",
+                            sql: include_str!(
+                                "../migrations/021_rename_projects_to_repositories.sql"
+                            ),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
@@ -280,8 +288,8 @@ fn main() {
             commands::get_session_content,
             commands::clear_all_sessions,
             commands::clear_provider_sessions,
-            commands::get_all_projects,
-            commands::get_project_by_id,
+            commands::get_all_repositories,
+            commands::get_repository_by_id,
             commands::open_folder_in_os,
             commands::quick_rate_session,
             commands::get_session_rating,

@@ -1668,15 +1668,16 @@ pub fn start_enabled_watchers(app_state: &AppState) {
     }
 }
 
-/// Get all projects with session counts
+/// Get all repositories with session counts
 #[tauri::command]
-pub async fn get_all_projects() -> Result<Vec<serde_json::Value>, String> {
-    use crate::database::get_all_projects;
+pub async fn get_all_repositories() -> Result<Vec<serde_json::Value>, String> {
+    use crate::database::get_all_repositories;
 
-    let projects = get_all_projects().map_err(|e| format!("Failed to get projects: {}", e))?;
+    let repositories =
+        get_all_repositories().map_err(|e| format!("Failed to get repositories: {}", e))?;
 
     // Convert to JSON
-    let projects_json: Vec<serde_json::Value> = projects
+    let repositories_json: Vec<serde_json::Value> = repositories
         .iter()
         .map(|p| {
             serde_json::json!({
@@ -1684,7 +1685,7 @@ pub async fn get_all_projects() -> Result<Vec<serde_json::Value>, String> {
                 "name": p.name,
                 "githubRepo": p.github_repo,
                 "cwd": p.cwd,
-                "type": p.project_type,
+                "type": p.repository_type,
                 "createdAt": p.created_at,
                 "updatedAt": p.updated_at,
                 "sessionCount": p.session_count,
@@ -1692,24 +1693,26 @@ pub async fn get_all_projects() -> Result<Vec<serde_json::Value>, String> {
         })
         .collect();
 
-    Ok(projects_json)
+    Ok(repositories_json)
 }
 
-/// Get a single project by ID
+/// Get a single repository by ID
 #[tauri::command]
-pub async fn get_project_by_id(project_id: String) -> Result<Option<serde_json::Value>, String> {
-    use crate::database::get_project_by_id;
+pub async fn get_repository_by_id(
+    repository_id: String,
+) -> Result<Option<serde_json::Value>, String> {
+    use crate::database::get_repository_by_id;
 
-    let project =
-        get_project_by_id(&project_id).map_err(|e| format!("Failed to get project: {}", e))?;
+    let repository = get_repository_by_id(&repository_id)
+        .map_err(|e| format!("Failed to get repository: {}", e))?;
 
-    Ok(project.map(|p| {
+    Ok(repository.map(|p| {
         serde_json::json!({
             "id": p.id,
             "name": p.name,
             "githubRepo": p.github_repo,
             "cwd": p.cwd,
-            "type": p.project_type,
+            "type": p.repository_type,
             "createdAt": p.created_at,
             "updatedAt": p.updated_at,
             "sessionCount": p.session_count,

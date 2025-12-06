@@ -35,8 +35,8 @@ describe('useLocalSessions', () => {
       provider: 'claude-code',
       file_name: 'session.jsonl',
       file_path: '/tmp/session.jsonl',
-      project_name: 'Project Alpha',
-      project_id: 'proj-1',
+      repository_name: 'Project Alpha',
+      repository_id: 'proj-1',
       session_start_time: now - 60000,
       session_end_time: now,
       file_size: 2048,
@@ -95,8 +95,8 @@ describe('useLocalSessions', () => {
         provider: 'claude-code',
         fileName: 'session.jsonl',
         filePath: '/tmp/session.jsonl',
-        projectName: 'Project Alpha',
-        projectId: 'proj-1',
+        repositoryName: 'Project Alpha',
+        repositoryId: 'proj-1',
         processingStatus: 'completed',
         assessmentStatus: 'completed',
         assessmentRating: 4,
@@ -135,7 +135,7 @@ describe('useLocalSessions', () => {
         () =>
           useLocalSessions({
             provider: 'copilot',
-            projectId: 'proj-42',
+            repositoryId: 'proj-42',
             dateFilter: {
               option: 'range',
               range: { from, to },

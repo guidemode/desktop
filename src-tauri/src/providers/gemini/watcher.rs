@@ -233,7 +233,7 @@ impl GeminiWatcher {
                         // DatabaseEventHandler will call db_helpers which does smart insert-or-update
                         let payload = SessionEventPayload::SessionChanged {
                             session_id: file_event.session_id.clone(),
-                            project_name, // Real project name extracted from CWD
+                            repository_name: project_name, // Real project name extracted from CWD
                             file_path: canonical_path.clone(), // Use canonical path (not original JSON)
                             file_size: canonical_size,         // Use canonical file size
                         };

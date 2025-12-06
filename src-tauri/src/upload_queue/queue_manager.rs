@@ -28,7 +28,7 @@ pub fn add_item(
     queue: &Arc<Mutex<VecDeque<UploadItem>>>,
     uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
     provider: &str,
-    project_name: &str,
+    repository_name: &str,
     file_path: PathBuf,
 ) -> Result<(), String> {
     // Validate path and check file size
@@ -75,7 +75,7 @@ pub fn add_item(
     let item = UploadItem {
         id: Uuid::new_v4().to_string(),
         provider: provider.to_string(),
-        project_name: project_name.to_string(),
+        repository_name: repository_name.to_string(),
         file_path: validated_path,
         file_name,
         queued_at: Utc::now(),
@@ -184,12 +184,12 @@ pub fn add_historical_session(
         return Ok(());
     }
 
-    // Extract project metadata if CWD is available (will be embedded in upload payload)
-    let real_project_name = if let Some(ref cwd) = session.cwd {
+    // Extract repository metadata if CWD is available (will be embedded in upload payload)
+    let real_repository_name = if let Some(ref cwd) = session.cwd {
         log_info(
             "upload-queue",
             &format!(
-                "📁 Extracting project metadata from CWD: {} (for session {}, Claude folder: {})",
+                "📁 Extracting repository metadata from CWD: {} (for session {}, folder: {})",
                 cwd, session.session_id, session.project_name
             ),
         )
@@ -197,38 +197,38 @@ pub fn add_historical_session(
 
         match extract_project_metadata(cwd) {
             Ok(metadata) => {
-                log_info("upload-queue", &format!("✓ Extracted project metadata: {} (type: {}, git: {}) - will embed in upload payload",
+                log_info("upload-queue", &format!("✓ Extracted repository metadata: {} (type: {}, git: {}) - will embed in upload payload",
                     metadata.project_name,
                     metadata.detected_project_type,
                     metadata.git_remote_url.as_deref().unwrap_or("none")
                 )).unwrap_or_default();
 
-                // Project metadata will be embedded in the upload payload (v2/metrics)
-                // No separate /api/projects call needed anymore
+                // Repository metadata will be embedded in the upload payload (v2/metrics)
+                // No separate /api/repositories call needed anymore
 
-                // Use the derived project name for the session upload
+                // Use the derived repository name for the session upload
                 Some(metadata.project_name)
             }
             Err(e) => {
-                log_warn("upload-queue", &format!("⚠ Could not extract project metadata from {} (session {}): {} - using Claude folder name instead", cwd, session.session_id, e))
+                log_warn("upload-queue", &format!("⚠ Could not extract repository metadata from {} (session {}): {} - using folder name instead", cwd, session.session_id, e))
                     .unwrap_or_default();
                 None
             }
         }
     } else {
-        log_warn("upload-queue", &format!("⚠ No CWD available for session {} - cannot extract project metadata, using Claude folder name", session.session_id))
+        log_warn("upload-queue", &format!("⚠ No CWD available for session {} - cannot extract repository metadata, using folder name", session.session_id))
             .unwrap_or_default();
         None
     };
 
-    // Use the real project name if available, otherwise fall back to Claude folder name
-    let project_name_for_upload = real_project_name.unwrap_or_else(|| session.project_name.clone());
+    // Use the real repository name if available, otherwise fall back to folder name
+    let repository_name_for_upload = real_repository_name.unwrap_or_else(|| session.project_name.clone());
 
     log_info(
         "upload-queue",
         &format!(
-            "📝 Creating upload item for session {} with project name: {} (Claude folder: {})",
-            session.session_id, project_name_for_upload, session.project_name
+            "📝 Creating upload item for session {} with repository name: {} (folder: {})",
+            session.session_id, repository_name_for_upload, session.project_name
         ),
     )
     .unwrap_or_default();
@@ -236,7 +236,7 @@ pub fn add_historical_session(
     let item = UploadItem {
         id: Uuid::new_v4().to_string(),
         provider: session.provider.clone(),
-        project_name: project_name_for_upload,
+        repository_name: repository_name_for_upload,
         file_path: session.file_path.clone(),
         file_name: session.file_name.clone(),
         queued_at: Utc::now(),
@@ -263,7 +263,7 @@ pub fn add_session_content(
     queue: &Arc<Mutex<VecDeque<UploadItem>>>,
     uploaded_hashes: &Arc<Mutex<IndexSet<String>>>,
     provider: &str,
-    project_name: &str,
+    repository_name: &str,
     session_id: &str,
     content: String,
 ) -> Result<(), String> {
@@ -302,7 +302,7 @@ pub fn add_session_content(
     let item = UploadItem {
         id: Uuid::new_v4().to_string(),
         provider: provider.to_string(),
-        project_name: project_name.to_string(),
+        repository_name: repository_name.to_string(),
         file_path: PathBuf::from(&file_name), // Dummy path for in-memory content
         file_name,
         queued_at: Utc::now(),
@@ -363,7 +363,7 @@ pub fn get_all_items() -> QueueItems {
             .map(|session| UploadItem {
                 id: session.id,
                 provider: session.provider,
-                project_name: session.project_name,
+                repository_name: session.repository_name,
                 file_path: PathBuf::from(&session.file_path),
                 file_name: session.file_name,
                 queued_at: Utc::now(), // Use current time as approximation
@@ -388,7 +388,7 @@ pub fn get_all_items() -> QueueItems {
             .map(|session| UploadItem {
                 id: session.id,
                 provider: session.provider,
-                project_name: session.project_name,
+                repository_name: session.repository_name,
                 file_path: PathBuf::from(&session.file_path),
                 file_name: session.file_name,
                 queued_at: Utc::now(), // Use current time as approximation
@@ -473,31 +473,31 @@ pub fn is_file_already_uploaded(
     }
 }
 
-// DEPRECATED: This function is no longer used. Project metadata is now embedded in
+// DEPRECATED: This function is no longer used. Repository metadata is now embedded in
 // the upload payload (v2/metrics). Keeping this function for reference only.
 // It will be removed in a future version.
 #[allow(dead_code)]
-async fn _upload_project_metadata_static_legacy(
+async fn _upload_repository_metadata_static_legacy(
     metadata: &crate::project_metadata::ProjectMetadata,
     config: Option<GuideModeConfig>,
 ) -> Result<(), String> {
-    use super::types::ProjectUploadRequest;
+    use super::types::RepositoryUploadRequest;
 
     let config = config.ok_or("No configuration available")?;
     let api_key = config.api_key.ok_or("No API key configured")?;
     let server_url = config.server_url.ok_or("No server URL configured")?;
 
     // Prepare upload request
-    let upload_request = ProjectUploadRequest {
-        project_name: metadata.project_name.clone(),
+    let upload_request = RepositoryUploadRequest {
+        repository_name: metadata.project_name.clone(),
         git_remote_url: metadata.git_remote_url.clone(),
         cwd: metadata.cwd.clone(),
-        detected_project_type: metadata.detected_project_type.clone(),
+        detected_repository_type: metadata.detected_project_type.clone(),
     };
 
     // Make HTTP POST request to server
     let client = reqwest::Client::new();
-    let url = format!("{}/api/projects", server_url);
+    let url = format!("{}/api/repositories", server_url);
 
     let response = client
         .post(&url)
@@ -511,7 +511,7 @@ async fn _upload_project_metadata_static_legacy(
     if response.status().is_success() {
         log_info(
             "upload-queue",
-            &format!("📦 Project metadata uploaded: {}", metadata.project_name),
+            &format!("📦 Repository metadata uploaded: {}", metadata.project_name),
         )
         .unwrap_or_default();
         Ok(())
@@ -522,7 +522,7 @@ async fn _upload_project_metadata_static_legacy(
             .await
             .unwrap_or_else(|_| "Unknown error".to_string());
         Err(format!(
-            "Project upload failed with status {}: {}",
+            "Repository upload failed with status {}: {}",
             status, error_text
         ))
     }

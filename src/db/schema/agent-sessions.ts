@@ -28,7 +28,7 @@ export const agentSessions = sqliteTable(
       'not_started'
     ),
     assessmentCompletedAt: integer('assessment_completed_at', { mode: 'timestamp_ms' }),
-    projectId: text('project_id'), // Optional reference to projects
+    repositoryId: text('repository_id'), // Optional reference to repositories
     // AI Model fields
     aiModelSummary: text('ai_model_summary'), // Generated summary from AI model
     aiModelQualityScore: integer('ai_model_quality_score'), // Quality assessment score (0-100)
@@ -59,8 +59,8 @@ export const agentSessions = sqliteTable(
     processingStatusIdx: index('agent_sessions_processing_status_idx').on(table.processingStatus),
     // Index for assessment status queries
     assessmentStatusIdx: index('agent_sessions_assessment_status_idx').on(table.assessmentStatus),
-    // Index for project-based queries
-    projectIdx: index('agent_sessions_project_idx').on(table.projectId),
+    // Index for repository-based queries
+    repositoryIdx: index('agent_sessions_repository_idx').on(table.repositoryId),
     // Index for git branch queries (for future PR matching)
     gitBranchIdx: index('agent_sessions_git_branch_idx').on(table.gitBranch),
     // Index for sync status

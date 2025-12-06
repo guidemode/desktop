@@ -170,7 +170,7 @@ impl UploadProcessor {
             let item = UploadItem {
                 id: session.id.clone(),
                 provider: session.provider.clone(),
-                project_name: session.project_name.clone(),
+                repository_name: session.repository_name.clone(),
                 file_path: PathBuf::from(&session.file_path),
                 file_name: session.file_name.clone(),
                 queued_at: Utc::now(),

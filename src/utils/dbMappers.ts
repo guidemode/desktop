@@ -14,8 +14,8 @@ import type { SessionMetricsData } from '@guidemode/types'
 export interface AgentSessionRow {
   id: string
   provider: string
-  project_name: string
-  project_id: string | null
+  repository_name: string
+  repository_id: string | null
   session_id: string
   file_name: string
   file_path: string
@@ -88,7 +88,7 @@ export interface SessionMetricsRow {
   git_diff_data: string | null
 }
 
-export interface ProjectRow {
+export interface RepositoryRow {
   id: string
   name: string
   path: string
@@ -120,8 +120,8 @@ export function mapAgentSessionRow(row: AgentSessionRow) {
   return {
     id: row.id,
     provider: row.provider,
-    projectName: row.project_name,
-    projectId: row.project_id,
+    repositoryName: row.repository_name,
+    repositoryId: row.repository_id,
     sessionId: row.session_id,
     fileName: row.file_name,
     filePath: row.file_path,
@@ -251,9 +251,9 @@ export function mapSessionMetricsRow(row: SessionMetricsRow): SessionMetricsData
 }
 
 /**
- * Maps a SQL project row to a local project type
+ * Maps a SQL repository row to a local repository type
  */
-export interface LocalProject {
+export interface LocalRepository {
   id: string
   name: string
   path: string
@@ -263,7 +263,7 @@ export interface LocalProject {
   updatedAt: string
 }
 
-export function mapProjectRow(row: ProjectRow): LocalProject {
+export function mapRepositoryRow(row: RepositoryRow): LocalRepository {
   // Helper to safely convert timestamp (milliseconds) to ISO string
   const toISOString = (timestamp: number | null): string | null => {
     if (!timestamp) return null

@@ -248,7 +248,7 @@ fn process_session(
     // Publish event
     let payload = SessionEventPayload::SessionChanged {
         session_id: session.session_id.clone(),
-        project_name: session.project_name().to_string(),
+        repository_name: session.project_name().to_string(),
         file_path: canonical_path.clone(),
         file_size,
     };

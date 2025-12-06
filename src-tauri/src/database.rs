@@ -108,7 +108,7 @@ fn get_db_path() -> Result<std::path::PathBuf> {
 #[allow(clippy::too_many_arguments)]
 pub fn insert_session(
     provider: &str,
-    project_name: &str,
+    repository_name: &str,
     session_id: &str,
     file_name: &str,
     file_path: &str,
@@ -135,7 +135,7 @@ pub fn insert_session(
 
     conn.execute(
         "INSERT INTO agent_sessions (
-            id, provider, project_name, session_id, file_name, file_path, file_size, file_hash,
+            id, provider, repository_name, session_id, file_name, file_path, file_size, file_hash,
             session_start_time, session_end_time, duration_ms, cwd,
             git_branch, first_commit_hash, latest_commit_hash,
             processing_status, synced_to_server,
@@ -144,7 +144,7 @@ pub fn insert_session(
         params![
             id,
             provider,
-            project_name,
+            repository_name,
             session_id,
             file_name,
             file_path,
@@ -351,7 +351,7 @@ pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let mut stmt = conn.prepare(
-        "SELECT id, provider, project_name, session_id, file_name, file_path, file_size, cwd,
+        "SELECT id, provider, repository_name, session_id, file_name, file_path, file_size, cwd,
                 session_start_time, session_end_time,
                 COALESCE(core_metrics_status, 'pending') as core_metrics_status,
                 COALESCE(processing_status, 'pending') as processing_status
@@ -369,7 +369,7 @@ pub fn get_unsynced_sessions() -> Result<Vec<UnsyncedSession>> {
                 UnsyncedSession {
                     id: row.get(0)?,
                     provider: row.get(1)?,
-                    project_name: row.get(2)?,
+                    repository_name: row.get(2)?,
                     session_id: row.get(3)?,
                     file_name: row.get(4)?,
                     file_path: row.get(5)?,
@@ -470,7 +470,7 @@ pub fn mark_session_sync_failed(session_id: &str, reason: &str) -> Result<()> {
 pub struct FailedSession {
     pub id: String,
     pub provider: String,
-    pub project_name: String,
+    pub repository_name: String,
     pub session_id: String,
     pub file_name: String,
     pub file_path: String,
@@ -487,7 +487,7 @@ pub fn get_failed_sessions() -> Result<Vec<FailedSession>> {
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     let mut stmt = conn.prepare(
-        "SELECT id, provider, project_name, session_id, file_name, file_path, file_size, cwd, sync_failed_reason
+        "SELECT id, provider, repository_name, session_id, file_name, file_path, file_size, cwd, sync_failed_reason
          FROM agent_sessions
          WHERE sync_failed_reason IS NOT NULL
          ORDER BY created_at DESC"
@@ -498,7 +498,7 @@ pub fn get_failed_sessions() -> Result<Vec<FailedSession>> {
             Ok(FailedSession {
                 id: row.get(0)?,
                 provider: row.get(1)?,
-                project_name: row.get(2)?,
+                repository_name: row.get(2)?,
                 session_id: row.get(3)?,
                 file_name: row.get(4)?,
                 file_path: row.get(5)?,
@@ -554,7 +554,7 @@ pub struct UploadStats {
 pub struct UnsyncedSession {
     pub id: String,
     pub provider: String,
-    pub project_name: String,
+    pub repository_name: String,
     pub session_id: String,
     pub file_name: String,
     pub file_path: String,
@@ -566,13 +566,13 @@ pub struct UnsyncedSession {
     pub session_end_time: Option<i64>,
 }
 
-/// Insert or get a project by CWD (upsert)
+/// Insert or get a repository by CWD (upsert)
 /// Uses a transaction to ensure atomicity
-pub fn insert_or_get_project(
+pub fn insert_or_get_repository(
     name: &str,
     github_repo: Option<&str>,
     cwd: &str,
-    project_type: &str,
+    repository_type: &str,
 ) -> Result<String> {
     with_connection_mut(|conn| {
         // Use a transaction for atomic upsert
@@ -580,48 +580,48 @@ pub fn insert_or_get_project(
 
         let now = Utc::now().timestamp_millis();
 
-        // Try to get existing project by CWD
+        // Try to get existing repository by CWD
         let existing: Option<String> = tx
             .query_row(
-                "SELECT id FROM projects WHERE cwd = ?",
+                "SELECT id FROM repositories WHERE cwd = ?",
                 params![cwd],
                 |row| row.get(0),
             )
             .ok();
 
-        let project_id = if let Some(project_id) = existing {
-            // Update existing project
+        let repository_id = if let Some(repository_id) = existing {
+            // Update existing repository
             tx.execute(
-                "UPDATE projects SET name = ?, github_repo = ?, type = ?, updated_at = ? WHERE id = ?",
-                params![name, github_repo, project_type, now, project_id],
+                "UPDATE repositories SET name = ?, github_repo = ?, type = ?, updated_at = ? WHERE id = ?",
+                params![name, github_repo, repository_type, now, repository_id],
             )?;
 
             log_debug(
                 "database",
-                &format!("↻ Updated project {} ({})", name, project_id),
+                &format!("↻ Updated repository {} ({})", name, repository_id),
             )
             .unwrap_or_default();
 
-            project_id
+            repository_id
         } else {
-            // Insert new project
+            // Insert new repository
             let id = Uuid::new_v4().to_string();
             tx.execute(
-                "INSERT INTO projects (id, name, github_repo, cwd, type, created_at, updated_at)
+                "INSERT INTO repositories (id, name, github_repo, cwd, type, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?)",
-                params![id, name, github_repo, cwd, project_type, now, now],
+                params![id, name, github_repo, cwd, repository_type, now, now],
             )?;
 
             log_info(
                 "database",
-                &format!("✓ Inserted project {} ({})", name, &id),
+                &format!("✓ Inserted repository {} ({})", name, &id),
             )
             .unwrap_or_default();
 
             // Emit event to frontend
             if let Ok(app_handle_guard) = APP_HANDLE.lock() {
                 if let Some(ref app_handle) = *app_handle_guard {
-                    let _ = app_handle.emit("project-updated", &id);
+                    let _ = app_handle.emit("repository-updated", &id);
                 }
             }
 
@@ -631,12 +631,12 @@ pub fn insert_or_get_project(
         // Commit transaction
         tx.commit()?;
 
-        Ok(project_id)
+        Ok(repository_id)
     })
 }
 
-/// Get all projects with session counts
-pub fn get_all_projects() -> Result<Vec<ProjectWithCount>> {
+/// Get all repositories with session counts
+pub fn get_all_repositories() -> Result<Vec<RepositoryWithCount>> {
     let db_conn = DB_CONNECTION.lock().unwrap();
     let conn = db_conn
         .as_ref()
@@ -645,20 +645,20 @@ pub fn get_all_projects() -> Result<Vec<ProjectWithCount>> {
     let mut stmt = conn.prepare(
         "SELECT p.id, p.name, p.github_repo, p.cwd, p.type, p.created_at, p.updated_at,
                 COUNT(s.id) as session_count
-         FROM projects p
-         LEFT JOIN agent_sessions s ON p.id = s.project_id
+         FROM repositories p
+         LEFT JOIN agent_sessions s ON p.id = s.repository_id
          GROUP BY p.id
          ORDER BY p.updated_at DESC",
     )?;
 
-    let projects = stmt
+    let repositories = stmt
         .query_map([], |row| {
-            Ok(ProjectWithCount {
+            Ok(RepositoryWithCount {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 github_repo: row.get(2)?,
                 cwd: row.get(3)?,
-                project_type: row.get(4)?,
+                repository_type: row.get(4)?,
                 created_at: row.get(5)?,
                 updated_at: row.get(6)?,
                 session_count: row.get(7)?,
@@ -666,32 +666,32 @@ pub fn get_all_projects() -> Result<Vec<ProjectWithCount>> {
         })?
         .collect::<Result<Vec<_>>>()?;
 
-    Ok(projects)
+    Ok(repositories)
 }
 
-/// Get a single project by ID
-pub fn get_project_by_id(project_id: &str) -> Result<Option<ProjectWithCount>> {
+/// Get a single repository by ID
+pub fn get_repository_by_id(repository_id: &str) -> Result<Option<RepositoryWithCount>> {
     let db_conn = DB_CONNECTION.lock().unwrap();
     let conn = db_conn
         .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
-    let project: Option<ProjectWithCount> = conn
+    let repository: Option<RepositoryWithCount> = conn
         .query_row(
             "SELECT p.id, p.name, p.github_repo, p.cwd, p.type, p.created_at, p.updated_at,
                 COUNT(s.id) as session_count
-         FROM projects p
-         LEFT JOIN agent_sessions s ON p.id = s.project_id
+         FROM repositories p
+         LEFT JOIN agent_sessions s ON p.id = s.repository_id
          WHERE p.id = ?
          GROUP BY p.id",
-            params![project_id],
+            params![repository_id],
             |row| {
-                Ok(ProjectWithCount {
+                Ok(RepositoryWithCount {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     github_repo: row.get(2)?,
                     cwd: row.get(3)?,
-                    project_type: row.get(4)?,
+                    repository_type: row.get(4)?,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
                     session_count: row.get(7)?,
@@ -700,26 +700,26 @@ pub fn get_project_by_id(project_id: &str) -> Result<Option<ProjectWithCount>> {
         )
         .ok();
 
-    Ok(project)
+    Ok(repository)
 }
 
-/// Attach a session to a project
-pub fn attach_session_to_project(session_id: &str, project_id: &str) -> Result<()> {
+/// Attach a session to a repository
+pub fn attach_session_to_repository(session_id: &str, repository_id: &str) -> Result<()> {
     let db_conn = DB_CONNECTION.lock().unwrap();
     let conn = db_conn
         .as_ref()
         .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
 
     conn.execute(
-        "UPDATE agent_sessions SET project_id = ? WHERE session_id = ?",
-        params![project_id, session_id],
+        "UPDATE agent_sessions SET repository_id = ? WHERE session_id = ?",
+        params![repository_id, session_id],
     )?;
 
     log_debug(
         "database",
         &format!(
-            "↻ Attached session {} to project {}",
-            session_id, project_id
+            "↻ Attached session {} to repository {}",
+            session_id, repository_id
         ),
     )
     .unwrap_or_default();
@@ -727,20 +727,20 @@ pub fn attach_session_to_project(session_id: &str, project_id: &str) -> Result<(
     Ok(())
 }
 
-/// Update a session's project_name field
-/// Used when linking a session to a project to sync the project_name field
-pub fn update_session_project_name(session_id: &str, project_name: &str) -> Result<()> {
+/// Update a session's repository_name field
+/// Used when linking a session to a repository to sync the repository_name field
+pub fn update_session_repository_name(session_id: &str, repository_name: &str) -> Result<()> {
     with_connection_mut(|conn| {
         conn.execute(
-            "UPDATE agent_sessions SET project_name = ? WHERE session_id = ?",
-            params![project_name, session_id],
+            "UPDATE agent_sessions SET repository_name = ? WHERE session_id = ?",
+            params![repository_name, session_id],
         )?;
 
         log_debug(
             "database",
             &format!(
-                "↻ Updated project_name for session {} to '{}'",
-                session_id, project_name
+                "↻ Updated repository_name for session {} to '{}'",
+                session_id, repository_name
             ),
         )
         .unwrap_or_default();
@@ -750,12 +750,12 @@ pub fn update_session_project_name(session_id: &str, project_name: &str) -> Resu
 }
 
 #[derive(Debug, Clone)]
-pub struct ProjectWithCount {
+pub struct RepositoryWithCount {
     pub id: String,
     pub name: String,
     pub github_repo: Option<String>,
     pub cwd: String,
-    pub project_type: String,
+    pub repository_type: String,
     pub created_at: i64,
     pub updated_at: i64,
     pub session_count: i64,
@@ -927,7 +927,7 @@ pub fn get_session_rating(session_id: &str) -> Result<Option<String>> {
 pub struct FullSessionData {
     pub session_id: String,
     pub provider: String,
-    pub project_name: String,
+    pub repository_name: String,
     pub file_name: String,
     pub file_path: String,
     pub file_size: i64,
@@ -959,7 +959,7 @@ pub fn get_full_session_by_id(session_id: &str) -> Result<Option<FullSessionData
 
     let session: Option<FullSessionData> = conn
         .query_row(
-            "SELECT session_id, provider, project_name, file_name, file_path, file_size,
+            "SELECT session_id, provider, repository_name, file_name, file_path, file_size,
                     session_start_time, session_end_time, duration_ms,
                     processing_status, queued_at, processed_at,
                     COALESCE(core_metrics_status, 'pending') as core_metrics_status,
@@ -974,7 +974,7 @@ pub fn get_full_session_by_id(session_id: &str) -> Result<Option<FullSessionData
                 Ok(FullSessionData {
                     session_id: row.get(0)?,
                     provider: row.get(1)?,
-                    project_name: row.get(2)?,
+                    repository_name: row.get(2)?,
                     file_name: row.get(3)?,
                     file_path: row.get(4)?,
                     file_size: row.get(5)?,

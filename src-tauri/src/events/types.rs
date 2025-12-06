@@ -21,7 +21,7 @@ pub enum SessionEventPayload {
     /// Database handler will use db_helpers which does smart insert-or-update
     SessionChanged {
         session_id: String,
-        project_name: String,
+        repository_name: String,
         file_path: PathBuf,
         file_size: u64,
     },

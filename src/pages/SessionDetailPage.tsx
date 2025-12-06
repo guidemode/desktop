@@ -46,10 +46,10 @@ import { useValidationStatus } from '../hooks/useValidationStatus'
 import { useSessionActivityStore } from '../stores/sessionActivityStore'
 import {
   type AgentSessionRow,
-  type LocalProject,
-  type ProjectRow,
+  type LocalRepository,
+  type RepositoryRow,
   mapAgentSessionRow,
-  mapProjectRow,
+  mapRepositoryRow,
 } from '../utils/dbMappers'
 
 // SQL result types
@@ -68,7 +68,7 @@ interface AgentSessionWithRating extends AgentSessionRow {
   ai_model_metadata: string | null
 }
 
-interface ProjectRowExtended extends ProjectRow {
+interface RepositoryRowExtended extends RepositoryRow {
   github_repo: string | null
   cwd: string
   type: string
@@ -78,8 +78,8 @@ interface ProjectRowExtended extends ProjectRow {
 interface DesktopSession {
   id: string
   provider: string
-  projectName: string
-  projectId: string | null
+  repositoryName: string
+  repositoryId: string | null
   sessionId: string
   fileName: string | null
   filePath: string | null
@@ -157,11 +157,11 @@ async function fetchSessionMetadata(sessionId: string): Promise<DesktopSession |
   }
 }
 
-// Fetch project for session
-async function fetchSessionProject(sessionId: string): Promise<LocalProject | null> {
-  const result = await invoke<ProjectRowExtended[]>('execute_sql', {
-    sql: `SELECT p.* FROM projects p
-          JOIN agent_sessions s ON p.id = s.project_id
+// Fetch repository for session
+async function fetchSessionRepository(sessionId: string): Promise<LocalRepository | null> {
+  const result = await invoke<RepositoryRowExtended[]>('execute_sql', {
+    sql: `SELECT r.* FROM repositories r
+          JOIN agent_sessions s ON r.id = s.repository_id
           WHERE s.session_id = ? LIMIT 1`,
     params: [sessionId],
   })
@@ -172,15 +172,15 @@ async function fetchSessionProject(sessionId: string): Promise<LocalProject | nu
 
   // Map snake_case SQL result to camelCase TypeScript type
   const row = result[0]
-  const project = mapProjectRow(row)
+  const repository = mapRepositoryRow(row)
 
   // Add additional fields (cast to any to allow extra desktop-specific fields)
   return {
-    ...project,
+    ...repository,
     githubRepo: row.github_repo,
     cwd: row.cwd,
     type: row.type,
-  } as LocalProject & { githubRepo: string | null }
+  } as LocalRepository & { githubRepo: string | null }
 }
 
 export default function SessionDetailPage() {
@@ -272,14 +272,14 @@ export default function SessionDetailPage() {
     enabled: !!sessionId,
   })
 
-  // Fetch project for session
-  const { data: project } = useQuery({
-    queryKey: ['session-project', sessionId],
+  // Fetch repository for session
+  const { data: repository } = useQuery({
+    queryKey: ['session-repository', sessionId],
     queryFn: () => {
       if (!sessionId) {
         throw new Error('Session ID is required')
       }
-      return fetchSessionProject(sessionId)
+      return fetchSessionRepository(sessionId)
     },
     enabled: !!sessionId,
   })
@@ -736,15 +736,15 @@ export default function SessionDetailPage() {
         <SessionDetailHeader
           session={{
             provider: session.provider,
-            projectName: session.projectName,
+            repositoryName: session.repositoryName,
             sessionStartTime: session.sessionStartTime,
             durationMs: session.durationMs ?? null,
             fileSize: session.fileSize ?? undefined,
             cwd: session.cwd ?? undefined,
-            project: project
+            repository: repository
               ? {
-                  name: project.name,
-                  gitRemoteUrl: (project as any).githubRepo ?? undefined,
+                  name: repository.name,
+                  gitRemoteUrl: (repository as any).githubRepo ?? undefined,
                   cwd: undefined,
                 }
               : undefined,
@@ -769,8 +769,10 @@ export default function SessionDetailPage() {
           }
           onCwdClick={session.cwd ? handleCwdClick : undefined}
           onViewDiff={session.firstCommitHash ? handleViewDiff : undefined}
-          onProjectClick={
-            session.projectId ? () => navigate(`/projects/${session.projectId}`) : undefined
+          onRepositoryClick={
+            session.repositoryId
+              ? () => navigate(`/repositories/${session.repositoryId}`)
+              : undefined
           }
           syncStatus={{
             synced: session.syncedToServer === true,
@@ -1211,7 +1213,7 @@ export default function SessionDetailPage() {
                       <ValidationReport
                         sessionId={session.sessionId}
                         provider={session.provider}
-                        project={project?.name ?? 'unknown'}
+                        project={repository?.name ?? 'unknown'}
                         filePath={session.filePath ?? ''}
                       />
                     </div>

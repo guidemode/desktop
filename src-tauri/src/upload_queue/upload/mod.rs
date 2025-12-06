@@ -14,7 +14,7 @@ pub use v2::upload_v2;
 
 // Re-export deprecated function for backward compatibility
 #[allow(deprecated)]
-pub use project::upload_project_metadata_static;
+pub use project::upload_repository_metadata_static;
 
 // Re-export retry utilities
 pub use retry::{calculate_backoff, classify_error, schedule_retry, should_retry, ErrorType};

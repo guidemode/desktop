@@ -89,14 +89,14 @@ impl UploadQueue {
     pub fn add_item(
         &self,
         provider: &str,
-        project_name: &str,
+        repository_name: &str,
         file_path: PathBuf,
     ) -> Result<(), String> {
         queue_manager::add_item(
             &self.queue,
             &self.uploaded_hashes,
             provider,
-            project_name,
+            repository_name,
             file_path,
         )
     }
@@ -114,7 +114,7 @@ impl UploadQueue {
     pub fn add_session_content(
         &self,
         provider: &str,
-        project_name: &str,
+        repository_name: &str,
         session_id: &str,
         content: String,
     ) -> Result<(), String> {
@@ -122,7 +122,7 @@ impl UploadQueue {
             &self.queue,
             &self.uploaded_hashes,
             provider,
-            project_name,
+            repository_name,
             session_id,
             content,
         )
@@ -179,24 +179,24 @@ impl UploadQueue {
         queue_manager::retry_item(item_id)
     }
 
-    /// Upload project metadata to the server
+    /// Upload repository metadata to the server
     ///
-    /// **DEPRECATED**: Use embedded projectMetadata in upload payloads instead
+    /// **DEPRECATED**: Use embedded repositoryMetadata in upload payloads instead
     #[allow(dead_code)]
     #[allow(deprecated)]
-    pub async fn upload_project_metadata(&self, metadata: &ProjectMetadata) -> Result<(), String> {
+    pub async fn upload_repository_metadata(&self, metadata: &ProjectMetadata) -> Result<(), String> {
         let config = if let Ok(config_guard) = self.config.lock() {
             config_guard.clone()
         } else {
             None
         };
 
-        upload::upload_project_metadata_static(metadata, config).await
+        upload::upload_repository_metadata_static(metadata, config).await
     }
 
-    /// Check if a project exists on the server (GET request)
+    /// Check if a repository exists on the server (GET request)
     #[allow(dead_code)]
-    pub async fn check_project_exists(&self, project_name: &str) -> Result<bool, String> {
+    pub async fn check_repository_exists(&self, repository_name: &str) -> Result<bool, String> {
         let config = if let Ok(config_guard) = self.config.lock() {
             config_guard.clone()
         } else {
@@ -207,9 +207,9 @@ impl UploadQueue {
         let api_key = config.api_key.ok_or("No API key configured")?;
         let server_url = config.server_url.ok_or("No server URL configured")?;
 
-        // Make GET request to check if project exists
+        // Make GET request to check if repository exists
         let client = reqwest::Client::new();
-        let url = format!("{}/api/projects/{}", server_url, project_name);
+        let url = format!("{}/api/repositories/{}", server_url, repository_name);
 
         let response = client
             .get(&url)

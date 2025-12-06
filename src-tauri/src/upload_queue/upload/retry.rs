@@ -321,7 +321,7 @@ mod tests {
         UploadItem {
             id: "test-id".to_string(),
             provider: "test-provider".to_string(),
-            project_name: "test-project".to_string(),
+            repository_name: "test-repository".to_string(),
             file_path: PathBuf::from("/test/path"),
             file_name: "test.jsonl".to_string(),
             queued_at: Utc::now(),

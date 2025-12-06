@@ -31,11 +31,11 @@ pub async fn upload_metrics_only(item: &UploadItem, config: GuideModeConfig) -> 
         .map_err(|e| format!("Failed to get session data: {}", e))?
         .ok_or_else(|| format!("Session {} not found in database", session_id))?;
 
-    // Extract project metadata if CWD is available (will be embedded in payload)
-    let (final_project_name, project_metadata) = if let Some(ref cwd) = item.cwd {
+    // Extract repository metadata if CWD is available (will be embedded in payload)
+    let (final_repository_name, repository_metadata) = if let Some(ref cwd) = item.cwd {
         log_info(
             "upload-queue",
-            &format!("📁 Extracting project metadata from CWD: {}", cwd),
+            &format!("📁 Extracting repository metadata from CWD: {}", cwd),
         )
         .unwrap_or_default();
 
@@ -44,7 +44,7 @@ pub async fn upload_metrics_only(item: &UploadItem, config: GuideModeConfig) -> 
                 log_info(
                     "upload-queue",
                     &format!(
-                        "✓ Extracted project: {} (type: {}, git: {}) - will embed in payload",
+                        "✓ Extracted repository: {} (type: {}, git: {}) - will embed in payload",
                         metadata.project_name,
                         metadata.detected_project_type,
                         metadata.git_remote_url.as_deref().unwrap_or("none")
@@ -52,24 +52,24 @@ pub async fn upload_metrics_only(item: &UploadItem, config: GuideModeConfig) -> 
                 )
                 .unwrap_or_default();
 
-                // Project metadata will be embedded in the upload payload
-                let project_name = metadata.project_name.clone();
-                (project_name, Some(metadata))
+                // Repository metadata will be embedded in the upload payload
+                let repository_name = metadata.project_name.clone();
+                (repository_name, Some(metadata))
             }
             Err(e) => {
                 log_warn(
                     "upload-queue",
                     &format!(
-                        "⚠ Could not extract project metadata: {} - using folder name",
+                        "⚠ Could not extract repository metadata: {} - using folder name",
                         e
                     ),
                 )
                 .unwrap_or_default();
-                (item.project_name.clone(), None)
+                (item.repository_name.clone(), None)
             }
         }
     } else {
-        (item.project_name.clone(), None)
+        (item.repository_name.clone(), None)
     };
 
     // Helper to convert timestamp to ISO string
@@ -90,7 +90,7 @@ pub async fn upload_metrics_only(item: &UploadItem, config: GuideModeConfig) -> 
     // fileSize is included as a useful metric for session size analytics
     let mut session_request = serde_json::json!({
         "provider": session_data.provider,
-        "projectName": final_project_name,
+        "repositoryName": final_repository_name,
         "sessionId": session_data.session_id,
         "fileName": session_data.file_name,
         // filePath intentionally omitted for metrics-only uploads
@@ -112,12 +112,12 @@ pub async fn upload_metrics_only(item: &UploadItem, config: GuideModeConfig) -> 
         "aiModelPhaseAnalysis": session_data.ai_model_phase_analysis.and_then(|s| serde_json::from_str::<Value>(&s).ok()),
     });
 
-    // Add project metadata if available
-    if let Some(ref metadata) = project_metadata {
-        session_request["projectMetadata"] = serde_json::json!({
+    // Add repository metadata if available
+    if let Some(ref metadata) = repository_metadata {
+        session_request["repositoryMetadata"] = serde_json::json!({
             "gitRemoteUrl": metadata.git_remote_url,
             "cwd": metadata.cwd,
-            "detectedProjectType": metadata.detected_project_type,
+            "detectedRepositoryType": metadata.detected_project_type,
         });
     }
 

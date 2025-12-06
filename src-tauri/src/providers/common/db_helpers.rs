@@ -27,7 +27,7 @@ fn get_existing_git_data(session_id: &str) -> Option<(Option<String>, Option<Str
 ///   If false, captures current git state (normal behavior for live sessions).
 pub fn insert_session_immediately(
     provider_id: &str,
-    project_name: &str,
+    repository_name: &str,
     session_id: &str,
     file_path: &PathBuf,
     file_size: u64,
@@ -89,7 +89,7 @@ pub fn insert_session_immediately(
     // If it fails due to unique constraint, update instead
     let insert_result = insert_session(
         provider_id,
-        project_name,
+        repository_name,
         session_id,
         file_name,
         &file_path.to_string_lossy(),
@@ -167,43 +167,43 @@ pub fn insert_session_immediately(
         }
     }
 
-    // Extract and link project if CWD is available
+    // Extract and link repository if CWD is available
     if let Some(ref cwd_path) = cwd {
         match crate::project_metadata::extract_project_metadata(cwd_path) {
             Ok(metadata) => {
-                // Insert or update project
-                match crate::database::insert_or_get_project(
+                // Insert or update repository
+                match crate::database::insert_or_get_repository(
                     &metadata.project_name,
                     metadata.git_remote_url.as_deref(),
                     &metadata.cwd,
                     &metadata.detected_project_type,
                 ) {
-                    Ok(project_id) => {
-                        // Attach session to project
+                    Ok(repository_id) => {
+                        // Attach session to repository
                         if let Err(e) =
-                            crate::database::attach_session_to_project(session_id, &project_id)
+                            crate::database::attach_session_to_repository(session_id, &repository_id)
                         {
                             let _ = log_warn(
                                 provider_id,
-                                &format!("⚠ Failed to attach session to project: {}", e),
+                                &format!("⚠ Failed to attach session to repository: {}", e),
                             );
                         } else {
-                            // Update the project_name field to match the linked project
-                            // This ensures the session displays the correct project name instead of fallback
-                            if let Err(e) = crate::database::update_session_project_name(
+                            // Update the repository_name field to match the linked repository
+                            // This ensures the session displays the correct repository name instead of fallback
+                            if let Err(e) = crate::database::update_session_repository_name(
                                 session_id,
                                 &metadata.project_name,
                             ) {
                                 let _ = log_warn(
                                     provider_id,
-                                    &format!("⚠ Failed to update session project_name: {}", e),
+                                    &format!("⚠ Failed to update session repository_name: {}", e),
                                 );
                             }
 
                             let _ = log_debug(
                                 provider_id,
                                 &format!(
-                                    "📁 Session {} linked to project {} ({})",
+                                    "📁 Session {} linked to repository {} ({})",
                                     session_id,
                                     metadata.project_name,
                                     metadata.detected_project_type
@@ -214,7 +214,7 @@ pub fn insert_session_immediately(
                     Err(e) => {
                         let _ = log_warn(
                             provider_id,
-                            &format!("⚠ Failed to insert/get project: {}", e),
+                            &format!("⚠ Failed to insert/get repository: {}", e),
                         );
                     }
                 }

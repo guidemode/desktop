@@ -80,7 +80,7 @@ export default function SessionsPage() {
 
   const { sessions, loading, error, refresh } = useLocalSessions({
     provider: providerFilter === 'all' ? undefined : providerFilter,
-    projectId: projectFilter === 'all' ? undefined : projectFilter,
+    repositoryId: projectFilter === 'all' ? undefined : projectFilter,
     dateFilter: dateFilter,
   })
   const invalidateSessions = useInvalidateSessions()
@@ -653,7 +653,7 @@ export default function SessionsPage() {
             setSearchParams(searchParams)
           }}
         >
-          <option value="all">All Projects</option>
+          <option value="all">All Repositories</option>
           {projects.map(project => (
             <option key={project.id} value={project.id}>
               {project.name}
@@ -789,7 +789,7 @@ export default function SessionsPage() {
                     session={{
                       sessionId: session.sessionId as string,
                       provider: session.provider,
-                      projectName: session.projectName,
+                      repositoryName: session.repositoryName,
                       sessionStartTime: session.sessionStartTime,
                       sessionEndTime: session.sessionEndTime,
                       durationMs: session.durationMs,

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useState } from 'react'
 
+// Keep LocalProject as an alias for backward compatibility with components
 export interface LocalProject {
   id: string
   name: string
@@ -12,11 +13,14 @@ export interface LocalProject {
   sessionCount: number
 }
 
+// New interface name for repository terminology
+export type LocalRepository = LocalProject
+
 /**
- * Fetch all projects from the local database
+ * Fetch all repositories from the local database
  */
 export function useLocalProjects() {
-  const [projects, setProjects] = useState<LocalProject[]>([])
+  const [projects, setProjects] = useState<LocalRepository[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,10 +28,10 @@ export function useLocalProjects() {
     try {
       setLoading(true)
       setError(null)
-      const result = await invoke<LocalProject[]>('get_all_projects')
+      const result = await invoke<LocalRepository[]>('get_all_repositories')
       setProjects(result)
     } catch (err) {
-      console.error('Failed to fetch projects:', err)
+      console.error('Failed to fetch repositories:', err)
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
@@ -42,10 +46,10 @@ export function useLocalProjects() {
 }
 
 /**
- * Fetch a single project by ID
+ * Fetch a single repository by ID
  */
 export function useLocalProject(projectId: string | undefined) {
-  const [project, setProject] = useState<LocalProject | null>(null)
+  const [project, setProject] = useState<LocalRepository | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,10 +63,12 @@ export function useLocalProject(projectId: string | undefined) {
       try {
         setLoading(true)
         setError(null)
-        const result = await invoke<LocalProject | null>('get_project_by_id', { projectId })
+        const result = await invoke<LocalRepository | null>('get_repository_by_id', {
+          repositoryId: projectId,
+        })
         setProject(result)
       } catch (err) {
-        console.error('Failed to fetch project:', err)
+        console.error('Failed to fetch repository:', err)
         setError(err instanceof Error ? err.message : String(err))
       } finally {
         setLoading(false)

@@ -46,15 +46,15 @@ impl AsRef<str> for SessionId {
     }
 }
 
-/// Project ID newtype for type safety
+/// Repository ID newtype for type safety
 ///
 /// Note: This is a Phase 4 improvement for gradual adoption across the codebase.
 /// Currently unused but available for type-safe refactoring.
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ProjectId(String);
+pub struct RepositoryId(String);
 
-impl ProjectId {
+impl RepositoryId {
     #[allow(dead_code)]
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
@@ -66,25 +66,25 @@ impl ProjectId {
     }
 }
 
-impl fmt::Display for ProjectId {
+impl fmt::Display for RepositoryId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl From<String> for ProjectId {
+impl From<String> for RepositoryId {
     fn from(s: String) -> Self {
         Self(s)
     }
 }
 
-impl From<&str> for ProjectId {
+impl From<&str> for RepositoryId {
     fn from(s: &str) -> Self {
         Self(s.to_string())
     }
 }
 
-impl AsRef<str> for ProjectId {
+impl AsRef<str> for RepositoryId {
     fn as_ref(&self) -> &str {
         &self.0
     }
@@ -108,16 +108,16 @@ mod tests {
     }
 
     #[test]
-    fn test_project_id_creation() {
-        let id = ProjectId::new("project-789");
-        assert_eq!(id.as_str(), "project-789");
-        assert_eq!(id.to_string(), "project-789");
+    fn test_repository_id_creation() {
+        let id = RepositoryId::new("repository-789");
+        assert_eq!(id.as_str(), "repository-789");
+        assert_eq!(id.to_string(), "repository-789");
     }
 
     #[test]
-    fn test_project_id_from_string() {
-        let id: ProjectId = String::from("project-abc").into();
-        assert_eq!(id.as_str(), "project-abc");
+    fn test_repository_id_from_string() {
+        let id: RepositoryId = String::from("repository-abc").into();
+        assert_eq!(id.as_str(), "repository-abc");
     }
 
     #[test]

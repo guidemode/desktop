@@ -24,7 +24,7 @@ interface ActiveSessionCardProps {
   session: {
     sessionId: string
     provider: string
-    projectName: string
+    repositoryName: string
     sessionStartTime: string | null
     sessionEndTime: string | null
     durationMs: number | null
@@ -356,7 +356,7 @@ export function ActiveSessionCard({
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-lg font-semibold">{session.projectName}</h3>
+                <h3 className="text-lg font-semibold">{session.repositoryName}</h3>
                 {session.gitBranch && (
                   <span className="badge badge-ghost badge-sm font-mono">{session.gitBranch}</span>
                 )}

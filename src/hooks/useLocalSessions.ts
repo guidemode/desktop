@@ -51,7 +51,7 @@ export interface DateFilterValue {
 
 interface SessionFilters {
   provider?: string
-  projectId?: string
+  repositoryId?: string
   dateFilter?: DateFilterValue
 }
 
@@ -140,7 +140,7 @@ function buildDateWhereClause(dateFilter: DateFilterValue): { clause: string; pa
 }
 
 async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithMetrics[]> {
-  const { provider, projectId, dateFilter } = filters
+  const { provider, repositoryId, dateFilter } = filters
 
   // Build WHERE clause conditions
   const whereConditions: string[] = []
@@ -151,9 +151,9 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
     params.push(provider)
   }
 
-  if (projectId) {
-    whereConditions.push('s.project_id = ?')
-    params.push(projectId)
+  if (repositoryId) {
+    whereConditions.push('s.repository_id = ?')
+    params.push(repositoryId)
   }
 
   // Add date filter
@@ -171,8 +171,8 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
   const query = `
     SELECT
       s.*,
-      s.project_id,
-      COALESCE(p.name, s.project_name) as project_name,
+      s.repository_id,
+      COALESCE(r.name, s.repository_name) as repository_name,
       m.response_latency_ms,
       m.task_completion_time_ms,
       m.read_write_ratio,
@@ -190,7 +190,7 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
     FROM agent_sessions s
     LEFT JOIN session_metrics m ON s.session_id = m.session_id
     LEFT JOIN session_assessments a ON s.session_id = a.session_id
-    LEFT JOIN projects p ON s.project_id = p.id
+    LEFT JOIN repositories r ON s.repository_id = r.id
     ${whereClause}
     ORDER BY s.session_end_time DESC NULLS LAST
   `
@@ -241,8 +241,8 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
       filePath: row.file_path,
       userId: '', // Local database doesn't have user info
       username: '', // Local database doesn't have user info
-      projectName: row.project_name || 'Unknown Project',
-      projectId: row.project_id || null,
+      repositoryName: row.repository_name || 'Unknown Repository',
+      repositoryId: row.repository_id || null,
       // Timestamps are stored as milliseconds in SQLite
       sessionStartTime: row.session_start_time
         ? new Date(row.session_start_time).toISOString()
@@ -291,7 +291,7 @@ export function useLocalSessions(filters?: SessionFilters) {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['local-sessions', filters?.provider, filters?.projectId, filters?.dateFilter],
+    queryKey: ['local-sessions', filters?.provider, filters?.repositoryId, filters?.dateFilter],
     queryFn: () => fetchSessions(filters),
   })
 
@@ -331,7 +331,7 @@ export function useLocalSession(sessionId: string) {
         sql: `
           SELECT
             s.*,
-            COALESCE(p.name, s.project_name) as project_name,
+            COALESCE(r.name, s.repository_name) as repository_name,
             m.response_latency_ms,
             m.task_completion_time_ms,
             m.read_write_ratio,
@@ -348,7 +348,7 @@ export function useLocalSession(sessionId: string) {
             m.improvement_tips
           FROM agent_sessions s
           LEFT JOIN session_metrics m ON s.session_id = m.session_id
-          LEFT JOIN projects p ON s.project_id = p.id
+          LEFT JOIN repositories r ON s.repository_id = r.id
           WHERE s.session_id = ?
         `,
         params: [sessionId],
@@ -389,8 +389,8 @@ export function useLocalSession(sessionId: string) {
         fileName: row.file_name || '',
         userId: '', // Local database doesn't have user info
         username: '', // Local database doesn't have user info
-        projectName: row.project_name || 'Unknown Project',
-        projectId: row.project_id || null,
+        repositoryName: row.repository_name || 'Unknown Repository',
+        repositoryId: row.repository_id || null,
         // Timestamps are stored as milliseconds in SQLite
         sessionStartTime: row.session_start_time
           ? new Date(row.session_start_time).toISOString()

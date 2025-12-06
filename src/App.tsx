@@ -14,9 +14,9 @@ import { useTheme } from './hooks/useTheme'
 import DashboardPage from './pages/DashboardPage'
 import LogsPage from './pages/LogsPage'
 import OverviewPage from './pages/OverviewPage'
-import ProjectDetailPage from './pages/ProjectDetailPage'
-import ProjectsPage from './pages/ProjectsPage'
 import ProviderPage from './pages/ProviderPage'
+import RepositoriesPage from './pages/RepositoriesPage'
+import RepositoryDetailPage from './pages/RepositoryDetailPage'
 import SessionDetailPage from './pages/SessionDetailPage'
 import SessionsPage from './pages/SessionsPage'
 import SettingsPage from './pages/SettingsPage'
@@ -71,8 +71,8 @@ function AppContent() {
         <Route path="/provider/:providerId" element={<ProviderPage />} />
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+        <Route path="/repositories" element={<RepositoriesPage />} />
+        <Route path="/repositories/:repositoryId" element={<RepositoryDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/upload-queue" element={<UploadQueuePage />} />
         <Route path="/logs" element={<LogsPage />} />
