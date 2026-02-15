@@ -61,7 +61,6 @@ pub async fn check_file_hash(
 pub async fn upload_v2(
     item: &UploadItem,
     session_id: &str,
-    file_hash: &str,
     config: GuideModeConfig,
 ) -> Result<(), String> {
     let api_key = config.api_key.clone().ok_or("No API key configured")?;
@@ -70,22 +69,52 @@ pub async fn upload_v2(
         .clone()
         .ok_or("No server URL configured")?;
 
+    // Read file content
+    let raw_content = if let Some(ref content) = item.content {
+        content.clone()
+    } else {
+        let bytes = std::fs::read(&item.file_path)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
+
+    // Redact secrets and PII before hashing or uploading
+    let home_dir = dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let redacted = crate::redaction::redact_jsonl_content(&raw_content, &home_dir)?;
+    let file_content = redacted.content.into_bytes();
+
+    if redacted.stats.total_redactions > 0 {
+        log_info(
+            "upload-queue",
+            &format!(
+                "Redacted {} items in {}/{} lines for {}",
+                redacted.stats.total_redactions,
+                redacted.stats.lines_with_redactions,
+                redacted.stats.lines_processed,
+                session_id,
+            ),
+        )
+        .unwrap_or_default();
+    }
+
+    // Hash the redacted content for dedup
+    let file_hash = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(&file_content);
+        hex::encode(hasher.finalize())
+    };
+
     // Check if server already has this file
-    let needs_upload = check_file_hash(session_id, file_hash, &server_url, &api_key).await?;
+    let needs_upload =
+        check_file_hash(session_id, &file_hash, &server_url, &api_key).await?;
 
-    // Prepare content only if needed
+    // Compress only if upload is needed
     let compressed_content = if needs_upload {
-        // Read file content
-        let file_content = if let Some(ref content) = item.content {
-            content.as_bytes().to_vec()
-        } else {
-            std::fs::read(&item.file_path).map_err(|e| format!("Failed to read file: {}", e))?
-        };
-
-        // Compress the file content
         let compressed = compress_file_content(&file_content)?;
 
-        // Encode compressed content to base64
         use base64::Engine;
         Some(base64::engine::general_purpose::STANDARD.encode(&compressed))
     } else {

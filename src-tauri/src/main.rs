@@ -15,6 +15,7 @@ mod git_diff;
 mod logging;
 mod project_metadata;
 mod providers;
+mod redaction;
 mod shutdown;
 mod types;
 mod upload_queue;

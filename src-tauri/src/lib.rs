@@ -11,6 +11,7 @@ pub mod events;
 pub mod logging;
 pub mod project_metadata;
 pub mod providers;
+pub mod redaction;
 pub mod shutdown;
 pub mod upload_queue;
 pub mod validation;

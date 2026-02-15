@@ -20,7 +20,6 @@ pub use project::upload_repository_metadata_static;
 pub use retry::{calculate_backoff, classify_error, schedule_retry, should_retry, ErrorType};
 
 use crate::config::GuideModeConfig;
-use crate::upload_queue::hashing::{calculate_content_hash_sha256, calculate_file_hash_sha256};
 use crate::upload_queue::types::UploadItem;
 
 /// Process an upload item by routing to the appropriate upload method based on sync mode
@@ -48,20 +47,8 @@ pub async fn process_upload_item(
             let session_id = item.session_id.as_ref()
                 .ok_or("Session ID required for upload")?;
 
-            // Calculate file hash if not already present
-            let file_hash = if let Some(ref hash) = item.file_hash {
-                hash.clone()
-            } else {
-                // Calculate SHA256 hash
-                if let Some(ref content) = item.content {
-                    calculate_content_hash_sha256(content)
-                } else {
-                    calculate_file_hash_sha256(&item.file_path)?
-                }
-            };
-
-            // Use v2 upload endpoint
-            upload_v2(item, session_id, &file_hash, config.clone()).await
+            // Use v2 upload endpoint (handles redaction, hashing, compression internally)
+            upload_v2(item, session_id, config.clone()).await
         }
         _ => {
             Err(format!(

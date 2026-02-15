@@ -82,6 +82,8 @@ ignore = "0.4"
 walkdir = "2.0"
 # Protocol Buffers for Cursor provider
 prost = "0.13"
+# Regex for redaction patterns
+regex = "1"
 
 # macOS specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]
