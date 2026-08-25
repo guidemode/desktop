@@ -1,7 +1,7 @@
+use super::parser::CopilotEvent;
 use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
 };
-use super::parser::CopilotEvent;
 use anyhow::Result;
 use serde_json::Value;
 
@@ -265,7 +265,7 @@ fn convert_tool_use(
     let call_id = event
         .data
         .get("toolCallId")
-        .or_else(|| event.data.get("callId"))  // Fallback to callId for compatibility
+        .or_else(|| event.data.get("callId")) // Fallback to callId for compatibility
         .and_then(|v| v.as_str())
         .unwrap_or(&id)
         .to_string();
@@ -276,7 +276,10 @@ fn convert_tool_use(
         .or_else(|| event.data.get("name"))
         .and_then(|v| v.as_str())
         .unwrap_or_else(|| {
-            eprintln!("Warning: Tool name not found in event data. Event: {:?}", event.data);
+            eprintln!(
+                "Warning: Tool name not found in event data. Event: {:?}",
+                event.data
+            );
             "unknown"
         })
         .to_string();
@@ -354,7 +357,7 @@ fn convert_tool_result(
     let call_id = event
         .data
         .get("toolCallId")
-        .or_else(|| event.data.get("callId"))  // Fallback to callId for compatibility
+        .or_else(|| event.data.get("callId")) // Fallback to callId for compatibility
         .and_then(|v| v.as_str())
         .unwrap_or(&id)
         .to_string();
@@ -396,7 +399,7 @@ fn convert_tool_result(
     Ok(CanonicalMessage {
         uuid: format!("{}_result", id),
         timestamp,
-        message_type: MessageType::User,  // Tool results are USER messages
+        message_type: MessageType::User, // Tool results are USER messages
         session_id: session_id.to_string(),
         provider: "github-copilot".to_string(),
         cwd: cwd.map(String::from),
@@ -406,7 +409,7 @@ fn convert_tool_result(
         is_sidechain: None,
         user_type: Some("external".to_string()),
         message: MessageContent {
-            role: "user".to_string(),  // Tool results have user role
+            role: "user".to_string(), // Tool results have user role
             content: ContentValue::Structured(vec![tool_result_block]),
             model: None,
             usage: None,
@@ -497,9 +500,11 @@ mod tests {
 
     #[test]
     fn test_convert_user_message() {
-        let entry = create_test_event("user.message", json!({ "content": "Hello", "attachments": [] }));
-        let result = convert_event_to_canonical(&entry, "session-1", Some("/test"))
-            .unwrap();
+        let entry = create_test_event(
+            "user.message",
+            json!({ "content": "Hello", "attachments": [] }),
+        );
+        let result = convert_event_to_canonical(&entry, "session-1", Some("/test")).unwrap();
 
         assert_eq!(result.len(), 1);
         let msg = &result[0];
@@ -515,7 +520,10 @@ mod tests {
 
     #[test]
     fn test_convert_assistant_message() {
-        let entry = create_test_event("assistant.message", json!({ "content": "Hi there", "messageId": "msg-1", "toolRequests": [] }));
+        let entry = create_test_event(
+            "assistant.message",
+            json!({ "content": "Hi there", "messageId": "msg-1", "toolRequests": [] }),
+        );
         let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
 
         assert_eq!(result.len(), 1);
@@ -551,7 +559,7 @@ mod tests {
                 match &blocks[0] {
                     ContentBlock::ToolUse { id, name, .. } => {
                         assert_eq!(id, "call-456");
-                        assert_eq!(name, "bash");  // Fixed to match the test input
+                        assert_eq!(name, "bash"); // Fixed to match the test input
                     }
                     _ => panic!("Expected tool_use block"),
                 }
@@ -577,14 +585,18 @@ mod tests {
 
         // Tool result message
         let tool_result = &result[0];
-        assert_eq!(tool_result.message_type, MessageType::User);  // Tool results are USER messages
-        assert_eq!(tool_result.message.role, "user");  // Tool results have user role
+        assert_eq!(tool_result.message_type, MessageType::User); // Tool results are USER messages
+        assert_eq!(tool_result.message.role, "user"); // Tool results have user role
         assert_eq!(tool_result.parent_uuid, Some("call-789".to_string()));
         match &tool_result.message.content {
             ContentValue::Structured(blocks) => {
                 assert_eq!(blocks.len(), 1);
                 match &blocks[0] {
-                    ContentBlock::ToolResult { tool_use_id, content, .. } => {
+                    ContentBlock::ToolResult {
+                        tool_use_id,
+                        content,
+                        ..
+                    } => {
                         assert_eq!(tool_use_id, "call-789");
                         assert_eq!(content, "File contents here");
                     }
@@ -597,7 +609,10 @@ mod tests {
 
     #[test]
     fn test_convert_info_message() {
-        let entry = create_test_event("session.info", json!({ "infoType": "mcp", "message": "Connected to MCP" }));
+        let entry = create_test_event(
+            "session.info",
+            json!({ "infoType": "mcp", "message": "Connected to MCP" }),
+        );
         let result = convert_event_to_canonical(&entry, "session-1", None).unwrap();
 
         assert_eq!(result.len(), 1);

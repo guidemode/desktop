@@ -95,7 +95,9 @@ pub fn detect_project_and_cwd_from_events(
                 // Try to extract path from arguments
                 if let Some(path) = args.get("path").and_then(|p| p.as_str()) {
                     // Match against trusted folders
-                    if let Some((project, cwd)) = match_trusted_folder_with_cwd(path, trusted_folders) {
+                    if let Some((project, cwd)) =
+                        match_trusted_folder_with_cwd(path, trusted_folders)
+                    {
                         return Some((project, cwd));
                     }
                 }
@@ -105,7 +107,9 @@ pub fn detect_project_and_cwd_from_events(
                     // Try to extract paths from common commands
                     for word in command.split_whitespace() {
                         if word.starts_with('/') || word.starts_with('~') {
-                            if let Some((project, cwd)) = match_trusted_folder_with_cwd(word, trusted_folders) {
+                            if let Some((project, cwd)) =
+                                match_trusted_folder_with_cwd(word, trusted_folders)
+                            {
                                 return Some((project, cwd));
                             }
                         }
@@ -131,10 +135,13 @@ pub fn detect_project_and_cwd_from_events(
 
                 // Look for paths in the result output
                 // Common patterns: "> package@version command /path/to/project"
-                for line in result_content.lines().take(10) {  // Only check first 10 lines for performance
+                for line in result_content.lines().take(10) {
+                    // Only check first 10 lines for performance
                     for word in line.split_whitespace() {
                         if word.starts_with('/') || word.starts_with('~') {
-                            if let Some((project, cwd)) = match_trusted_folder_with_cwd(word, trusted_folders) {
+                            if let Some((project, cwd)) =
+                                match_trusted_folder_with_cwd(word, trusted_folders)
+                            {
                                 return Some((project, cwd));
                             }
                         }
@@ -208,8 +215,9 @@ impl CopilotParser {
             .find(|e| e.event_type == "session.start")
             .ok_or("No session.start event found")?;
 
-        let session_start_data: SessionStartData = serde_json::from_value(session_start_event.data.clone())
-            .map_err(|e| format!("Failed to parse session.start data: {}", e))?;
+        let session_start_data: SessionStartData =
+            serde_json::from_value(session_start_event.data.clone())
+                .map_err(|e| format!("Failed to parse session.start data: {}", e))?;
 
         // Get start and end times
         let session_start_time = DateTime::parse_from_rfc3339(&session_start_data.start_time)
@@ -356,10 +364,19 @@ mod tests {
         // Parse first line to verify it's canonical format (uses camelCase)
         let first_msg: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
         assert!(first_msg.get("uuid").is_some(), "Should have uuid field");
-        assert!(first_msg.get("timestamp").is_some(), "Should have timestamp field");
+        assert!(
+            first_msg.get("timestamp").is_some(),
+            "Should have timestamp field"
+        );
         assert!(first_msg.get("type").is_some(), "Should have type field"); // message_type -> type
-        assert!(first_msg.get("sessionId").is_some(), "Should have sessionId field"); // camelCase
-        assert_eq!(first_msg.get("provider").and_then(|v| v.as_str()), Some("github-copilot"));
+        assert!(
+            first_msg.get("sessionId").is_some(),
+            "Should have sessionId field"
+        ); // camelCase
+        assert_eq!(
+            first_msg.get("provider").and_then(|v| v.as_str()),
+            Some("github-copilot")
+        );
     }
 
     #[test]

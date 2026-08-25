@@ -1,6 +1,6 @@
-use crate::providers::sort_projects_by_modified;
-use crate::config::ProjectInfo;
 use super::parser::GeminiSession;
+use crate::config::ProjectInfo;
+use crate::providers::sort_projects_by_modified;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 use shellexpand::tilde;

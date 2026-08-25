@@ -10,7 +10,9 @@ type TimingResult = Result<
 >;
 
 /// Helper function to query existing git data for a session
-fn get_existing_git_data(session_id: &str) -> Option<(Option<String>, Option<String>, Option<String>)> {
+fn get_existing_git_data(
+    session_id: &str,
+) -> Option<(Option<String>, Option<String>, Option<String>)> {
     crate::database::with_connection_mut(|conn| {
         conn.query_row(
             "SELECT git_branch, first_commit_hash, latest_commit_hash FROM agent_sessions WHERE session_id = ?",
@@ -45,19 +47,31 @@ pub fn insert_session_immediately(
     // Determine git info based on whether this is a historical scan
     let (git_branch, first_commit, latest_commit) = if is_historical {
         // For historical sessions, check if we already have git data in the database
-        if let Some((existing_branch, existing_first_commit, existing_latest_commit)) = get_existing_git_data(session_id) {
+        if let Some((existing_branch, existing_first_commit, existing_latest_commit)) =
+            get_existing_git_data(session_id)
+        {
             // Preserve existing git data from when session was live
             let _ = log_debug(
                 provider_id,
-                &format!("Preserving existing git data for historical session {}", session_id),
+                &format!(
+                    "Preserving existing git data for historical session {}",
+                    session_id
+                ),
             );
             // Preserve both first and latest commit hashes from database
-            (existing_branch, existing_first_commit, existing_latest_commit)
+            (
+                existing_branch,
+                existing_first_commit,
+                existing_latest_commit,
+            )
         } else {
             // New historical session discovered - don't capture current git state (would be inaccurate)
             let _ = log_debug(
                 provider_id,
-                &format!("New historical session {}, not capturing git state", session_id),
+                &format!(
+                    "New historical session {}, not capturing git state",
+                    session_id
+                ),
             );
             (None, None, None)
         }
@@ -100,7 +114,7 @@ pub fn insert_session_immediately(
         duration,
         cwd.as_deref(),
         git_branch.as_deref(),
-        first_commit.as_deref(), // first_commit_hash
+        first_commit.as_deref(),  // first_commit_hash
         latest_commit.as_deref(), // latest_commit_hash
     );
 
@@ -180,9 +194,10 @@ pub fn insert_session_immediately(
                 ) {
                     Ok(repository_id) => {
                         // Attach session to repository
-                        if let Err(e) =
-                            crate::database::attach_session_to_repository(session_id, &repository_id)
-                        {
+                        if let Err(e) = crate::database::attach_session_to_repository(
+                            session_id,
+                            &repository_id,
+                        ) {
                             let _ = log_warn(
                                 provider_id,
                                 &format!("⚠ Failed to attach session to repository: {}", e),

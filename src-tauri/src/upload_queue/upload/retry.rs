@@ -261,7 +261,7 @@ mod tests {
         let next_retry = item.next_retry_at.unwrap();
         let now = Utc::now();
         let diff = (next_retry - now).num_seconds();
-        assert!(diff >= 1 && diff <= 3, "Expected ~2s, got {}s", diff);
+        assert!((1..=3).contains(&diff), "Expected ~2s, got {}s", diff);
     }
 
     #[test]

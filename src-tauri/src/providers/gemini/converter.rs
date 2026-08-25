@@ -1,9 +1,9 @@
+use super::parser::{GeminiMessage, GeminiSession};
 use crate::providers::canonical::{
     converter::ToCanonical, CanonicalMessage, ContentBlock, ContentValue, MessageContent,
     MessageType, TokenUsage,
 };
 use crate::providers::common::get_canonical_path;
-use super::parser::{GeminiMessage, GeminiSession};
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::fs;
@@ -31,12 +31,12 @@ impl ToCanonical for GeminiMessage {
         };
 
         // Build content value - combine thoughts and text into structured content if needed
-        let content = if self.thoughts.is_some() && !self.thoughts.as_ref().unwrap().is_empty() {
+        let content = if let Some(thoughts) = self.thoughts.as_ref().filter(|t| !t.is_empty()) {
             // Message has thoughts - create structured content with thinking blocks
             let mut blocks = Vec::new();
 
             // Add thinking blocks for each thought
-            for thought in self.thoughts.as_ref().unwrap() {
+            for thought in thoughts {
                 blocks.push(ContentBlock::Thinking {
                     thinking: format!("{}: {}", thought.subject, thought.description),
                 });
@@ -163,25 +163,24 @@ pub fn convert_session_to_canonical(
                 if let Some(ref result) = tool_call.result {
                     // Extract the actual output from Gemini's functionResponse wrapper
                     // Result format: [{ functionResponse: { response: { output: "..." } } }]
-                    let content_str = if let Some(fr) =
-                        result.first().and_then(|r| r.get("functionResponse"))
-                    {
-                        // Try to extract the response.output field for shell commands
-                        if let Some(response) = fr.get("response") {
-                            if let Some(output) = response.get("output") {
-                                output.to_string()
+                    let content_str =
+                        if let Some(fr) = result.first().and_then(|r| r.get("functionResponse")) {
+                            // Try to extract the response.output field for shell commands
+                            if let Some(response) = fr.get("response") {
+                                if let Some(output) = response.get("output") {
+                                    output.to_string()
+                                } else {
+                                    // Fallback: serialize the whole response object
+                                    serde_json::to_string(response)?
+                                }
                             } else {
-                                // Fallback: serialize the whole response object
-                                serde_json::to_string(response)?
+                                // Fallback: serialize the whole functionResponse
+                                serde_json::to_string(fr)?
                             }
                         } else {
-                            // Fallback: serialize the whole functionResponse
-                            serde_json::to_string(fr)?
-                        }
-                    } else {
-                        // Fallback: serialize the raw result
-                        serde_json::to_string(result)?
-                    };
+                            // Fallback: serialize the raw result
+                            serde_json::to_string(result)?
+                        };
 
                     // Validate we have required data for tool_result
                     // Don't create empty tool_result blocks (causes parsing issues)
@@ -202,7 +201,7 @@ pub fn convert_session_to_canonical(
                     let tool_result_msg = CanonicalMessage {
                         uuid: format!("{}_result", tool_call.id),
                         timestamp: message.timestamp.clone(),
-                        message_type: MessageType::User,  // Tool results are USER messages
+                        message_type: MessageType::User, // Tool results are USER messages
                         session_id: session.session_id.clone(),
                         provider: "gemini-code".to_string(),
                         cwd: cwd.clone(),
@@ -212,7 +211,7 @@ pub fn convert_session_to_canonical(
                         is_sidechain: None,
                         user_type: Some("external".to_string()),
                         message: MessageContent {
-                            role: "user".to_string(),  // Tool results have user role
+                            role: "user".to_string(), // Tool results have user role
                             content: ContentValue::Structured(vec![tool_result_block]),
                             model: message.model.clone(),
                             usage: None,
@@ -276,19 +275,18 @@ pub fn convert_session_to_canonical(
 /// - JSON parsing fails
 /// - Canonical conversion fails
 /// - File write fails
-pub fn convert_to_canonical_file(
-    json_file_path: &Path,
-    session_id: &str,
-) -> Result<PathBuf> {
+pub fn convert_to_canonical_file(json_file_path: &Path, session_id: &str) -> Result<PathBuf> {
     const PROVIDER_ID: &str = "gemini-code";
 
     // Read the original Gemini JSON file
-    let content = fs::read_to_string(json_file_path)
-        .context(format!("Failed to read Gemini JSON file: {:?}", json_file_path))?;
+    let content = fs::read_to_string(json_file_path).context(format!(
+        "Failed to read Gemini JSON file: {:?}",
+        json_file_path
+    ))?;
 
     // Parse the Gemini session
-    let session = GeminiSession::from_json(&content)
-        .context("Failed to parse Gemini session JSON")?;
+    let session =
+        GeminiSession::from_json(&content).context("Failed to parse Gemini session JSON")?;
 
     // Try to infer CWD from message content using shared utility
     let cwd = infer_cwd_from_session(&session);
@@ -299,8 +297,10 @@ pub fn convert_to_canonical_file(
     // Serialize each message to JSONL
     let mut canonical_lines = Vec::new();
     for (line_num, msg) in canonical_messages.iter().enumerate() {
-        let line = serde_json::to_string(msg)
-            .context(format!("Failed to serialize canonical message {} for session {}", line_num, session_id))?;
+        let line = serde_json::to_string(msg).context(format!(
+            "Failed to serialize canonical message {} for session {}",
+            line_num, session_id
+        ))?;
         canonical_lines.push(line);
     }
 
@@ -313,8 +313,10 @@ pub fn convert_to_canonical_file(
         .map_err(|e| anyhow::anyhow!("Failed to get canonical path: {}", e))?;
 
     // Write to project-organized path
-    fs::write(&canonical_path, canonical_content)
-        .context(format!("Failed to write canonical JSONL to {:?}", canonical_path))?;
+    fs::write(&canonical_path, canonical_content).context(format!(
+        "Failed to write canonical JSONL to {:?}",
+        canonical_path
+    ))?;
 
     Ok(canonical_path)
 }
@@ -345,7 +347,10 @@ mod tests {
             model: None,
         };
 
-        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
+        let canonical = msg
+            .to_canonical()
+            .unwrap()
+            .expect("Expected canonical message");
 
         assert_eq!(canonical.uuid, "msg-1");
         assert_eq!(canonical.message_type, MessageType::User);
@@ -377,11 +382,17 @@ mod tests {
             model: Some("gemini-2.0-flash-exp".to_string()),
         };
 
-        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
+        let canonical = msg
+            .to_canonical()
+            .unwrap()
+            .expect("Expected canonical message");
 
         assert_eq!(canonical.message_type, MessageType::Assistant);
         assert_eq!(canonical.message.role, "assistant");
-        assert_eq!(canonical.message.model, Some("gemini-2.0-flash-exp".to_string()));
+        assert_eq!(
+            canonical.message.model,
+            Some("gemini-2.0-flash-exp".to_string())
+        );
 
         // Verify complete token mapping
         let usage = canonical.message.usage.unwrap();
@@ -423,8 +434,8 @@ mod tests {
             }],
         };
 
-        let canonical = convert_session_to_canonical(&session, Some("/test/path".to_string()))
-            .unwrap();
+        let canonical =
+            convert_session_to_canonical(&session, Some("/test/path".to_string())).unwrap();
 
         // Should have 2 messages: tool_use + tool_result
         assert_eq!(canonical.len(), 2);
@@ -495,7 +506,10 @@ mod tests {
             model: Some("gemini-2.5-pro".to_string()),
         };
 
-        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
+        let canonical = msg
+            .to_canonical()
+            .unwrap()
+            .expect("Expected canonical message");
 
         // Should have structured content with thinking blocks and text
         match canonical.message.content {
@@ -551,7 +565,10 @@ mod tests {
             model: None,
         };
 
-        let canonical = msg.to_canonical().unwrap().expect("Expected canonical message");
+        let canonical = msg
+            .to_canonical()
+            .unwrap()
+            .expect("Expected canonical message");
 
         // Should have structured content with only thinking block (no text)
         match canonical.message.content {

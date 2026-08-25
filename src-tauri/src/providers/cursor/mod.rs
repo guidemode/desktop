@@ -49,10 +49,7 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<crate::config::ProjectI
             continue;
         }
 
-        let hash = hash_entry
-            .file_name()
-            .to_string_lossy()
-            .to_string();
+        let hash = hash_entry.file_name().to_string_lossy().to_string();
 
         // Iterate through session directories
         for session_entry in fs::read_dir(&hash_path).map_err(|e| e.to_string())? {
@@ -75,12 +72,14 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<crate::config::ProjectI
                 Ok(conn) => match db::get_session_metadata(&conn) {
                     Ok(metadata) => {
                         // Convert created_at timestamp to RFC3339
-                        let last_modified = chrono::DateTime::from_timestamp_millis(metadata.created_at)
-                            .unwrap_or_else(chrono::Utc::now)
-                            .to_rfc3339();
+                        let last_modified =
+                            chrono::DateTime::from_timestamp_millis(metadata.created_at)
+                                .unwrap_or_else(chrono::Utc::now)
+                                .to_rfc3339();
 
                         // Try to find CWD and derive project name
-                        let cwd = find_cwd_for_session(&hash, &Path::new(&base_path).join("projects"));
+                        let cwd =
+                            find_cwd_for_session(&hash, &Path::new(&base_path).join("projects"));
                         let project_name = cwd
                             .as_ref()
                             .and_then(|path| {
@@ -153,7 +152,9 @@ pub fn scan_projects(home_directory: &str) -> Result<Vec<crate::config::ProjectI
 /// - Database path
 /// - Session metadata (name, timestamps, model, etc.)
 /// - Parent hash
-pub fn discover_sessions(base_path: &Path) -> Result<Vec<CursorSession>, Box<dyn std::error::Error>> {
+pub fn discover_sessions(
+    base_path: &Path,
+) -> Result<Vec<CursorSession>, Box<dyn std::error::Error>> {
     let chats_dir = base_path.join("chats");
 
     if !chats_dir.exists() {

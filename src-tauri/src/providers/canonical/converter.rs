@@ -42,9 +42,7 @@ pub trait ToCanonical {
 /// Batch conversion helper for converting multiple messages
 /// Filters out None values (skipped messages)
 #[allow(dead_code)]
-pub fn convert_batch<T: ToCanonical>(
-    messages: Vec<T>,
-) -> Result<Vec<CanonicalMessage>> {
+pub fn convert_batch<T: ToCanonical>(messages: Vec<T>) -> Result<Vec<CanonicalMessage>> {
     messages
         .into_iter()
         .filter_map(|msg| match msg.to_canonical() {

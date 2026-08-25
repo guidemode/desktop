@@ -207,9 +207,9 @@ fn parse_codex_session(
         session_end_time,
         duration_ms,
         file_size,
-        content: None,         // Codex sessions use files directly
-        cwd: Some(cwd),        // Codex sessions have CWD from parsing
-        project_hash: None,    // Not used for Codex
+        content: None,      // Codex sessions use files directly
+        cwd: Some(cwd),     // Codex sessions have CWD from parsing
+        project_hash: None, // Not used for Codex
     }))
 }
 

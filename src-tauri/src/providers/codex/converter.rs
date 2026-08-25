@@ -27,38 +27,40 @@ impl<'de> Deserialize<'de> for CodexMessage {
         use serde::de::Error;
 
         let value = serde_json::Value::deserialize(deserializer)?;
-        let timestamp = value.get("timestamp")
+        let timestamp = value
+            .get("timestamp")
             .and_then(|v| v.as_str())
             .ok_or_else(|| D::Error::missing_field("timestamp"))?
             .to_string();
-        let message_type = value.get("type")
+        let message_type = value
+            .get("type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| D::Error::missing_field("type"))?
             .to_string();
 
-        let payload_value = value.get("payload")
+        let payload_value = value
+            .get("payload")
             .ok_or_else(|| D::Error::missing_field("payload"))?;
 
         // Deserialize payload based on message_type
         let payload = match message_type.as_str() {
-            "session_meta" => {
-                CodexPayload::SessionMeta(serde_json::from_value(payload_value.clone())
-                    .map_err(D::Error::custom)?)
-            }
-            "response_item" => {
-                CodexPayload::ResponseItem(serde_json::from_value(payload_value.clone())
-                    .map_err(D::Error::custom)?)
-            }
-            "event_msg" => {
-                CodexPayload::EventMsg(serde_json::from_value(payload_value.clone())
-                    .map_err(D::Error::custom)?)
-            }
-            "turn_context" => {
-                CodexPayload::TurnContext(serde_json::from_value(payload_value.clone())
-                    .map_err(D::Error::custom)?)
-            }
+            "session_meta" => CodexPayload::SessionMeta(
+                serde_json::from_value(payload_value.clone()).map_err(D::Error::custom)?,
+            ),
+            "response_item" => CodexPayload::ResponseItem(
+                serde_json::from_value(payload_value.clone()).map_err(D::Error::custom)?,
+            ),
+            "event_msg" => CodexPayload::EventMsg(
+                serde_json::from_value(payload_value.clone()).map_err(D::Error::custom)?,
+            ),
+            "turn_context" => CodexPayload::TurnContext(
+                serde_json::from_value(payload_value.clone()).map_err(D::Error::custom)?,
+            ),
             _ => {
-                return Err(D::Error::custom(format!("Unknown message type: {}", message_type)));
+                return Err(D::Error::custom(format!(
+                    "Unknown message type: {}",
+                    message_type
+                )));
             }
         };
 
@@ -147,9 +149,7 @@ impl CodexMessage {
     /// Extract git branch from session metadata
     pub fn get_git_branch(&self) -> Option<String> {
         match &self.payload {
-            CodexPayload::SessionMeta(meta) => {
-                meta.git.as_ref().and_then(|g| g.branch.clone())
-            }
+            CodexPayload::SessionMeta(meta) => meta.git.as_ref().and_then(|g| g.branch.clone()),
             _ => None,
         }
     }
@@ -165,7 +165,9 @@ impl CodexMessage {
 
 impl ToCanonical for CodexMessage {
     fn to_canonical(&self) -> Result<Option<CanonicalMessage>> {
-        let session_id = self.get_session_id().unwrap_or_else(|| "unknown".to_string());
+        let session_id = self
+            .get_session_id()
+            .unwrap_or_else(|| "unknown".to_string());
         let uuid = generate_uuid_from_codex(&self.timestamp, &session_id);
 
         match &self.payload {
@@ -356,10 +358,7 @@ impl CodexMessage {
                 let call_id = item.data["call_id"].as_str().unwrap_or(uuid);
 
                 // Simple output extraction to match TypeScript
-                let output = item.data["output"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string();
+                let output = item.data["output"].as_str().unwrap_or("").to_string();
 
                 // Validate we have required data for tool_result
                 // Don't create empty tool_result blocks (causes parsing issues)
@@ -380,7 +379,7 @@ impl CodexMessage {
                 Ok(Some(CanonicalMessage {
                     uuid: uuid.to_string(),
                     timestamp: self.timestamp.clone(),
-                    message_type: MessageType::User,  // Tool results are USER messages
+                    message_type: MessageType::User, // Tool results are USER messages
                     session_id: session_id.to_string(),
                     provider: self.provider_name().to_string(),
                     cwd: self.extract_cwd(),
@@ -390,7 +389,7 @@ impl CodexMessage {
                     is_sidechain: None,
                     user_type: Some("external".to_string()),
                     message: MessageContent {
-                        role: "user".to_string(),  // Tool results have user role
+                        role: "user".to_string(), // Tool results have user role
                         content: ContentValue::Structured(vec![block]),
                         model: None,
                         usage: None,
@@ -626,8 +625,14 @@ mod tests {
 
         let msg: CodexMessage = serde_json::from_str(json).unwrap();
         assert_eq!(msg.message_type, "session_meta");
-        assert_eq!(msg.get_session_id(), Some("019a005e-c8fc-7512-8e78-c2322cbf0875".to_string()));
-        assert_eq!(msg.get_cwd(), Some("/Users/cliftonc/work/guidemode".to_string()));
+        assert_eq!(
+            msg.get_session_id(),
+            Some("019a005e-c8fc-7512-8e78-c2322cbf0875".to_string())
+        );
+        assert_eq!(
+            msg.get_cwd(),
+            Some("/Users/cliftonc/work/guidemode".to_string())
+        );
         assert_eq!(msg.get_git_branch(), Some("main".to_string()));
     }
 

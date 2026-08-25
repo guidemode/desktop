@@ -21,14 +21,15 @@ struct CompiledPattern {
     regex: Regex,
     name: String,
     capture_group: Option<usize>,
+    // Present in the patterns.json schema but not yet applied by this engine
+    #[allow(dead_code)]
     replacement: Option<String>,
 }
 
 lazy_static! {
     static ref PATTERNS: Vec<CompiledPattern> = {
-        let json = include_str!(
-            "../../../../../packages/session-processing/src/redaction/patterns.json"
-        );
+        let json =
+            include_str!("../../../../../packages/session-processing/src/redaction/patterns.json");
         let defs: Vec<PatternDef> = serde_json::from_str(json).expect("valid patterns.json");
         defs.into_iter()
             .filter_map(|d| {
@@ -48,7 +49,10 @@ lazy_static! {
                         replacement: d.replacement,
                     }),
                     Err(e) => {
-                        eprintln!("Warning: failed to compile redaction pattern '{}': {}", d.name, e);
+                        eprintln!(
+                            "Warning: failed to compile redaction pattern '{}': {}",
+                            d.name, e
+                        );
                         None
                     }
                 }
@@ -105,7 +109,7 @@ fn detect_patterns(text: &str) -> Vec<RedactionMatch> {
     matches
 }
 
-fn merge_and_dedup(matches: &mut Vec<RedactionMatch>) -> Vec<RedactionMatch> {
+fn merge_and_dedup(matches: &mut [RedactionMatch]) -> Vec<RedactionMatch> {
     if matches.is_empty() {
         return Vec::new();
     }
@@ -133,7 +137,7 @@ fn apply_replacements(text: &str, matches: &[RedactionMatch]) -> (String, HashMa
     let mut counts: HashMap<String, u32> = HashMap::new();
     // Sort descending by start position
     let mut sorted: Vec<&RedactionMatch> = matches.iter().collect();
-    sorted.sort_by(|a, b| b.start.cmp(&a.start));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
 
     let mut result = text.to_string();
     for m in &sorted {
@@ -469,7 +473,7 @@ mod tests {
     #[test]
     fn test_redact_jsonl_content() {
         let token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef1234";
-        let lines = vec![
+        let lines = [
             serde_json::json!({"type":"message","message":{"role":"user","content":format!("My token {}", token)}}).to_string(),
             serde_json::json!({"type":"message","message":{"role":"assistant","content":"I see you shared a token"}}).to_string(),
             serde_json::json!({"type":"message","message":{"role":"user","content":"email: test@secret.com"}}).to_string(),
@@ -491,10 +495,11 @@ mod tests {
 
     #[test]
     fn test_redact_jsonl_empty_lines() {
-        let lines = vec![
+        let lines = [
             serde_json::json!({"type":"system"}).to_string(),
             String::new(),
-            serde_json::json!({"type":"message","message":{"role":"user","content":"hello"}}).to_string(),
+            serde_json::json!({"type":"message","message":{"role":"user","content":"hello"}})
+                .to_string(),
         ];
         let content = lines.join("\n");
 
@@ -507,10 +512,12 @@ mod tests {
 
     #[test]
     fn test_redact_jsonl_malformed_lines() {
-        let lines = vec![
-            serde_json::json!({"type":"message","message":{"role":"user","content":"hello"}}).to_string(),
+        let lines = [
+            serde_json::json!({"type":"message","message":{"role":"user","content":"hello"}})
+                .to_string(),
             "this is not json {{{".to_string(),
-            serde_json::json!({"type":"message","message":{"role":"assistant","content":"hi"}}).to_string(),
+            serde_json::json!({"type":"message","message":{"role":"assistant","content":"hi"}})
+                .to_string(),
         ];
         let content = lines.join("\n");
 
@@ -571,9 +578,7 @@ mod tests {
 
         let (line, counts) = redact_canonical_message(&input, "").unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&line).unwrap();
-        let tool_content = parsed["message"]["content"][0]["content"]
-            .as_str()
-            .unwrap();
+        let tool_content = parsed["message"]["content"][0]["content"].as_str().unwrap();
         assert!(tool_content.contains("[REDACTED:"));
         assert_eq!(
             parsed["message"]["content"][0]["tool_use_id"]

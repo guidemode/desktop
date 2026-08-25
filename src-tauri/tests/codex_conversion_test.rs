@@ -1,6 +1,6 @@
-/// Integration test for Codex to Canonical conversion
-///
-/// This test validates the conversion logic without needing the Tauri command layer.
+//! Integration test for Codex to Canonical conversion
+//!
+//! This test validates the conversion logic without needing the Tauri command layer.
 
 use std::fs;
 use std::path::PathBuf;
@@ -31,12 +31,7 @@ fn test_find_codex_sessions() {
         .into_iter()
         .filter_map(|e| e.ok())
     {
-        if entry
-            .path()
-            .extension()
-            .and_then(|s| s.to_str())
-            == Some("jsonl")
-        {
+        if entry.path().extension().and_then(|s| s.to_str()) == Some("jsonl") {
             count += 1;
             println!("Found session: {}", entry.path().display());
         }
@@ -67,12 +62,7 @@ fn test_parse_codex_session_sample() {
     let first_session = walkdir::WalkDir::new(&sessions_dir)
         .into_iter()
         .filter_map(|e| e.ok())
-        .find(|e| {
-            e.path()
-                .extension()
-                .and_then(|s| s.to_str())
-                == Some("jsonl")
-        });
+        .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"));
 
     if let Some(entry) = first_session {
         let path = entry.path();
@@ -83,7 +73,7 @@ fn test_parse_codex_session_sample() {
         let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
 
         println!("Session has {} lines", lines.len());
-        assert!(lines.len() > 0, "Session should have at least one line");
+        assert!(!lines.is_empty(), "Session should have at least one line");
 
         // Parse first line as JSON to verify it's valid Codex format
         let first_line: serde_json::Value =
@@ -103,4 +93,3 @@ fn test_parse_codex_session_sample() {
         println!("No Codex sessions found - skipping test");
     }
 }
-

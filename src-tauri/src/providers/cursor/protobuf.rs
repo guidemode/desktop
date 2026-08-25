@@ -181,7 +181,7 @@ impl CursorMessage {
             Ok(blob) => {
                 tracing::debug!("✓ Protobuf decode SUCCESS");
                 Ok(CursorMessage::Protobuf(blob))
-            },
+            }
             Err(protobuf_err) => {
                 tracing::debug!("✗ Protobuf decode FAILED: {:?}", protobuf_err);
                 tracing::debug!("  Attempting JSON fallback...");
@@ -189,7 +189,11 @@ impl CursorMessage {
                 // Fallback to JSON
                 match serde_json::from_slice::<JsonMessage>(data) {
                     Ok(json_msg) => {
-                        tracing::debug!("✓ JSON decode SUCCESS (role: {}, id: {})", json_msg.role, json_msg.id);
+                        tracing::debug!(
+                            "✓ JSON decode SUCCESS (role: {}, id: {})",
+                            json_msg.role,
+                            json_msg.id
+                        );
                         Ok(CursorMessage::Json(json_msg))
                     }
                     Err(json_err) => {
@@ -291,9 +295,10 @@ impl CursorBlob {
     pub fn has_tool_result(&self) -> bool {
         if let Some(complex) = self.parse_complex() {
             // Check if any content block is a ToolResult
-            complex.content.iter().any(|block| {
-                matches!(block, ContentBlock::ToolResult { .. })
-            })
+            complex
+                .content
+                .iter()
+                .any(|block| matches!(block, ContentBlock::ToolResult { .. }))
         } else {
             false
         }
@@ -431,10 +436,13 @@ mod tests {
             metadata: None,
             complex_data: None,
             additional_content: None,
-            blob_references: Some(vec![1, 2, 3, 4]),  // Has blob references
+            blob_references: Some(vec![1, 2, 3, 4]), // Has blob references
         };
 
-        assert!(!tree_blob.is_message_blob(), "Tree blobs should not be message blobs");
+        assert!(
+            !tree_blob.is_message_blob(),
+            "Tree blobs should not be message blobs"
+        );
 
         // Message blobs have content wrapper
         let message_blob = CursorBlob {
@@ -448,6 +456,9 @@ mod tests {
             blob_references: None,
         };
 
-        assert!(message_blob.is_message_blob(), "Message blobs should be detected");
+        assert!(
+            message_blob.is_message_blob(),
+            "Message blobs should be detected"
+        );
     }
 }

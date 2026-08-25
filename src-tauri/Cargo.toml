@@ -63,7 +63,7 @@ hex = "0.4"
 # Gzip compression for upload optimization
 flate2 = "1.0"
 # Git repository operations
-git2 = { version = "0.19", features = ["vendored-libgit2", "vendored-openssl"] }
+git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
 # File locking for metadata
 fs2 = "0.4"
 # Error handling

@@ -25,11 +25,12 @@ pub fn get_data_version(conn: &Connection) -> Result<i64, rusqlite::Error> {
 }
 
 /// Get session metadata from the meta table
-pub fn get_session_metadata(conn: &Connection) -> Result<SessionMetadata, Box<dyn std::error::Error>> {
-    let meta_hex: String =
-        conn.query_row("SELECT value FROM meta WHERE key = '0'", [], |row| {
-            row.get(0)
-        })?;
+pub fn get_session_metadata(
+    conn: &Connection,
+) -> Result<SessionMetadata, Box<dyn std::error::Error>> {
+    let meta_hex: String = conn.query_row("SELECT value FROM meta WHERE key = '0'", [], |row| {
+        row.get(0)
+    })?;
 
     let meta_json = hex::decode(&meta_hex)?;
     let metadata: SessionMetadata = serde_json::from_slice(&meta_json)?;
@@ -38,12 +39,11 @@ pub fn get_session_metadata(conn: &Connection) -> Result<SessionMetadata, Box<dy
 }
 
 /// Get all blobs from the blobs table
-pub fn get_all_blobs(
-    conn: &Connection,
-) -> Result<Vec<(String, Vec<u8>)>, rusqlite::Error> {
+pub fn get_all_blobs(conn: &Connection) -> Result<Vec<(String, Vec<u8>)>, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT id, data FROM blobs ORDER BY rowid")?;
 
-    let blobs = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+    let blobs = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(blobs)
@@ -65,7 +65,10 @@ pub fn get_decoded_blobs(
             Err(_e) => {
                 // Decode failed - likely a tree/reference blob or JSON message
                 // Use get_decoded_messages() for proper hybrid support
-                tracing::debug!("Skipping blob {} (use get_decoded_messages for full support)", id);
+                tracing::debug!(
+                    "Skipping blob {} (use get_decoded_messages for full support)",
+                    id
+                );
                 // Continue with other blobs
             }
         }
@@ -97,7 +100,12 @@ pub fn get_decoded_messages(
                     super::protobuf::CursorMessage::Protobuf(_) => "Protobuf",
                     super::protobuf::CursorMessage::Json(_) => "JSON",
                 };
-                tracing::info!("✓ Successfully decoded blob {} as {} (role: {})", id, msg_type, msg.get_role());
+                tracing::info!(
+                    "✓ Successfully decoded blob {} as {} (role: {})",
+                    id,
+                    msg_type,
+                    msg.get_role()
+                );
                 // Store raw data alongside decoded message for fallback decoding
                 decoded.push((id, data, msg));
             }
@@ -138,11 +146,10 @@ mod tests {
 
         // Create and populate database
         {
-            let conn =
-                Connection::open(&db_path).unwrap();
+            let conn = Connection::open(&db_path).unwrap();
             conn.execute_batch(
                 "CREATE TABLE blobs (id TEXT PRIMARY KEY, data BLOB);
-                 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);"
+                 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);",
             )
             .unwrap();
 

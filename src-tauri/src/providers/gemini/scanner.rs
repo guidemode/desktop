@@ -181,9 +181,7 @@ fn parse_gemini_session(file_path: &Path) -> Result<SessionInfo, String> {
 }
 
 /// Extract CWD from Gemini session using shared extraction logic
-fn extract_cwd_from_gemini_session(
-    session: &super::parser::GeminiSession,
-) -> Option<String> {
+fn extract_cwd_from_gemini_session(session: &super::parser::GeminiSession) -> Option<String> {
     use super::utils::infer_cwd_from_session;
     infer_cwd_from_session(session, &session.project_hash)
 }

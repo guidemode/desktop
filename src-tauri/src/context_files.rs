@@ -160,7 +160,7 @@ mod tests {
         let result = scan_context_files(temp_path.to_str().unwrap());
         assert!(result.is_ok());
         let files = result.unwrap();
-        assert!(files.len() >= 1); // At least one should match
+        assert!(!files.is_empty()); // At least one should match
     }
 
     #[test]

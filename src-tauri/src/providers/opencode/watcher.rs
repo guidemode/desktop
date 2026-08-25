@@ -439,23 +439,21 @@ impl OpenCodeWatcher {
                                     }
                                 }
                             }
-                            Some("session") => {
-                                // Session file changed: session/{projectId}/{sessionId}.json
-                                if components.len() >= 3 {
-                                    if let Some(project_id) =
-                                        components.get(1).and_then(|c| c.as_os_str().to_str())
+                            // Session file changed: session/{projectId}/{sessionId}.json
+                            Some("session") if components.len() >= 3 => {
+                                if let Some(project_id) =
+                                    components.get(1).and_then(|c| c.as_os_str().to_str())
+                                {
+                                    if let Some(session_id) = components
+                                        .get(2)
+                                        .and_then(|c| c.as_os_str().to_str())
+                                        .and_then(|s| s.strip_suffix(".json"))
                                     {
-                                        if let Some(session_id) = components
-                                            .get(2)
-                                            .and_then(|c| c.as_os_str().to_str())
-                                            .and_then(|s| s.strip_suffix(".json"))
-                                        {
-                                            return Some(SessionChangeEvent {
-                                                session_id: session_id.to_string(),
-                                                project_id: project_id.to_string(),
-                                                affected_files: vec![path.clone()],
-                                            });
-                                        }
+                                        return Some(SessionChangeEvent {
+                                            session_id: session_id.to_string(),
+                                            project_id: project_id.to_string(),
+                                            affected_files: vec![path.clone()],
+                                        });
                                     }
                                 }
                             }

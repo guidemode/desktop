@@ -28,11 +28,19 @@ pub fn scan_all_sessions_filtered(
     }
 
     match provider_id {
-        "claude-code" => super::claude::scanner::scan_sessions_filtered(base_path, selected_projects),
-        "github-copilot" => super::copilot::scanner::scan_sessions_filtered(base_path, selected_projects),
-        "opencode" => super::opencode::scanner::scan_sessions_filtered(base_path, selected_projects),
+        "claude-code" => {
+            super::claude::scanner::scan_sessions_filtered(base_path, selected_projects)
+        }
+        "github-copilot" => {
+            super::copilot::scanner::scan_sessions_filtered(base_path, selected_projects)
+        }
+        "opencode" => {
+            super::opencode::scanner::scan_sessions_filtered(base_path, selected_projects)
+        }
         "codex" => super::codex::scanner::scan_sessions_filtered(base_path, selected_projects),
-        "gemini-code" => super::gemini::scanner::scan_sessions_filtered(base_path, selected_projects),
+        "gemini-code" => {
+            super::gemini::scanner::scan_sessions_filtered(base_path, selected_projects)
+        }
         "cursor" => super::cursor::scanner::scan_sessions_filtered(base_path, selected_projects),
         _ => Err(format!("Unsupported provider: {}", provider_id)),
     }

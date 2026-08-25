@@ -1,7 +1,7 @@
+use super::parser::{OpenCodeJsonLContent, OpenCodeJsonLEntry};
 use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
 };
-use super::parser::{OpenCodeJsonLContent, OpenCodeJsonLEntry};
 use anyhow::{Context, Result};
 use uuid::Uuid;
 
@@ -16,13 +16,13 @@ pub fn convert_entry_to_canonical(entry: &OpenCodeJsonLEntry) -> Result<Canonica
         "user" => MessageType::User,
         "assistant" => MessageType::Assistant,
         "tool_use" => MessageType::Assistant,
-        "tool_result" => MessageType::User,  // Tool results are USER messages
+        "tool_result" => MessageType::User, // Tool results are USER messages
         _ => MessageType::Meta,
     };
 
     // Determine role - tool results should be "user" not "tool"
     let role = if entry.entry_type == "tool_result" {
-        "user".to_string()  // Tool results have user role
+        "user".to_string() // Tool results have user role
     } else {
         entry.message.role.clone()
     };
@@ -94,9 +94,7 @@ fn convert_content_blocks(blocks: &[OpenCodeJsonLContent]) -> Result<ContentValu
 /// Convert individual OpenCode content block to canonical format
 fn convert_content_block(block: &OpenCodeJsonLContent) -> Result<ContentBlock> {
     match block {
-        OpenCodeJsonLContent::Text { text, .. } => Ok(ContentBlock::Text {
-            text: text.clone(),
-        }),
+        OpenCodeJsonLContent::Text { text, .. } => Ok(ContentBlock::Text { text: text.clone() }),
         OpenCodeJsonLContent::ToolUse {
             id, name, input, ..
         } => Ok(ContentBlock::ToolUse {
@@ -134,10 +132,7 @@ fn convert_content_block(block: &OpenCodeJsonLContent) -> Result<ContentBlock> {
         } => {
             // Convert file reference to text with metadata
             // Files are OpenCode-specific, so we preserve them as text
-            let text = format!(
-                "[File: {} ({})] URL: {}",
-                filename, mime, url
-            );
+            let text = format!("[File: {} ({})] URL: {}", filename, mime, url);
             Ok(ContentBlock::Text { text })
         }
         OpenCodeJsonLContent::Patch { files, hash, .. } => {
@@ -169,8 +164,9 @@ pub fn convert_opencode_jsonl_to_canonical(opencode_jsonl: &str) -> Result<Strin
         let canonical = convert_entry_to_canonical(&entry)
             .with_context(|| format!("Failed to convert OpenCode entry at line {}", line_num))?;
 
-        let canonical_line = serde_json::to_string(&canonical)
-            .with_context(|| format!("Failed to serialize canonical message at line {}", line_num))?;
+        let canonical_line = serde_json::to_string(&canonical).with_context(|| {
+            format!("Failed to serialize canonical message at line {}", line_num)
+        })?;
 
         canonical_lines.push(canonical_line);
     }
@@ -181,7 +177,7 @@ pub fn convert_opencode_jsonl_to_canonical(opencode_jsonl: &str) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::opencode::parser::{OpenCodeJsonLMessage, OpenCodeJsonLContent};
+    use crate::providers::opencode::parser::{OpenCodeJsonLContent, OpenCodeJsonLMessage};
 
     #[test]
     fn test_convert_text_entry() {

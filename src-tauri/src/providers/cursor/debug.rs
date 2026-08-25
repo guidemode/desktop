@@ -5,7 +5,7 @@
 #![allow(dead_code)] // Development tools, not used in production but kept for debugging
 
 use super::db;
-use super::protobuf::{CursorBlob, CursorBlobDirectContent, ComplexMessage, ContentBlock};
+use super::protobuf::{ComplexMessage, ContentBlock, CursorBlob, CursorBlobDirectContent};
 use prost::Message;
 use std::path::Path;
 
@@ -49,9 +49,18 @@ pub fn inspect_blob_bytes(data: &[u8]) -> Result<(), Box<dyn std::error::Error>>
     println!("Field 1 (content_wrapper): {:?}", blob.content_wrapper);
     println!("Field 2 (uuid): {:?}", blob.uuid);
     println!("Field 3 (metadata): {:?}", blob.metadata);
-    println!("Field 4 (complex_data): {:?}", blob.complex_data.as_ref().map(|s| &s[..s.len().min(200)]));
-    println!("Field 5 (additional_content): {:?}", blob.additional_content);
-    println!("Field 8 (blob_references): {} bytes", blob.blob_references.as_ref().map(|b| b.len()).unwrap_or(0));
+    println!(
+        "Field 4 (complex_data): {:?}",
+        blob.complex_data.as_ref().map(|s| &s[..s.len().min(200)])
+    );
+    println!(
+        "Field 5 (additional_content): {:?}",
+        blob.additional_content
+    );
+    println!(
+        "Field 8 (blob_references): {} bytes",
+        blob.blob_references.as_ref().map(|b| b.len()).unwrap_or(0)
+    );
 
     // Parse complex data if present
     if let Some(complex) = blob.parse_complex() {
@@ -66,12 +75,20 @@ pub fn inspect_blob_bytes(data: &[u8]) -> Result<(), Box<dyn std::error::Error>>
                 ContentBlock::Text { text } => {
                     println!("    Text: {:?}", &text[..text.len().min(100)]);
                 }
-                ContentBlock::ToolCall { tool_call_id, tool_name, args } => {
+                ContentBlock::ToolCall {
+                    tool_call_id,
+                    tool_name,
+                    args,
+                } => {
                     println!("    Tool Call ID: {}", tool_call_id);
                     println!("    Tool Name: {}", tool_name);
                     println!("    Args: {}", serde_json::to_string_pretty(args)?);
                 }
-                ContentBlock::ToolResult { tool_call_id, output, is_error } => {
+                ContentBlock::ToolResult {
+                    tool_call_id,
+                    output,
+                    is_error,
+                } => {
                     println!("    Tool Call ID: {}", tool_call_id);
                     println!("    Output: {:?}", &output[..output.len().min(100)]);
                     println!("    Is Error: {}", is_error);
@@ -122,15 +139,32 @@ pub fn inspect_session_db(db_path: &Path) -> Result<(), Box<dyn std::error::Erro
     println!("\n=== Hybrid Decoder Results ===");
     println!("Total blobs: {}", total_blobs);
     println!("Successfully decoded: {}", messages.len());
-    println!("Success rate: {:.1}%", (messages.len() as f64 / total_blobs as f64) * 100.0);
+    println!(
+        "Success rate: {:.1}%",
+        (messages.len() as f64 / total_blobs as f64) * 100.0
+    );
 
     // Count by type
-    let protobuf_count = messages.iter().filter(|(_, _, msg)| matches!(msg, super::protobuf::CursorMessage::Protobuf(_))).count();
-    let json_count = messages.iter().filter(|(_, _, msg)| matches!(msg, super::protobuf::CursorMessage::Json(_))).count();
+    let protobuf_count = messages
+        .iter()
+        .filter(|(_, _, msg)| matches!(msg, super::protobuf::CursorMessage::Protobuf(_)))
+        .count();
+    let json_count = messages
+        .iter()
+        .filter(|(_, _, msg)| matches!(msg, super::protobuf::CursorMessage::Json(_)))
+        .count();
 
     println!("\nMessage types:");
-    println!("  Protobuf: {} ({:.1}%)", protobuf_count, (protobuf_count as f64 / messages.len() as f64) * 100.0);
-    println!("  JSON: {} ({:.1}%)", json_count, (json_count as f64 / messages.len() as f64) * 100.0);
+    println!(
+        "  Protobuf: {} ({:.1}%)",
+        protobuf_count,
+        (protobuf_count as f64 / messages.len() as f64) * 100.0
+    );
+    println!(
+        "  JSON: {} ({:.1}%)",
+        json_count,
+        (json_count as f64 / messages.len() as f64) * 100.0
+    );
 
     println!("\n=== Message Details ===");
     for (i, (id, raw_data, msg)) in messages.iter().enumerate() {
@@ -146,7 +180,10 @@ pub fn inspect_session_db(db_path: &Path) -> Result<(), Box<dyn std::error::Erro
                 println!("Type: JSON");
                 println!("  ID: {}", json_msg.id);
                 println!("  Role: {}", json_msg.role);
-                println!("  Content: {:?}", truncate(&json_msg.content.to_string(), 100));
+                println!(
+                    "  Content: {:?}",
+                    truncate(&json_msg.content.to_string(), 100)
+                );
             }
         }
     }
@@ -197,7 +234,11 @@ pub fn find_tool_use_examples(db_path: &Path) -> Result<(), Box<dyn std::error::
             if let Some(complex) = blob.parse_complex() {
                 for block in &complex.content {
                     match block {
-                        ContentBlock::ToolCall { tool_call_id, tool_name, .. } => {
+                        ContentBlock::ToolCall {
+                            tool_call_id,
+                            tool_name,
+                            ..
+                        } => {
                             tool_calls.push((id.clone(), tool_call_id.clone(), tool_name.clone()));
                         }
                         ContentBlock::ToolResult { tool_call_id, .. } => {
@@ -213,7 +254,12 @@ pub fn find_tool_use_examples(db_path: &Path) -> Result<(), Box<dyn std::error::
     println!("\n=== Results ===");
     println!("Tool Calls: {}", tool_calls.len());
     for (blob_id, call_id, name) in &tool_calls {
-        println!("  - {} (call_id: {}) in blob {}", name, call_id, &blob_id[..16]);
+        println!(
+            "  - {} (call_id: {}) in blob {}",
+            name,
+            call_id,
+            &blob_id[..16]
+        );
     }
 
     println!("\nTool Results: {}", tool_results.len());
@@ -225,7 +271,10 @@ pub fn find_tool_use_examples(db_path: &Path) -> Result<(), Box<dyn std::error::
 }
 
 /// Export all blobs as JSON for analysis
-pub fn export_blobs_json(db_path: &Path, output_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn export_blobs_json(
+    db_path: &Path,
+    output_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     let conn = db::open_cursor_db(db_path)?;
     let decoded_blobs = db::get_decoded_blobs(&conn)?;
 
@@ -260,7 +309,11 @@ pub fn export_blobs_json(db_path: &Path, output_path: &Path) -> Result<(), Box<d
     let json = serde_json::to_string_pretty(&exports)?;
     std::fs::write(output_path, json)?;
 
-    println!("Exported {} blobs to {}", exports.len(), output_path.display());
+    println!(
+        "Exported {} blobs to {}",
+        exports.len(),
+        output_path.display()
+    );
 
     Ok(())
 }
@@ -291,7 +344,7 @@ mod tests {
     #[test]
     fn test_inspect_sample_blobs() {
         // Sample hex data from real Cursor sessions
-        let samples = vec![
+        let samples = [
             // Simple user message
             "0A4B43616E20796F752072756E20746865206C696E74657220666F7220617070732F73657276657220616E642074656C6C206D6520696620746865726520697320776F726B20746F20646F3F20122435623936353366642D663035342D343132362D3966",
             // Assistant response

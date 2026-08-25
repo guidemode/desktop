@@ -115,9 +115,7 @@ pub enum ContentValue {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     /// Plain text block
-    Text {
-        text: String,
-    },
+    Text { text: String },
     /// Tool invocation block
     ToolUse {
         id: String,
@@ -132,9 +130,7 @@ pub enum ContentBlock {
         is_error: Option<bool>,
     },
     /// Thinking/reasoning block (extended thinking from Claude, thoughts from Gemini, etc.)
-    Thinking {
-        thinking: String,
-    },
+    Thinking { thinking: String },
 }
 
 /// Token usage statistics

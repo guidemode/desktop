@@ -3,10 +3,10 @@ pub mod parser;
 pub mod scanner;
 pub mod watcher;
 
-pub use parser::OpenCodeParser;
 use super::sort_projects_by_modified;
 use crate::config::ProjectInfo;
 use chrono::{DateTime, Utc};
+pub use parser::OpenCodeParser;
 use shellexpand::tilde;
 use std::ffi::OsStr;
 use std::fs;

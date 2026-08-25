@@ -2,9 +2,9 @@ use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_debug, log_error, log_info, log_warn};
 use crate::providers::common::{
-    extract_session_id_from_filename,
-    get_file_size, has_extension, should_skip_file, SessionStateManager, WatcherStatus,
-    EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL, MIN_SIZE_CHANGE_BYTES,
+    extract_session_id_from_filename, get_file_size, has_extension, should_skip_file,
+    SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
+    MIN_SIZE_CHANGE_BYTES,
 };
 use crate::upload_queue::UploadQueue;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -324,33 +324,34 @@ impl ClaudeWatcher {
                         let session_id = extract_session_id_from_filename(path);
 
                         // Copy to canonical cache for consistency
-                        let canonical_path = match Self::convert_to_canonical_file(path, &session_id) {
-                            Ok(cache_path) => {
-                                cache_path
-                            }
-                            Err(e) => {
-                                // Check if this is expected (partial file without CWD)
-                                let error_msg = e.to_string();
-                                if error_msg.contains("CWD not found") || error_msg.contains("file may be incomplete") {
-                                    // This is expected during partial file writes - use debug logging
-                                    if let Err(log_err) = log_debug(
-                                        PROVIDER_ID,
-                                        &format!("⏸ Skipping session {} - {}", session_id, e),
-                                    ) {
-                                        eprintln!("Logging error: {}", log_err);
+                        let canonical_path =
+                            match Self::convert_to_canonical_file(path, &session_id) {
+                                Ok(cache_path) => cache_path,
+                                Err(e) => {
+                                    // Check if this is expected (partial file without CWD)
+                                    let error_msg = e.to_string();
+                                    if error_msg.contains("CWD not found")
+                                        || error_msg.contains("file may be incomplete")
+                                    {
+                                        // This is expected during partial file writes - use debug logging
+                                        if let Err(log_err) = log_debug(
+                                            PROVIDER_ID,
+                                            &format!("⏸ Skipping session {} - {}", session_id, e),
+                                        ) {
+                                            eprintln!("Logging error: {}", log_err);
+                                        }
+                                    } else {
+                                        // Unexpected error - use error logging
+                                        if let Err(log_err) = log_error(
+                                            PROVIDER_ID,
+                                            &format!("Failed to copy to canonical cache: {}", e),
+                                        ) {
+                                            eprintln!("Logging error: {}", log_err);
+                                        }
                                     }
-                                } else {
-                                    // Unexpected error - use error logging
-                                    if let Err(log_err) = log_error(
-                                        PROVIDER_ID,
-                                        &format!("Failed to copy to canonical cache: {}", e),
-                                    ) {
-                                        eprintln!("Logging error: {}", log_err);
-                                    }
+                                    continue;
                                 }
-                                continue;
-                            }
-                        };
+                            };
 
                         // Get file size of canonical cache file
                         let file_size = get_file_size(&canonical_path).unwrap_or(0);
@@ -469,7 +470,11 @@ mod tests {
 
         // Create a hidden file
         let hidden_file = project_path.join(".tmpABCDEF.jsonl");
-        fs::write(&hidden_file, r#"{"timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path"}"#).unwrap();
+        fs::write(
+            &hidden_file,
+            r#"{"timestamp":"2025-01-01T10:00:00.000Z","cwd":"/test/path"}"#,
+        )
+        .unwrap();
 
         // Create a normal file with a valid git repository CWD
         let normal_file = project_path.join("session-123.jsonl");

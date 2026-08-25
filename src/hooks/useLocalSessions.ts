@@ -236,6 +236,8 @@ async function fetchSessions(filters: SessionFilters = {}): Promise<SessionWithM
     return {
       id: row.id,
       sessionId: row.session_id,
+      // Local SQLite schema has no parent_session_id column
+      parentSessionId: row.parent_session_id ?? null,
       provider: row.provider,
       fileName: row.file_name || '',
       filePath: row.file_path,
@@ -385,6 +387,8 @@ export function useLocalSession(sessionId: string) {
       const sessionData = {
         id: row.id,
         sessionId: row.session_id,
+        // Local SQLite schema has no parent_session_id column
+        parentSessionId: row.parent_session_id ?? null,
         provider: row.provider,
         fileName: row.file_name || '',
         userId: '', // Local database doesn't have user info

@@ -6,4 +6,4 @@
 
 mod engine;
 
-pub use engine::{redact_jsonl_content, RedactedContent, RedactionStats};
+pub use engine::redact_jsonl_content;

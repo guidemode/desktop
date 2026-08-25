@@ -68,7 +68,9 @@ pub fn get_canonical_path(
             Ok(metadata) => sanitize_project_name(&metadata.project_name),
             Err(_) => {
                 // CWD provided but couldn't extract project name - reject this session
-                return Err("Cannot determine project name from CWD - session will not be cached".into());
+                return Err(
+                    "Cannot determine project name from CWD - session will not be cached".into(),
+                );
             }
         }
     } else {
@@ -156,7 +158,10 @@ mod tests {
         // Test that path returns error when CWD can't be extracted
         let result = get_canonical_path("test-provider", Some("/tmp/test"), "session123");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Cannot determine project name"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot determine project name"));
     }
 
     #[test]

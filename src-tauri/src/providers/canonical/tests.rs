@@ -63,7 +63,10 @@ fn test_deserialize_structured_message_with_tool_use() {
     let msg: CanonicalMessage = serde_json::from_str(json).unwrap();
 
     assert_eq!(msg.message_type, MessageType::Assistant);
-    assert_eq!(msg.message.model, Some("claude-sonnet-4-5-20250929".to_string()));
+    assert_eq!(
+        msg.message.model,
+        Some("claude-sonnet-4-5-20250929".to_string())
+    );
 
     match msg.message.content {
         ContentValue::Structured(blocks) => {

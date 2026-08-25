@@ -66,9 +66,14 @@ impl ToCanonical for ClaudeEntry {
                 .context("Failed to parse message content")?;
 
             // Fix empty tool_result content (canonical schema requires non-empty content)
-            if let crate::providers::canonical::ContentValue::Structured(ref mut blocks) = msg.content {
+            if let crate::providers::canonical::ContentValue::Structured(ref mut blocks) =
+                msg.content
+            {
                 for block in blocks.iter_mut() {
-                    if let crate::providers::canonical::ContentBlock::ToolResult { content, .. } = block {
+                    if let crate::providers::canonical::ContentBlock::ToolResult {
+                        content, ..
+                    } = block
+                    {
                         if content.is_empty() {
                             *content = "(no output)".to_string();
                         }
@@ -199,7 +204,10 @@ mod tests {
         assert_eq!(canonical.message_type, MessageType::Assistant);
         assert_eq!(canonical.parent_uuid, Some("uuid-1".to_string()));
         assert_eq!(canonical.request_id, Some("req_123".to_string()));
-        assert_eq!(canonical.message.model, Some("claude-sonnet-4-5-20250929".to_string()));
+        assert_eq!(
+            canonical.message.model,
+            Some("claude-sonnet-4-5-20250929".to_string())
+        );
     }
 
     #[test]
@@ -218,7 +226,10 @@ mod tests {
         let entry: ClaudeEntry = serde_json::from_str(json).unwrap();
         let result = entry.to_canonical().unwrap();
 
-        assert!(result.is_none(), "file-history-snapshot should be filtered out");
+        assert!(
+            result.is_none(),
+            "file-history-snapshot should be filtered out"
+        );
     }
 
     #[test]
@@ -249,7 +260,10 @@ mod tests {
         let entry: ClaudeEntry = serde_json::from_str(json).unwrap();
         let result = entry.to_canonical().unwrap();
 
-        assert!(result.is_none(), "system compact_boundary should be filtered out");
+        assert!(
+            result.is_none(),
+            "system compact_boundary should be filtered out"
+        );
     }
 
     #[test]

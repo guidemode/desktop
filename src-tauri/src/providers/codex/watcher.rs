@@ -341,7 +341,10 @@ impl CodexWatcher {
                         );
 
                         // Convert to canonical format
-                        match Self::convert_to_canonical_file(&file_event.path, &file_event.session_id) {
+                        match Self::convert_to_canonical_file(
+                            &file_event.path,
+                            &file_event.session_id,
+                        ) {
                             Ok(canonical_path) => {
                                 // Get size of canonical file
                                 let canonical_size = get_file_size(&canonical_path).unwrap_or(0);

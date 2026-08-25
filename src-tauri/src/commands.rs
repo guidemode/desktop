@@ -6,9 +6,9 @@ use crate::config::{
 };
 use crate::logging::{read_provider_logs, LogEntry};
 use crate::providers::{
-    ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus,
-    CopilotWatcher, CopilotWatcherStatus, CursorWatcher, CursorWatcherStatus, GeminiWatcher,
-    GeminiWatcherStatus, OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo,
+    ClaudeWatcher, ClaudeWatcherStatus, CodexWatcher, CodexWatcherStatus, CopilotWatcher,
+    CopilotWatcherStatus, CursorWatcher, CursorWatcherStatus, GeminiWatcher, GeminiWatcherStatus,
+    OpenCodeWatcher, OpenCodeWatcherStatus, SessionInfo,
 };
 use crate::upload_queue::{QueueItems, UploadQueue, UploadStatus};
 use serde::{Deserialize, Serialize};
@@ -338,7 +338,9 @@ impl Watcher {
             Watcher::OpenCode(watcher) => watcher.stop(),
             Watcher::Codex(watcher) => watcher.stop(),
             Watcher::Gemini(watcher) => watcher.stop(),
-            Watcher::Cursor(watcher) => { let _ = watcher.stop(); },
+            Watcher::Cursor(watcher) => {
+                let _ = watcher.stop();
+            }
         }
     }
 }
@@ -1213,20 +1215,21 @@ pub async fn get_session_sync_progress(
     let mut progress = get_sync_progress_for_provider(&provider_id)?;
 
     // If we're tracking upload progress, calculate real progress from upload queue
-    if progress.is_uploading && progress.initial_queue_size.is_some() {
-        let current_status = state.upload_queue.get_status();
-        let initial_size = progress.initial_queue_size.unwrap();
+    if progress.is_uploading {
+        if let Some(initial_size) = progress.initial_queue_size {
+            let current_status = state.upload_queue.get_status();
 
-        // Calculate completed uploads: initial_size - (current pending + processing)
-        let currently_in_queue = current_status.pending + current_status.processing;
-        let completed = initial_size.saturating_sub(currently_in_queue);
+            // Calculate completed uploads: initial_size - (current pending + processing)
+            let currently_in_queue = current_status.pending + current_status.processing;
+            let completed = initial_size.saturating_sub(currently_in_queue);
 
-        progress.synced_sessions = completed;
+            progress.synced_sessions = completed;
 
-        // Check if all uploads are complete
-        if currently_in_queue == 0 && completed > 0 {
-            progress.is_uploading = false;
-            progress.is_complete = true;
+            // Check if all uploads are complete
+            if currently_in_queue == 0 && completed > 0 {
+                progress.is_uploading = false;
+                progress.is_complete = true;
+            }
         }
     }
 
@@ -1607,7 +1610,8 @@ pub fn start_enabled_watchers(app_state: &AppState) {
                             ) {
                                 Ok(watcher) => {
                                     if let Ok(mut watchers) = app_state.watchers.lock() {
-                                        watchers.insert("cursor".to_string(), Watcher::Cursor(watcher));
+                                        watchers
+                                            .insert("cursor".to_string(), Watcher::Cursor(watcher));
                                         info!("Cursor watcher started automatically");
                                     }
                                 }
@@ -1849,9 +1853,10 @@ pub async fn migrate_to_canonical_command(
 
     match provider.as_str() {
         "codex" => migrate_codex(dry_run).await,
-        "gemini-code" | "github-copilot" | "opencode" => {
-            Err(format!("Provider '{}' migration not yet implemented. Coming in Phase 1.", provider))
-        }
+        "gemini-code" | "github-copilot" | "opencode" => Err(format!(
+            "Provider '{}' migration not yet implemented. Coming in Phase 1.",
+            provider
+        )),
         other => Err(format!("Unsupported provider: {}", other)),
     }
 }
@@ -1873,12 +1878,8 @@ async fn migrate_codex(dry_run: bool) -> Result<MigrationReport, String> {
 
     // Create cache directory if not in dry-run mode
     if !dry_run {
-        fs::create_dir_all(&cache_dir).map_err(|e| {
-            format!(
-                "Failed to create canonical cache directory: {}",
-                e
-            )
-        })?;
+        fs::create_dir_all(&cache_dir)
+            .map_err(|e| format!("Failed to create canonical cache directory: {}", e))?;
         info!(path = %cache_dir.display(), "Created canonical cache directory");
     }
 
@@ -1895,12 +1896,7 @@ async fn migrate_codex(dry_run: bool) -> Result<MigrationReport, String> {
     let walker = walkdir::WalkDir::new(&sessions_dir)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .and_then(|s| s.to_str())
-                == Some("jsonl")
-        });
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("jsonl"));
 
     for entry in walker {
         let path = entry.path();
@@ -1944,8 +1940,7 @@ fn convert_codex_session(
     use crate::providers::codex::CodexMessage;
 
     // Read source file
-    let content = fs::read_to_string(source)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content = fs::read_to_string(source).map_err(|e| format!("Failed to read file: {}", e))?;
 
     if content.trim().is_empty() {
         return Err("Empty session file".to_string());
@@ -1961,9 +1956,8 @@ fn convert_codex_session(
         }
 
         // Parse Codex message
-        let codex_msg: CodexMessage = serde_json::from_str(line).map_err(|e| {
-            format!("Failed to parse line {}: {}", line_num + 1, e)
-        })?;
+        let codex_msg: CodexMessage = serde_json::from_str(line)
+            .map_err(|e| format!("Failed to parse line {}: {}", line_num + 1, e))?;
 
         // Extract session ID from first session_meta message
         if session_id.is_empty() {

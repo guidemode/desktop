@@ -8,8 +8,10 @@
 use crate::config::load_provider_config;
 use crate::database::with_connection_mut;
 use crate::events::{EventBus, SessionEventPayload};
-use crate::providers::cursor::{db, discover_sessions, get_db_path_for_session, scan_existing_sessions};
 use crate::providers::common::get_canonical_path;
+use crate::providers::cursor::{
+    db, discover_sessions, get_db_path_for_session, scan_existing_sessions,
+};
 use crate::upload_queue::UploadQueue;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
@@ -38,13 +40,11 @@ pub struct CursorWatcher {
     is_running: Arc<Mutex<bool>>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, serde::Serialize, Default)]
 pub struct CursorWatcherStatus {
     pub is_running: bool,
     pub active_sessions: usize,
 }
-
 
 impl CursorWatcher {
     pub fn new(
@@ -85,10 +85,15 @@ impl CursorWatcher {
         let chats_dir = base_path.join("chats");
 
         if !chats_dir.exists() {
-            return Err(format!("Cursor chats directory not found: {}", chats_dir.display()).into());
+            return Err(
+                format!("Cursor chats directory not found: {}", chats_dir.display()).into(),
+            );
         }
 
-        tracing::info!("📁 Watching Cursor chats directory: {}", chats_dir.display());
+        tracing::info!(
+            "📁 Watching Cursor chats directory: {}",
+            chats_dir.display()
+        );
 
         let (tx, rx) = mpsc::channel();
         let mut watcher = RecommendedWatcher::new(
@@ -107,7 +112,13 @@ impl CursorWatcher {
         let base_path_clone = base_path.to_path_buf();
 
         let poll_thread = thread::spawn(move || {
-            Self::hybrid_event_loop(rx, is_running_clone, upload_queue_clone, event_bus_clone, base_path_clone);
+            Self::hybrid_event_loop(
+                rx,
+                is_running_clone,
+                upload_queue_clone,
+                event_bus_clone,
+                base_path_clone,
+            );
         });
 
         Ok(CursorWatcher {
@@ -147,7 +158,11 @@ impl CursorWatcher {
                                 tracing::debug!("✅ Processed new session: {}", session_id);
                             }
                             Err(e) => {
-                                tracing::warn!("❌ Failed to process new session {}: {:?}", session_id, e);
+                                tracing::warn!(
+                                    "❌ Failed to process new session {}: {:?}",
+                                    session_id,
+                                    e
+                                );
                             }
                         }
                     }
@@ -207,7 +222,6 @@ impl CursorWatcher {
         // Use scanner logic to process single session
         use crate::providers::cursor::converter::CursorMessageWithRaw;
         use crate::providers::cursor::scanner;
-        
 
         let conn = db::open_cursor_db(&session.db_path)?;
         let decoded_messages = db::get_decoded_messages(&conn)?;
@@ -239,12 +253,12 @@ impl CursorWatcher {
         }
 
         // Get canonical path and write (use CWD if available)
-        let canonical_path = get_canonical_path(
-            PROVIDER_ID,
-            session.cwd.as_deref(),
-            &session.session_id,
-        )
-        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) })?;
+        let canonical_path =
+            get_canonical_path(PROVIDER_ID, session.cwd.as_deref(), &session.session_id).map_err(
+                |e| -> Box<dyn std::error::Error> {
+                    Box::new(std::io::Error::other(e.to_string()))
+                },
+            )?;
 
         scanner::write_canonical_file(&canonical_path, &canonical_messages)?;
 
@@ -279,7 +293,10 @@ impl CursorWatcher {
             }
         };
 
-        tracing::debug!("🔄 Polling {} active Cursor sessions", active_sessions.len());
+        tracing::debug!(
+            "🔄 Polling {} active Cursor sessions",
+            active_sessions.len()
+        );
 
         // Update tracker list (remove sessions no longer active)
         let active_ids: std::collections::HashSet<String> =
@@ -290,49 +307,64 @@ impl CursorWatcher {
         // Poll each active session
         for (session_id, canonical_path) in active_sessions {
             // Get or create tracker
-            let tracker = session_trackers.entry(session_id.clone()).or_insert_with(|| {
-                // Try to get DB path for this session
-                let db_path = get_db_path_for_session(&session_id, base_path).unwrap_or_default();
+            let tracker = session_trackers
+                .entry(session_id.clone())
+                .or_insert_with(|| {
+                    // Try to get DB path for this session
+                    let db_path =
+                        get_db_path_for_session(&session_id, base_path).unwrap_or_default();
 
-                // Phase 1 Fix: Initialize with current data_version to prevent false positives
-                let initial_version = if db_path.exists() {
-                    db::open_cursor_db(&db_path)
-                        .and_then(|conn| db::get_data_version(&conn))
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
+                    // Phase 1 Fix: Initialize with current data_version to prevent false positives
+                    let initial_version = if db_path.exists() {
+                        db::open_cursor_db(&db_path)
+                            .and_then(|conn| db::get_data_version(&conn))
+                            .unwrap_or(0)
+                    } else {
+                        0
+                    };
 
-                SessionTracker {
-                    session_id: session_id.clone(),
-                    db_path,
-                    last_data_version: initial_version,
-                    last_checked: SystemTime::now(),
-                }
-            });
+                    SessionTracker {
+                        session_id: session_id.clone(),
+                        db_path,
+                        last_data_version: initial_version,
+                        last_checked: SystemTime::now(),
+                    }
+                });
 
             // Check for changes using PRAGMA data_version
             match Self::check_session_changed(tracker) {
                 Ok(true) => {
                     // Phase 3 Enhancement: Verify content actually changed before reprocessing
                     // Prevents redundant processing when only SQLite metadata changed
-                    let should_reprocess = match Self::verify_content_changed(&canonical_path, &tracker.db_path) {
-                        Ok(changed) => changed,
-                        Err(e) => {
-                            tracing::debug!("Could not verify content change for {}: {:?}, will reprocess", session_id, e);
-                            true // Default to reprocessing if verification fails
-                        }
-                    };
+                    let should_reprocess =
+                        match Self::verify_content_changed(&canonical_path, &tracker.db_path) {
+                            Ok(changed) => changed,
+                            Err(e) => {
+                                tracing::debug!(
+                                    "Could not verify content change for {}: {:?}, will reprocess",
+                                    session_id,
+                                    e
+                                );
+                                true // Default to reprocessing if verification fails
+                            }
+                        };
 
                     if should_reprocess {
-                        tracing::info!("🔄 Session {} has content changes, reprocessing", session_id);
+                        tracing::info!(
+                            "🔄 Session {} has content changes, reprocessing",
+                            session_id
+                        );
 
                         // Reprocess session
-                        if let Err(e) = Self::process_new_session(&session_id, event_bus, base_path) {
+                        if let Err(e) = Self::process_new_session(&session_id, event_bus, base_path)
+                        {
                             tracing::warn!("Failed to reprocess session {}: {:?}", session_id, e);
                         }
                     } else {
-                        tracing::debug!("Session {} data_version changed but content unchanged, skipping", session_id);
+                        tracing::debug!(
+                            "Session {} data_version changed but content unchanged, skipping",
+                            session_id
+                        );
                     }
                 }
                 Ok(false) => {
@@ -369,17 +401,20 @@ impl CursorWatcher {
                  LIMIT 50",
             )?;
 
-            let sessions = stmt.query_map([cutoff_timestamp, cutoff_timestamp], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+            let sessions = stmt
+                .query_map([cutoff_timestamp, cutoff_timestamp], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
 
             Ok(sessions)
         })
     }
 
     /// Check if a session's database has changed using PRAGMA data_version
-    fn check_session_changed(tracker: &mut SessionTracker) -> Result<bool, Box<dyn std::error::Error>> {
+    fn check_session_changed(
+        tracker: &mut SessionTracker,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
         if !tracker.db_path.exists() {
             return Ok(false);
         }

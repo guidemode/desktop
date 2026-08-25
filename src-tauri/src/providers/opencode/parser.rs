@@ -248,11 +248,7 @@ impl OpenCodeParser {
                                 .time
                                 .as_ref()
                                 .and_then(|t| t.start)
-                                .or_else(|| {
-                                    part.time
-                                        .as_ref()
-                                        .and_then(|t| t.start)
-                                })
+                                .or_else(|| part.time.as_ref().and_then(|t| t.start))
                                 .and_then(DateTime::from_timestamp_millis)
                                 .unwrap_or(base_timestamp);
 
@@ -284,11 +280,7 @@ impl OpenCodeParser {
                                     .time
                                     .as_ref()
                                     .and_then(|t| t.end)
-                                    .or_else(|| {
-                                        part.time
-                                            .as_ref()
-                                            .and_then(|t| t.end)
-                                    })
+                                    .or_else(|| part.time.as_ref().and_then(|t| t.end))
                                     .and_then(DateTime::from_timestamp_millis)
                                     .unwrap_or_else(|| {
                                         part_timestamp + chrono::Duration::milliseconds(1)

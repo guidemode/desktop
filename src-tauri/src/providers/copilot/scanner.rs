@@ -67,8 +67,8 @@ fn parse_copilot_session(
     file_path: &Path,
     selected_projects: Option<&[String]>,
 ) -> Result<Option<SessionInfo>, String> {
-    use super::parser::CopilotParser;
     use super::super::common::get_canonical_path;
+    use super::parser::CopilotParser;
 
     // Use CopilotParser to parse the new JSONL event format
     let storage_path = file_path
@@ -87,8 +87,9 @@ fn parse_copilot_session(
     }
 
     // Write canonical format to project-organized path
-    let cache_path = get_canonical_path("github-copilot", parsed.cwd.as_deref(), &parsed.session_id)
-        .map_err(|e| format!("Failed to get canonical path: {}", e))?;
+    let cache_path =
+        get_canonical_path("github-copilot", parsed.cwd.as_deref(), &parsed.session_id)
+            .map_err(|e| format!("Failed to get canonical path: {}", e))?;
 
     fs::write(&cache_path, &parsed.jsonl_content)
         .map_err(|e| format!("Failed to write canonical cache file: {}", e))?;

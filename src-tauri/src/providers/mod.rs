@@ -36,6 +36,6 @@ pub fn scan_projects(provider_id: &str, home_directory: &str) -> Result<Vec<Proj
 pub(super) fn sort_projects_by_modified(
     mut projects: Vec<(DateTime<Utc>, ProjectInfo)>,
 ) -> Vec<ProjectInfo> {
-    projects.sort_by(|a, b| b.0.cmp(&a.0));
+    projects.sort_by_key(|b| std::cmp::Reverse(b.0));
     projects.into_iter().map(|(_, info)| info).collect()
 }

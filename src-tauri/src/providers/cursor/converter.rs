@@ -1,9 +1,9 @@
 /// Converter from Cursor protobuf format to canonical JSONL
-use super::protobuf::{CursorBlob, ContentBlock as CursorContentBlock, CursorMessage};
+use super::protobuf::{ContentBlock as CursorContentBlock, CursorBlob, CursorMessage};
+use crate::providers::canonical::converter::ToCanonical;
 use crate::providers::canonical::{
     CanonicalMessage, ContentBlock, ContentValue, MessageContent, MessageType,
 };
-use crate::providers::canonical::converter::ToCanonical;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
@@ -18,7 +18,7 @@ pub struct CursorMessageWithRaw<'a> {
     pub message: &'a CursorMessage,
     pub raw_data: &'a [u8],
     pub session_created_at: i64, // Unix timestamp in milliseconds
-    pub message_index: usize,     // Index in the session for timestamp calculation
+    pub message_index: usize,    // Index in the session for timestamp calculation
 }
 
 impl<'a> CursorMessageWithRaw<'a> {
@@ -38,9 +38,10 @@ impl<'a> CursorMessageWithRaw<'a> {
 
     /// Calculate timestamp for this message based on session creation time and message index
     fn calculate_timestamp(&self) -> String {
-        let base_timestamp = DateTime::from_timestamp_millis(self.session_created_at)
-            .unwrap_or_else(Utc::now);
-        let message_timestamp = base_timestamp + chrono::Duration::seconds(self.message_index as i64);
+        let base_timestamp =
+            DateTime::from_timestamp_millis(self.session_created_at).unwrap_or_else(Utc::now);
+        let message_timestamp =
+            base_timestamp + chrono::Duration::seconds(self.message_index as i64);
         message_timestamp.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
     }
 
@@ -114,10 +115,18 @@ impl<'a> ToCanonical for CursorMessageWithRaw<'a> {
 /// Check if content blocks should be split into separate messages
 fn should_split_blocks(blocks: &[ContentBlock]) -> bool {
     // Split if we have tool_use, tool_result, or thinking mixed with other content
-    let has_tool_use = blocks.iter().any(|b| matches!(b, ContentBlock::ToolUse { .. }));
-    let has_tool_result = blocks.iter().any(|b| matches!(b, ContentBlock::ToolResult { .. }));
-    let has_thinking = blocks.iter().any(|b| matches!(b, ContentBlock::Thinking { .. }));
-    let has_text = blocks.iter().any(|b| matches!(b, ContentBlock::Text { .. }));
+    let has_tool_use = blocks
+        .iter()
+        .any(|b| matches!(b, ContentBlock::ToolUse { .. }));
+    let has_tool_result = blocks
+        .iter()
+        .any(|b| matches!(b, ContentBlock::ToolResult { .. }));
+    let has_thinking = blocks
+        .iter()
+        .any(|b| matches!(b, ContentBlock::Thinking { .. }));
+    let has_text = blocks
+        .iter()
+        .any(|b| matches!(b, ContentBlock::Text { .. }));
 
     // Split if we have multiple different types
     let type_count = [has_tool_use, has_tool_result, has_thinking, has_text]
@@ -588,7 +597,11 @@ impl ToCanonical for CursorBlob {
 }
 
 impl CursorBlob {
-    fn to_canonical_with_timestamp_and_raw(&self, timestamp: &str, raw_data: &[u8]) -> Result<Option<CanonicalMessage>> {
+    fn to_canonical_with_timestamp_and_raw(
+        &self,
+        timestamp: &str,
+        raw_data: &[u8],
+    ) -> Result<Option<CanonicalMessage>> {
         let content_text = self.get_content_with_fallback(raw_data);
         if content_text.is_empty() && !self.is_complex() {
             return Ok(None);
@@ -608,12 +621,16 @@ impl CursorBlob {
         };
 
         let model = self
-            .parse_complex().map(|c| c.role.clone())
+            .parse_complex()
+            .map(|c| c.role.clone())
             .filter(|r| r == "assistant")
             .map(|_| "default".to_string());
 
         Ok(Some(CanonicalMessage {
-            uuid: self.uuid.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+            uuid: self
+                .uuid
+                .clone()
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
             timestamp: timestamp.to_string(),
             message_type,
             session_id: String::new(),
@@ -1120,13 +1137,24 @@ mod tests {
         }
 
         // Check third message (tool_result) - CRITICAL: Must be USER message
-        assert_eq!(messages[2].message_type, MessageType::User, "Tool result must be USER message");
-        assert_eq!(messages[2].message.role, "user", "Tool result must have user role");
+        assert_eq!(
+            messages[2].message_type,
+            MessageType::User,
+            "Tool result must be USER message"
+        );
+        assert_eq!(
+            messages[2].message.role, "user",
+            "Tool result must have user role"
+        );
         match &messages[2].message.content {
             ContentValue::Structured(blocks) => {
                 assert_eq!(blocks.len(), 1);
                 match &blocks[0] {
-                    ContentBlock::ToolResult { tool_use_id, content, is_error } => {
+                    ContentBlock::ToolResult {
+                        tool_use_id,
+                        content,
+                        is_error,
+                    } => {
                         assert_eq!(tool_use_id, "call-abc123");
                         assert!(content.contains("total 48"));
                         assert_eq!(*is_error, Some(false));
@@ -1199,14 +1227,12 @@ mod tests {
 
         assert_eq!(messages.len(), 1);
         match &messages[0].message.content {
-            ContentValue::Structured(blocks) => {
-                match &blocks[0] {
-                    ContentBlock::ToolResult { content, .. } => {
-                        assert_eq!(content, "(no output)", "Empty content should be replaced");
-                    }
-                    _ => panic!("Expected tool_result block"),
+            ContentValue::Structured(blocks) => match &blocks[0] {
+                ContentBlock::ToolResult { content, .. } => {
+                    assert_eq!(content, "(no output)", "Empty content should be replaced");
                 }
-            }
+                _ => panic!("Expected tool_result block"),
+            },
             _ => panic!("Expected structured content"),
         }
     }
@@ -1263,7 +1289,10 @@ mod tests {
             _ => panic!("Expected structured content"),
         };
 
-        assert_eq!(tool_use_id, tool_result_id, "Tool use ID must match tool result tool_use_id");
+        assert_eq!(
+            tool_use_id, tool_result_id,
+            "Tool use ID must match tool result tool_use_id"
+        );
         assert_eq!(tool_use_id, tool_id, "IDs must match original tool_id");
     }
 

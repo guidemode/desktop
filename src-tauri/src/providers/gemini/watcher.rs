@@ -2,8 +2,8 @@ use crate::config::load_provider_config;
 use crate::events::{EventBus, SessionEventPayload};
 use crate::logging::{log_error, log_info, log_warn};
 use crate::providers::common::{
-    extract_session_id_from_filename, get_file_size, has_extension,
-    should_skip_file, SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
+    extract_session_id_from_filename, get_file_size, has_extension, should_skip_file,
+    SessionStateManager, WatcherStatus, EVENT_TIMEOUT, FILE_WATCH_POLL_INTERVAL,
     MIN_SIZE_CHANGE_BYTES,
 };
 use crate::providers::gemini::converter::convert_to_canonical_file;

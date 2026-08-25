@@ -144,12 +144,8 @@ fn process_session(
         };
 
         // Wrap message with raw data and session metadata for timestamp calculation
-        let msg_with_raw = CursorMessageWithRaw::new(
-            msg,
-            raw_data,
-            session.metadata.created_at,
-            message_index,
-        );
+        let msg_with_raw =
+            CursorMessageWithRaw::new(msg, raw_data, session.metadata.created_at, message_index);
 
         // Use split conversion to prevent UUID collisions
         match msg_with_raw.to_canonical_split() {
@@ -163,46 +159,56 @@ fn process_session(
                             if msg_source == "json" {
                                 stats.user_json += 1;
                             } else {
-                            stats.user_protobuf += 1;
+                                stats.user_protobuf += 1;
+                            }
+                        }
+                        "assistant" => {
+                            stats.assistant_count += 1;
+                            if msg_source == "json" {
+                                stats.assistant_json += 1;
+                            } else {
+                                stats.assistant_protobuf += 1;
+                            }
+                        }
+                        "system" => stats.system_count += 1,
+                        _ => stats.other_count += 1,
+                    }
+
+                    // Check for tool content
+                    if let crate::providers::canonical::ContentValue::Structured(blocks) =
+                        &canonical.message.content
+                    {
+                        for block in blocks {
+                            match block {
+                                crate::providers::canonical::ContentBlock::ToolUse { .. } => {
+                                    stats.tool_use_count += 1
+                                }
+                                crate::providers::canonical::ContentBlock::ToolResult {
+                                    ..
+                                } => stats.tool_result_count += 1,
+                                _ => {}
+                            }
                         }
                     }
-                    "assistant" => {
-                        stats.assistant_count += 1;
-                        if msg_source == "json" {
-                            stats.assistant_json += 1;
-                        } else {
-                            stats.assistant_protobuf += 1;
-                        }
+
+                    // Set session ID (ToCanonical doesn't know it)
+                    canonical.session_id = session.session_id.clone();
+
+                    // Set CWD from session if available
+                    if canonical.cwd.is_none() {
+                        canonical.cwd = session.cwd.clone();
                     }
-                    "system" => stats.system_count += 1,
-                    _ => stats.other_count += 1,
-                }
-
-                // Check for tool content
-                if let crate::providers::canonical::ContentValue::Structured(blocks) = &canonical.message.content {
-                    for block in blocks {
-                        match block {
-                            crate::providers::canonical::ContentBlock::ToolUse { .. } => stats.tool_use_count += 1,
-                            crate::providers::canonical::ContentBlock::ToolResult { .. } => stats.tool_result_count += 1,
-                            _ => {}
-                        }
-                    }
-                }
-
-                // Set session ID (ToCanonical doesn't know it)
-                canonical.session_id = session.session_id.clone();
-
-                // Set CWD from session if available
-                if canonical.cwd.is_none() {
-                    canonical.cwd = session.cwd.clone();
-                }
 
                     canonical_messages.push(canonical);
                 }
             }
             Err(e) => {
                 stats.failed_count += 1;
-                tracing::warn!("Failed to convert blob in session {}: {:?}", session.session_id, e);
+                tracing::warn!(
+                    "Failed to convert blob in session {}: {:?}",
+                    session.session_id,
+                    e
+                );
             }
         }
     }
@@ -232,12 +238,10 @@ fn process_session(
     // Messages are already in database order from the query
 
     // Get canonical path (use CWD if available)
-    let canonical_path = get_canonical_path(
-        PROVIDER_ID,
-        session.cwd.as_deref(),
-        &session.session_id,
-    )
-    .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) })?;
+    let canonical_path =
+        get_canonical_path(PROVIDER_ID, session.cwd.as_deref(), &session.session_id).map_err(
+            |e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) },
+        )?;
 
     // Write canonical JSONL
     write_canonical_file(&canonical_path, &canonical_messages)?;
@@ -301,7 +305,10 @@ pub fn scan_sessions_filtered(
         )
     })?;
 
-    if let Err(e) = log_info("cursor", &format!("📊 Found {} Cursor sessions to scan", sessions.len())) {
+    if let Err(e) = log_info(
+        "cursor",
+        &format!("📊 Found {} Cursor sessions to scan", sessions.len()),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -316,7 +323,10 @@ pub fn scan_sessions_filtered(
             Err(e) => {
                 if let Err(log_err) = log_warn(
                     "cursor",
-                    &format!("Failed to scan Cursor session {}: {}", session.session_id, e),
+                    &format!(
+                        "Failed to scan Cursor session {}: {}",
+                        session.session_id, e
+                    ),
                 ) {
                     eprintln!("Logging error: {}", log_err);
                 }
@@ -324,7 +334,10 @@ pub fn scan_sessions_filtered(
         }
     }
 
-    if let Err(e) = log_info("cursor", &format!("✅ Scanned {} Cursor sessions", session_infos.len())) {
+    if let Err(e) = log_info(
+        "cursor",
+        &format!("✅ Scanned {} Cursor sessions", session_infos.len()),
+    ) {
         eprintln!("Logging error: {}", e);
     }
 
@@ -352,12 +365,8 @@ fn scan_single_cursor_session(
 
     for (message_index, (_blob_id, raw_data, msg)) in decoded_messages.iter().enumerate() {
         // Wrap message with raw data and session metadata for timestamp calculation
-        let msg_with_raw = CursorMessageWithRaw::new(
-            msg,
-            raw_data,
-            session.metadata.created_at,
-            message_index,
-        );
+        let msg_with_raw =
+            CursorMessageWithRaw::new(msg, raw_data, session.metadata.created_at, message_index);
 
         // Use to_canonical_split() to properly separate tool calls and tool results
         if let Ok(messages) = msg_with_raw.to_canonical_split() {
@@ -382,9 +391,7 @@ fn scan_single_cursor_session(
     canonical_messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
     // Extract CWD from first message (now enriched with project directory lookup)
-    let cwd = canonical_messages
-        .first()
-        .and_then(|m| m.cwd.clone());
+    let cwd = canonical_messages.first().and_then(|m| m.cwd.clone());
 
     // Derive project name from CWD (last path component) or fall back to session name
     let project_name = cwd
@@ -436,9 +443,7 @@ fn scan_single_cursor_session(
     };
 
     // Get file size
-    let file_size = fs::metadata(&canonical_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = fs::metadata(&canonical_path).map(|m| m.len()).unwrap_or(0);
 
     let file_name = canonical_path
         .file_name()
