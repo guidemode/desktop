@@ -62,11 +62,39 @@ pub fn load_config() -> Result<GuideModeConfig, Box<dyn std::error::Error>> {
     }
 }
 
+/// Merge the known `GuideModeConfig` fields over whatever is already in `config.json`,
+/// preserving any keys this struct does not know about.
+///
+/// `~/.guidemode/config.json` is shared with the `guidemode` CLI, which stores keys the
+/// desktop app has no field for (`syncHooks`, `syncEnabled`, `projects`, ...). Serializing
+/// the struct straight over the file silently deleted them on every login/logout.
+fn merge_config_json(
+    existing: Option<&str>,
+    config: &GuideModeConfig,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut merged = match existing.map(serde_json::from_str::<serde_json::Value>) {
+        Some(Ok(serde_json::Value::Object(map))) => map,
+        // Missing, empty or unparseable file: start from scratch rather than fail the save.
+        _ => serde_json::Map::new(),
+    };
+
+    let serde_json::Value::Object(own) = serde_json::to_value(config)? else {
+        return Err("GuideModeConfig did not serialize to an object".into());
+    };
+
+    for (key, value) in own {
+        merged.insert(key, value);
+    }
+
+    Ok(serde_json::to_string_pretty(&serde_json::Value::Object(merged))?)
+}
+
 pub fn save_config(config: &GuideModeConfig) -> Result<(), Box<dyn std::error::Error>> {
     ensure_config_dir()?;
 
     let config_file = get_config_file_path()?;
-    let content = serde_json::to_string_pretty(config)?;
+    let existing = fs::read_to_string(&config_file).ok();
+    let content = merge_config_json(existing.as_deref(), config)?;
 
     fs::write(&config_file, content)?;
 
@@ -83,6 +111,10 @@ pub fn save_config(config: &GuideModeConfig) -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
+/// Clear the authentication fields, leaving any CLI-owned keys in `config.json` intact.
+///
+/// `save_config` merges, so writing a default struct blanks exactly the seven fields this
+/// struct owns and preserves everything else.
 pub fn clear_config() -> Result<(), Box<dyn std::error::Error>> {
     let default_config = GuideModeConfig::default();
     save_config(&default_config)
@@ -247,4 +279,59 @@ pub fn should_include_project(project: &str, config: &ProviderConfig) -> bool {
     }
 
     config.selected_projects.contains(&project.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn auth_config() -> GuideModeConfig {
+        GuideModeConfig {
+            api_key: Some("gm_key".to_string()),
+            server_url: Some("https://app.guidemode.dev".to_string()),
+            username: Some("clifton".to_string()),
+            name: None,
+            avatar_url: None,
+            tenant_id: Some("tenant-1".to_string()),
+            tenant_name: Some("Acme".to_string()),
+        }
+    }
+
+    #[test]
+    fn merge_preserves_cli_owned_keys() {
+        let existing = r#"{
+            "apiKey": "stale",
+            "syncHooks": ["Stop", "SessionEnd"],
+            "syncEnabled": false,
+            "projects": { "github.com/acme/app": { "enabled": false } }
+        }"#;
+
+        let merged = merge_config_json(Some(existing), &auth_config()).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&merged).unwrap();
+
+        assert_eq!(value["apiKey"], "gm_key");
+        assert_eq!(value["syncEnabled"], false);
+        assert_eq!(value["syncHooks"][1], "SessionEnd");
+        assert_eq!(value["projects"]["github.com/acme/app"]["enabled"], false);
+    }
+
+    #[test]
+    fn clearing_auth_keeps_cli_owned_keys() {
+        let existing = r#"{"apiKey": "gm_key", "syncEnabled": true}"#;
+
+        let merged = merge_config_json(Some(existing), &GuideModeConfig::default()).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&merged).unwrap();
+
+        assert!(value["apiKey"].is_null());
+        assert_eq!(value["syncEnabled"], true);
+    }
+
+    #[test]
+    fn merge_tolerates_missing_or_malformed_existing() {
+        for existing in [None, Some("not json at all"), Some("[]")] {
+            let merged = merge_config_json(existing, &auth_config()).unwrap();
+            let value: serde_json::Value = serde_json::from_str(&merged).unwrap();
+            assert_eq!(value["apiKey"], "gm_key");
+        }
+    }
 }
