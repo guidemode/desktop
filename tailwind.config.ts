@@ -135,6 +135,16 @@ export default defineConfig({
     'bg-error/20',
     'bg-info/10',
     'bg-info/20',
+    'bg-primary/5',
+    'bg-primary/10',
+    'bg-primary/20',
+    'bg-secondary/10',
+    'bg-secondary/20',
+    'bg-accent/5',
+    'bg-accent/10',
+    'bg-accent/20',
+    'bg-neutral/10',
+    'bg-neutral/20',
 
     // DaisyUI semantic border colors for timeline messages
     'border-l-info',
@@ -144,6 +154,14 @@ export default defineConfig({
     'border-l-error',
     'border-l-accent',
     'border-l-neutral',
+    'border-l-success',
+    // Softened accents used by the condensed transcript spans
+    'border-l-primary/35',
+    'border-l-accent/35',
+    'border-l-secondary/35',
+    'border-l-warning/35',
+    'border-l-error/35',
+    'border-l-neutral/30',
 
     // Red classes for error states
     'bg-red-50',

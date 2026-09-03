@@ -1,14 +1,15 @@
 import {
+  DEFAULT_CONTEXT_WINDOW,
   MetricsOverview,
   PhaseTimeline,
   ScrollToTopButton,
   SessionDetailHeader,
   type SessionPhaseAnalysis,
   SessionTodosTab,
-  TokenUsageChart,
-  VirtualizedMessageList,
+  TranscriptList,
   extractTodosAuto,
   isTimelineGroup,
+  useTranscriptModel,
 } from '@guidemode/session-processing/ui'
 import type { SessionRating } from '@guidemode/session-processing/ui'
 import {
@@ -26,7 +27,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { JsonBlock } from '../components/JsonBlock'
 import { SessionChangesTab } from '../components/SessionChangesTab'
@@ -208,44 +209,6 @@ export default function SessionDetailPage() {
   const toast = useToast()
   const quickRatingMutation = useQuickRating()
   const [hasPendingChanges, setHasPendingChanges] = useState(false)
-
-  // Scroll to message function for TokenUsageChart clickable bars
-  const scrollToMessage = useCallback((messageId: string) => {
-    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-    if (messageElement) {
-      messageElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      })
-      // Add enhanced flash/highlight effect
-      messageElement.classList.add('ring-4', 'ring-primary', 'ring-offset-2', 'bg-primary/10')
-
-      // Flash effect: add and remove quickly for attention
-      setTimeout(() => {
-        messageElement.classList.remove('bg-primary/10')
-        messageElement.classList.add('bg-primary/20')
-      }, 150)
-      setTimeout(() => {
-        messageElement.classList.remove('bg-primary/20')
-        messageElement.classList.add('bg-primary/10')
-      }, 300)
-      setTimeout(() => {
-        messageElement.classList.remove('bg-primary/10')
-        messageElement.classList.add('bg-primary/20')
-      }, 450)
-
-      // Remove all effects after animation
-      setTimeout(() => {
-        messageElement.classList.remove(
-          'ring-4',
-          'ring-primary',
-          'ring-offset-2',
-          'bg-primary/20',
-          'bg-primary/10'
-        )
-      }, 2000)
-    }
-  }, [])
 
   // Track session activity from file watchers
   useSessionActivity()
@@ -629,10 +592,16 @@ export default function SessionDetailPage() {
     return filtered
   }, [timeline, showMetaMessages, showThinkingBlocks])
 
-  // Apply reverse order if requested
-  const orderedItems = useMemo(() => {
-    return reverseOrder ? [...filteredItems].reverse() : filteredItems
-  }, [filteredItems, reverseOrder])
+  // The condensed transcript model. Derivation is shared with the server UI, so both
+  // surfaces collapse tool runs the same way.
+  const transcript = useTranscriptModel({
+    content: fileContent ?? '',
+    provider: session?.provider ?? 'unknown',
+    showMetaMessages,
+    showThinkingBlocks,
+    searchQuery: '',
+    messageFilter: 'all',
+  })
 
   if (loading) {
     return (
@@ -1107,10 +1076,14 @@ export default function SessionDetailPage() {
               </div>
             ) : (
               <>
-                {/* TokenUsageChart uses ALL messages for accurate totals */}
-                <TokenUsageChart items={timeline?.items || []} onMessageClick={scrollToMessage} />
-                {/* VirtualizedMessageList uses filtered messages */}
-                <VirtualizedMessageList items={orderedItems} />
+                <TranscriptList
+                  projected={transcript.projected}
+                  summary={transcript.summary}
+                  totalSpans={transcript.totalSpans}
+                  reverseOrder={reverseOrder}
+                  peakContextTokens={transcript.peakContextTokens}
+                  contextWindow={DEFAULT_CONTEXT_WINDOW}
+                />
                 {/* Floating scroll to top button - appears when scrolled down */}
                 <ScrollToTopButton />
               </>
