@@ -1041,6 +1041,9 @@ pub struct SessionMetrics {
     pub exit_plan_mode_count: Option<i64>,
     pub todo_write_count: Option<i64>,
     pub over_top_affirmations_phrases: Option<String>,
+    /// Version of the deterministic scorer that produced `process_quality_score`.
+    /// Scores from different versions are not comparable.
+    pub process_quality_scorer_version: Option<String>,
     pub improvement_tips: Option<String>,
     pub custom_metrics: Option<String>,
     // Git diff metrics (desktop-only)
@@ -1173,7 +1176,8 @@ pub fn get_session_metrics(session_id: &str) -> Result<Option<SessionMetrics>> {
                     total_input_tokens, total_output_tokens, total_cache_created, total_cache_read,
                     context_length, context_window_size, context_utilization_percent,
                     compact_event_count, compact_event_steps, messages_until_first_compact,
-                    avg_tokens_per_message, context_improvement_tips
+                    avg_tokens_per_message, context_improvement_tips,
+                    process_quality_scorer_version
              FROM session_metrics
              WHERE session_id = ?
              ORDER BY created_at DESC
@@ -1235,6 +1239,8 @@ pub fn get_session_metrics(session_id: &str) -> Result<Option<SessionMetrics>> {
                     messages_until_first_compact: row.get(51)?,
                     avg_tokens_per_message: row.get(52)?,
                     context_improvement_tips: row.get(53)?,
+                    // Appended to the end of the SELECT so the indices above stay stable.
+                    process_quality_scorer_version: row.get(54)?,
                 })
             },
         )

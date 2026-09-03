@@ -230,11 +230,11 @@ export default function SessionsPage() {
       const parsedSession = processor.parseSession(content, provider)
 
       // Step 1: Calculate metrics (always)
-      await processMetrics(sessionId, provider, content, 'local')
+      const metricResults = await processMetrics(sessionId, provider, content, 'local')
 
       // Step 2: Process with AI if mode is 'full' and API key is available
       if (mode === 'full' && hasApiKey()) {
-        await processSessionWithAi(sessionId, parsedSession)
+        await processSessionWithAi(sessionId, parsedSession, undefined, metricResults)
       }
 
       // Refresh sessions to show updated results

@@ -174,6 +174,14 @@ fn main() {
                             ),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 22,
+                            description: "add_process_quality_scorer_version",
+                            sql: include_str!(
+                                "../migrations/022_add_process_quality_scorer_version.sql"
+                            ),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

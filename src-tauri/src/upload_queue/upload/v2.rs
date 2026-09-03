@@ -262,6 +262,7 @@ pub async fn upload_v2(
             "exitPlanModeCount": m.exit_plan_mode_count,
             "todoWriteCount": m.todo_write_count,
             "overTopAffirmationsPhrases": parse_array(&m.over_top_affirmations_phrases),
+            "processQualityScorerVersion": m.process_quality_scorer_version,
             "improvementTips": parse_array(&m.improvement_tips),
             // Git diff metrics (desktop-only)
             "gitTotalFilesChanged": m.git_total_files_changed,

@@ -48,6 +48,9 @@ export const sessionMetrics = sqliteTable(
     exitPlanModeCount: integer('exit_plan_mode_count'),
     todoWriteCount: integer('todo_write_count'),
     overTopAffirmationsPhrases: text('over_top_affirmations_phrases', { mode: 'json' }), // Array of strings
+    // Version of the deterministic scorer that produced processQualityScore. Scores from
+    // different versions are not comparable; group by this when trending.
+    processQualityScorerVersion: text('process_quality_scorer_version'),
 
     // Improvement tips (category-specific)
     usageImprovementTips: text('usage_improvement_tips', { mode: 'json' }), // Array of strings

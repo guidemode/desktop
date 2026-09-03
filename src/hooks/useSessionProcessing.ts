@@ -42,6 +42,7 @@ interface ExtendedSessionMetricsRow extends Partial<SessionMetricsRow> {
   exit_plan_mode_count?: number
   todo_write_count?: number
   over_top_affirmations_phrases?: string
+  process_quality_scorer_version?: string
   // Improvement tips (category-specific)
   usage_improvement_tips?: string
   error_improvement_tips?: string
@@ -249,6 +250,7 @@ function mapResultsToRow(
         row.todo_write_count = quality.metadata?.todo_write_count
         row.over_top_affirmations_phrases =
           quality.metadata?.over_top_affirmations_phrases?.join(',')
+        row.process_quality_scorer_version = quality.metadata?.process_quality_scorer_version
         row.quality_improvement_tips = quality.metadata?.improvement_tips?.join('\n')
         // Keep backward compatibility
         row.improvement_tips = quality.metadata?.improvement_tips?.join('\n')
@@ -314,6 +316,7 @@ async function storeMetrics(
         used_plan_mode, used_todo_tracking, over_top_affirmations,
         successful_operations, total_operations, exit_plan_mode_count, todo_write_count,
         over_top_affirmations_phrases,
+        process_quality_scorer_version,
         usage_improvement_tips, error_improvement_tips, engagement_improvement_tips,
         quality_improvement_tips, performance_improvement_tips, improvement_tips,
         custom_metrics,
@@ -342,6 +345,7 @@ async function storeMetrics(
         ?, ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?,
+        ?,
         ?,
         ?, ?, ?, ?,
         ?, ?, ?,
@@ -384,6 +388,7 @@ async function storeMetrics(
     row.exit_plan_mode_count ?? null,
     row.todo_write_count ?? null,
     row.over_top_affirmations_phrases ?? null,
+    row.process_quality_scorer_version ?? null,
     row.usage_improvement_tips ?? null,
     row.error_improvement_tips ?? null,
     row.engagement_improvement_tips ?? null,

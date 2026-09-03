@@ -10,6 +10,7 @@ import {
   SessionSummaryTask,
 } from '@guidemode/session-processing/ai-models'
 import type { ParsedSession } from '@guidemode/session-processing/processors'
+import type { ProcessorResult } from '@guidemode/types'
 import { invoke } from '@tauri-apps/api/core'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useCallback, useState } from 'react'
@@ -26,6 +27,14 @@ interface AiProcessingResult {
       reasoning: string
       strengths?: string[]
       improvements?: string[]
+      dimensions?: {
+        contextQuality: number
+        promptClarity: number
+        steeringEffectiveness: number
+        processDiscipline: number
+      }
+      /** Prompt/rubric version. Scores from different versions are not comparable. */
+      scorerVersion?: string
     }
     'intent-extraction'?: {
       taskType?: string
@@ -54,26 +63,21 @@ export function useAiProcessing() {
     async (
       sessionId: string,
       parsedSession: ParsedSession,
-      onProgressUpdate?: (step: AiProcessingStep | null) => void
+      onProgressUpdate?: (step: AiProcessingStep | null) => void,
+      // Metrics already computed for this session. Optional: when absent the quality task
+      // falls back to counting tool results flagged `is_error`, which is the same signal
+      // the error processor starts from.
+      metrics?: ProcessorResult[]
     ): Promise<AiProcessingResult | null> => {
       setProcessing(true)
       setError(null)
 
       try {
-        // Normalize message types for AI tasks
-        // Claude Code parser uses 'user_input' and 'assistant_response', but AI tasks expect 'user' and 'assistant'
-        const normalizedSession: ParsedSession = {
-          ...parsedSession,
-          messages: parsedSession.messages.map((msg: any) => ({
-            ...msg,
-            type:
-              msg.type === 'user_input'
-                ? ('user' as const)
-                : msg.type === 'assistant_response'
-                  ? ('assistant' as const)
-                  : msg.type,
-          })),
-        }
+        // No message-type normalisation: the desktop parses with the same
+        // `ProcessorRegistry` -> `CanonicalParser` the server uses, which emits canonical
+        // types only. The previous remap of 'user_input'/'assistant_response' was dead
+        // code - those values are not in `UnifiedMessageType` and no parser produces them.
+        const normalizedSession: ParsedSession = parsedSession
 
         // Check for available API keys
         const claudeKey = getAiApiKey('claude')
@@ -154,6 +158,7 @@ export function useAiProcessing() {
             userId: user?.username || 'local',
             provider: normalizedSession.provider,
             session: normalizedSession,
+            metrics,
             user: user
               ? {
                   name: user.name || user.username,
@@ -227,6 +232,7 @@ export function useAiProcessing() {
             userId: user?.username || 'local',
             provider: normalizedSession.provider,
             session: normalizedSession,
+            metrics,
             user: user
               ? {
                   name: user.name || user.username,
@@ -293,6 +299,7 @@ export function useAiProcessing() {
             userId: user?.username || 'local',
             provider: normalizedSession.provider,
             session: normalizedSession,
+            metrics,
             user: user
               ? {
                   name: user.name || user.username,
@@ -367,6 +374,7 @@ export function useAiProcessing() {
             userId: user?.username || 'local',
             provider: normalizedSession.provider,
             session: normalizedSession,
+            metrics,
             user: user
               ? {
                   name: user.name || user.username,

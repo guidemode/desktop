@@ -110,6 +110,7 @@ describe('useSessionProcessing', () => {
             exit_plan_mode_count: 1,
             todo_write_count: 2,
             over_top_affirmations_phrases: ['phrase-a', 'phrase-b'],
+            process_quality_scorer_version: 'v2',
             improvement_tips: ['tip1', 'tip2'],
           },
         },
@@ -192,6 +193,7 @@ describe('useSessionProcessing', () => {
       1,
       2,
       'phrase-a,phrase-b',
+      'v2', // process_quality_scorer_version - carried from quality.metadata
       null,
       null,
       null,

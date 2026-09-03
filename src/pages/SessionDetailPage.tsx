@@ -507,11 +507,16 @@ export default function SessionDetailPage() {
         description: 'Analyzing session performance and quality metrics',
         percentage: 0,
       })
-      await processMetrics(session.sessionId, session.provider, content, 'local')
+      const metricResults = await processMetrics(
+        session.sessionId,
+        session.provider,
+        content,
+        'local'
+      )
 
       // Step 2: Process with AI if API key available
       if (hasApiKey()) {
-        await processSessionWithAi(session.sessionId, parsedSession, updateProgress)
+        await processSessionWithAi(session.sessionId, parsedSession, updateProgress, metricResults)
       }
 
       // Reload session to show AI results

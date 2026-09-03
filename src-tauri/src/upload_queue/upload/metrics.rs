@@ -315,6 +315,10 @@ pub async fn upload_session_metrics(
         serde_json::json!(parse_array(&metrics.over_top_affirmations_phrases)),
     );
     metrics_obj.insert(
+        "processQualityScorerVersion".to_string(),
+        serde_json::json!(metrics.process_quality_scorer_version),
+    );
+    metrics_obj.insert(
         "improvementTips".to_string(),
         serde_json::json!(parse_array(&metrics.improvement_tips)),
     );
