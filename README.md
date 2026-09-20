@@ -1,3 +1,20 @@
+> [!WARNING]
+> **This project is retired and no longer maintained.**
+>
+> Session capture now happens through the **GuideMode CLI**, which installs hooks into your
+> AI coding agent — there is no app to keep running:
+>
+> ```bash
+> npm install -g guidemode
+> guidemode setup
+> ```
+>
+> See [github.com/guidemode/cli](https://github.com/guidemode/cli) and
+> [docs.guidemode.dev](https://docs.guidemode.dev/guides/cli/overview/).
+>
+> This repository is kept read-only for history. The desktop app will continue to work for
+> as long as its server endpoints remain, but it will receive no further releases or fixes.
+
 # GuideMode Desktop
 
 > **Your AI coding sessions, captured automatically.**
